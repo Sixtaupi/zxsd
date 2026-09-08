@@ -1,0 +1,8 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:f="urn:mxsd:foreign" targetNamespace="urn:mxsd:foreign"
+           elementFormDefault="qualified">
+  <xs:complexType name="ForeignType">
+    <xs:sequence><xs:element name="foreignValue" type="xs:string"/></xs:sequence>
+  </xs:complexType>
+  <xs:element name="foreignItem" type="f:ForeignType"/>
+</xs:schema>

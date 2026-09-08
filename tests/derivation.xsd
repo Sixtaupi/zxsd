@@ -1,0 +1,44 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="ShortToken">
+    <xs:restriction base="xs:token"><xs:maxLength value="5"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="TinyToken">
+    <xs:restriction base="ShortToken"><xs:minLength value="2"/></xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="BaseRecord">
+    <xs:sequence><xs:element name="name" type="TinyToken"/></xs:sequence>
+    <xs:attribute name="id" type="xs:unsignedInt" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="ExtendedRecord">
+    <xs:complexContent><xs:extension base="BaseRecord">
+      <xs:sequence><xs:element name="enabled" type="xs:boolean"/></xs:sequence>
+      <xs:attribute name="tag" type="xs:NCName" use="required"/>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedRecord">
+    <xs:complexContent><xs:restriction base="BaseRecord">
+      <xs:sequence><xs:element name="name" type="TinyToken"/></xs:sequence>
+      <xs:attribute name="id" use="prohibited"/>
+    </xs:restriction></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="Label">
+    <xs:simpleContent><xs:extension base="TinyToken">
+      <xs:attribute name="lang" type="xs:language" use="required"/>
+    </xs:extension></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="ShortLabel">
+    <xs:simpleContent><xs:restriction base="Label">
+      <xs:length value="3"/>
+      <xs:attribute name="lang" type="xs:language" use="required"/>
+    </xs:restriction></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="AbstractRecord" abstract="true">
+    <xs:sequence><xs:element name="value" type="xs:string"/></xs:sequence>
+  </xs:complexType>
+  <xs:element name="extended" type="ExtendedRecord"/>
+  <xs:element name="restricted" type="RestrictedRecord"/>
+  <xs:element name="label" type="Label"/>
+  <xs:element name="shortLabel" type="ShortLabel"/>
+  <xs:element name="abstractRecord" type="AbstractRecord"/>
+  <xs:element name="anonymous"><xs:simpleType><xs:restriction base="xs:int"><xs:minInclusive value="1"/></xs:restriction></xs:simpleType></xs:element>
+</xs:schema>

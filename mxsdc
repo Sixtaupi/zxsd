@@ -1,0 +1,1788 @@
+#!/usr/bin/env python3
+"""Compile the supported XML Schema subset to deterministic C descriptors."""
+
+import argparse
+import io
+import pathlib
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+XSD_URI = "http://www.w3.org/2001/XMLSchema"
+XS = "{" + XSD_URI + "}"
+PRIMITIVES = {
+    "string": "MXSD_T_STRING",
+    "boolean": "MXSD_T_BOOLEAN",
+    "int": "MXSD_T_INT",
+    "unsignedInt": "MXSD_T_UNSIGNED_INT",
+    "integer": "MXSD_T_INTEGER",
+    "decimal": "MXSD_T_DECIMAL",
+    "float": "MXSD_T_FLOAT",
+    "double": "MXSD_T_DOUBLE",
+    "long": "MXSD_T_LONG",
+    "short": "MXSD_T_SHORT",
+    "byte": "MXSD_T_BYTE",
+    "nonPositiveInteger": "MXSD_T_NON_POSITIVE_INTEGER",
+    "negativeInteger": "MXSD_T_NEGATIVE_INTEGER",
+    "nonNegativeInteger": "MXSD_T_NON_NEGATIVE_INTEGER",
+    "positiveInteger": "MXSD_T_POSITIVE_INTEGER",
+    "unsignedLong": "MXSD_T_UNSIGNED_LONG",
+    "unsignedShort": "MXSD_T_UNSIGNED_SHORT",
+    "unsignedByte": "MXSD_T_UNSIGNED_BYTE",
+    "normalizedString": "MXSD_T_NORMALIZED_STRING",
+    "token": "MXSD_T_TOKEN",
+    "language": "MXSD_T_LANGUAGE",
+    "Name": "MXSD_T_NAME",
+    "NCName": "MXSD_T_NCNAME",
+    "NMTOKEN": "MXSD_T_NMTOKEN",
+    "NMTOKENS": "MXSD_T_NMTOKEN",
+    "ID": "MXSD_T_ID",
+    "IDREF": "MXSD_T_IDREF",
+    "IDREFS": "MXSD_T_IDREF",
+    "ENTITY": "MXSD_T_ENTITY",
+    "ENTITIES": "MXSD_T_ENTITY",
+    "QName": "MXSD_T_QNAME",
+    "anyURI": "MXSD_T_ANY_URI",
+    "duration": "MXSD_T_DURATION",
+    "date": "MXSD_T_DATE",
+    "dateTime": "MXSD_T_DATE_TIME",
+    "time": "MXSD_T_TIME",
+    "gYear": "MXSD_T_GYEAR",
+    "gYearMonth": "MXSD_T_GYEAR_MONTH",
+    "gMonth": "MXSD_T_GMONTH",
+    "gMonthDay": "MXSD_T_GMONTH_DAY",
+    "gDay": "MXSD_T_GDAY",
+    "hexBinary": "MXSD_T_HEX_BINARY",
+    "base64Binary": "MXSD_T_BASE64_BINARY",
+    "NOTATION": "MXSD_T_NOTATION",
+    "anySimpleType": "MXSD_T_STRING",
+}
+LIST_BUILTINS = {"NMTOKENS", "IDREFS", "ENTITIES"}
+WHITESPACE_PRESERVE = {"string"}
+WHITESPACE_REPLACE = {"normalizedString"}
+MAX_XSD = 8 * 1024 * 1024
+MAX_ITEMS = 32
+MAX_SCHEMA_COMPLEXITY = 4096
+XML_URI = "http://www.w3.org/XML/1998/namespace"
+
+
+class SchemaError(Exception):
+    """Raised when a schema cannot be represented safely by mxsd."""
+
+
+def lname(tag):
+    """Return the local name of an XML Schema element tag."""
+    if not isinstance(tag, str) or not tag.startswith(XS):
+        raise SchemaError("unsupported foreign XSD element %r" % tag)
+    return tag[len(XS) :]
+
+
+def check(node, allowed):
+    """Reject attributes that mxsdc does not explicitly implement."""
+    bad = sorted(set(node.attrib) - set(allowed))
+    if bad:
+        raise SchemaError("unsupported property %r on xs:%s" % (bad[0], lname(node.tag)))
+
+
+def ident(s):
+    """Convert an XSD name or filename to a valid C identifier."""
+    s = re.sub(r"[^A-Za-z0-9_]", "_", s)
+    return ("_" + s) if s[:1].isdigit() else s
+
+
+def cstr(s):
+    """Quote text as a deterministic C string literal."""
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+
+
+def validate_pattern(p):
+    """Check that a pattern uses the embedded regular-expression subset."""
+    i = 0
+    while i < len(p):
+        if p[i] in "()|^$":
+            raise SchemaError("unsupported xs:pattern operator %r" % p[i])
+        if p[i] == "[":
+            j = p.find("]", i + 1)
+            if j < 0:
+                raise SchemaError("unterminated character class in xs:pattern")
+            i = j + 1
+        elif p[i] == "\\":
+            if i + 1 >= len(p) or p[i + 1] not in "dsw\\.[]{}*+?-":
+                raise SchemaError("unsupported escape in xs:pattern")
+            i += 2
+        else:
+            i += 1
+        if i < len(p) and p[i] == "{":
+            m = re.match(r"\{[0-9]+(?:,[0-9]*)?\}", p[i:])
+            if not m:
+                raise SchemaError("invalid repetition in xs:pattern")
+            i += len(m.group(0))
+        elif i < len(p) and p[i] in "*+?":
+            i += 1
+
+
+def occurs(n):
+    """Parse and validate minOccurs/maxOccurs on a particle."""
+
+    def get(k, d):
+        x = n.get(k, d)
+        if k == "maxOccurs" and x == "unbounded":
+            return None
+        if not re.fullmatch(r"0|[1-9][0-9]*", x):
+            raise SchemaError("invalid %s %r" % (k, x))
+        v = int(x)
+        if v > 4294967295:
+            raise SchemaError("pathological %s value" % k)
+        return v
+
+    lo, hi = get("minOccurs", "1"), get("maxOccurs", "1")
+    if hi is not None and lo > hi:
+        raise SchemaError("minOccurs exceeds maxOccurs")
+    return lo, hi
+
+
+def nsmap_from(data):
+    """Collect namespace declarations from an XML document."""
+    out = {}
+    try:
+        for event, item in ET.iterparse(io.BytesIO(data), events=("start-ns", "start")):
+            if event == "start":
+                break
+            out[item[0] or ""] = item[1]
+    except ET.ParseError as e:
+        raise SchemaError("malformed XSD: %s" % e)
+    return out
+
+
+def remove_annotations(root):
+    """Validate and discard XSD annotations before semantic compilation."""
+
+    def validate(annotation):
+        check(annotation, {"id"})
+        for child in annotation:
+            kind = lname(child.tag)
+            if kind == "documentation":
+                check(child, {"source", "{" + XML_URI + "}lang"})
+            elif kind == "appinfo":
+                check(child, {"source"})
+            else:
+                raise SchemaError("xs:annotation accepts only xs:documentation and xs:appinfo")
+            # documentation/appinfo have intentionally unconstrained mixed
+            # content, including foreign and XSD-namespaced markup.
+
+    def visit(parent):
+        for child in list(parent):
+            if child.tag == XS + "annotation":
+                validate(child)
+                parent.remove(child)
+            else:
+                visit(child)
+
+    visit(root)
+
+
+def default_resolver(namespace, location, base_path, search_paths):
+    """Resolve one schema reference without performing network access."""
+    if location and re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", location):
+        raise SchemaError("network schema locations are not resolved implicitly")
+    candidates = []
+    if location:
+        candidates.append(base_path.parent / location)
+        candidates.extend(directory / location for directory in search_paths)
+    else:
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", namespace or "")
+        candidates.extend(directory / (safe + ".xsd") for directory in search_paths)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise SchemaError("cannot resolve schema %r" % (location or namespace))
+
+
+def load_documents(path, resolver=None, search_paths=()):
+    """Load an explicitly connected include/import/redefine graph."""
+    resolver = resolver or (
+        lambda namespace, location, base: default_resolver(namespace, location, base, search_paths)
+    )
+    documents = []
+    loaded = {}
+    loading = []
+
+    def visit(current, expected_namespace=None, relation=None):
+        current = pathlib.Path(current).resolve()
+        load_key = (current, expected_namespace)
+        if load_key in loading:
+            chain = " -> ".join(str(x[0]) for x in loading + [load_key])
+            raise SchemaError("circular schema dependency: " + chain)
+        if load_key in loaded:
+            return loaded[load_key]
+        data = current.read_bytes()
+        if len(data) > MAX_XSD:
+            raise SchemaError("XSD input too large")
+        if b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper():
+            raise SchemaError("DTD and entities are not supported")
+        nsmap = nsmap_from(data)
+        try:
+            root = ET.fromstring(data)
+        except ET.ParseError as e:
+            raise SchemaError("malformed XSD: %s" % e)
+        if root.tag != XS + "schema":
+            raise SchemaError("root must be xs:schema")
+        remove_annotations(root)
+        declared = root.get("targetNamespace")
+        if relation in ("include", "redefine") and declared not in (None, expected_namespace):
+            raise SchemaError("included schema has a different targetNamespace")
+        if (
+            relation == "import"
+            and expected_namespace is not None
+            and declared != expected_namespace
+        ):
+            raise SchemaError("import namespace does not match imported schema")
+        effective = declared if declared is not None else expected_namespace
+        document = {
+            "path": current,
+            "root": root,
+            "nsmap": nsmap,
+            "target": effective,
+            "efd": root.get("elementFormDefault", "unqualified"),
+            "afd": root.get("attributeFormDefault", "unqualified"),
+            "block_default": root.get("blockDefault", ""),
+            "final_default": root.get("finalDefault", ""),
+            "redefinitions": [],
+        }
+        loading.append(load_key)
+        for child in root:
+            kind = lname(child.tag)
+            if kind not in ("include", "import", "redefine"):
+                continue
+            check(
+                child,
+                (
+                    {"id", "namespace", "schemaLocation"}
+                    if kind == "import"
+                    else {"id", "schemaLocation"}
+                ),
+            )
+            location = child.get("schemaLocation")
+            if kind != "import" and not location:
+                raise SchemaError("xs:%s requires schemaLocation" % kind)
+            namespace = child.get("namespace") if kind == "import" else effective
+            resolved = resolver(namespace, location, current)
+            dependency = visit(resolved, namespace, kind)
+            if kind == "redefine":
+                document["redefinitions"].append((child, dependency))
+        loading.pop()
+        loaded[load_key] = document
+        documents.append(document)
+        return document
+
+    main = visit(path)
+    return main, documents
+
+
+def parse(path, resolver=None, search_paths=(), max_schema_complexity=MAX_SCHEMA_COMPLEXITY):
+    """Compile a connected XSD document graph into the generator model.
+
+    The nested helpers deliberately share symbol tables and namespace context.
+    Keeping that state local makes a compilation independent from every other
+    invocation and avoids hidden module-level mutable state.
+    """
+    main, documents = load_documents(path, resolver, tuple(pathlib.Path(x) for x in search_paths))
+    complexity = sum(1 for document in documents for _ in document["root"].iter())
+    if max_schema_complexity < 1 or complexity > max_schema_complexity:
+        raise SchemaError("schema complexity exceeds configured limit")
+    root = main["root"]
+    data = main["path"].read_bytes()
+    if len(data) > MAX_XSD:
+        raise SchemaError("XSD input too large")
+    if b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper():
+        raise SchemaError("DTD and entities are not supported")
+    nsmap = main["nsmap"]
+    check(
+        root,
+        {
+            "targetNamespace",
+            "elementFormDefault",
+            "attributeFormDefault",
+            "blockDefault",
+            "finalDefault",
+            "version",
+            "id",
+        },
+    )
+    target = main["target"]
+    efd = main["efd"]
+    afd = main["afd"]
+    if efd not in ("qualified", "unqualified") or afd not in ("qualified", "unqualified"):
+        raise SchemaError("invalid form default")
+    type_nodes = {}
+    global_nodes = {}
+    global_attribute_nodes = {}
+    order = []
+    attribute_order = []
+    contexts = {}
+
+    def schema_key(uri, name):
+        return (uri or "") + "|" + name
+
+    def derivation_methods(value, allowed):
+        if not value:
+            return 0
+        tokens = value.split()
+        if tokens == ["#all"]:
+            return "MXSD_DERIVATION_ALL"
+        if not tokens or any(token not in allowed for token in tokens):
+            raise SchemaError("invalid block/final value %r" % value)
+        mapping = {
+            "extension": "MXSD_DERIVATION_EXTENSION",
+            "restriction": "MXSD_DERIVATION_RESTRICTION",
+            "substitution": "MXSD_DERIVATION_SUBSTITUTION",
+            "list": "MXSD_DERIVATION_LIST",
+            "union": "MXSD_DERIVATION_UNION",
+        }
+        return " | ".join(mapping[token] for token in tokens)
+
+    def method_blocked(flags, method):
+        return flags == "MXSD_DERIVATION_ALL" or method in str(flags)
+
+    # Phase 1: collect global declarations from the complete schema graph.
+    declaration_stream = []
+    for document in documents:
+        for n in document["root"]:
+            if lname(n.tag) not in ("include", "import", "redefine"):
+                declaration_stream.append((n, document))
+        for redefine, _ in document["redefinitions"]:
+            for n in redefine:
+                declaration_stream.append((n, document))
+    for n, document in declaration_stream:
+        for descendant in n.iter():
+            contexts[id(descendant)] = document
+        k = lname(n.tag)
+        if k in ("complexType", "simpleType"):
+            check(
+                n,
+                (
+                    {"name", "id", "mixed", "abstract", "final"}
+                    if k == "complexType"
+                    else {"name", "id", "final"}
+                ),
+            )
+            name = n.get("name")
+            if not name:
+                raise SchemaError("global xs:%s requires name" % k)
+            key = schema_key(document["target"], name)
+            is_redefinition = any(n in list(x[0]) for x in document["redefinitions"])
+            if key in type_nodes and not is_redefinition:
+                raise SchemaError("duplicate type %r" % name)
+            if key in type_nodes and is_redefinition:
+                alias = name + "__redefined_base"
+                alias_key = schema_key(document["target"], alias)
+                while alias_key in type_nodes:
+                    alias += "_"
+                    alias_key = schema_key(document["target"], alias)
+                type_nodes[alias_key] = type_nodes[key]
+                derivation = list(n)[0] if list(n) else None
+                if derivation is not None and lname(derivation.tag) in (
+                    "restriction",
+                    "list",
+                    "union",
+                ):
+                    if derivation.get("base", "").split(":")[-1] == name:
+                        derivation.set("base", alias)
+                elif (
+                    derivation is not None
+                    and lname(derivation.tag) in ("complexContent", "simpleContent")
+                    and list(derivation)
+                ):
+                    if list(derivation)[0].get("base", "").split(":")[-1] == name:
+                        list(derivation)[0].set("base", alias)
+            type_nodes[key] = n
+        elif k == "element":
+            check(
+                n,
+                {
+                    "name",
+                    "type",
+                    "id",
+                    "abstract",
+                    "default",
+                    "fixed",
+                    "nillable",
+                    "substitutionGroup",
+                    "block",
+                    "final",
+                },
+            )
+            name = n.get("name")
+            if not name:
+                raise SchemaError("global xs:element requires name")
+            key = schema_key(document["target"], name)
+            if key in global_nodes:
+                raise SchemaError("duplicate global element %r" % name)
+            global_nodes[key] = n
+            order.append(key)
+        elif k == "attribute":
+            check(n, {"name", "type", "id", "default", "fixed"})
+            name = n.get("name")
+            if not name:
+                raise SchemaError("global xs:attribute requires name")
+            key = schema_key(document["target"], name)
+            if key in global_attribute_nodes:
+                raise SchemaError("duplicate global attribute %r" % name)
+            global_attribute_nodes[key] = n
+            attribute_order.append(key)
+        else:
+            raise SchemaError("unsupported XSD construct 'xs:%s'" % k)
+    if not order:
+        raise SchemaError("at least one global xs:element is required")
+    order.sort(key=lambda key: 0 if contexts[id(global_nodes[key])]["path"] == main["path"] else 1)
+    types = {}
+    visiting = set()
+    anon = [0]
+    globals_ = {}
+    global_visiting = set()
+
+    def qname(q, what, node=None):
+        """Resolve one lexical QName in the declaring document's context."""
+        mapping = (
+            contexts[id(node)]["nsmap"] if node is not None and id(node) in contexts else nsmap
+        )
+        if not q:
+            raise SchemaError("missing %s reference" % what)
+        if ":" in q:
+            p, n = q.split(":", 1)
+            if p not in mapping:
+                raise SchemaError("undeclared QName prefix %r" % p)
+            return mapping[p], n
+        return mapping.get(""), q
+
+    def resolve_type(q, node=None):
+        """Resolve a built-in or user-defined type to an internal reference."""
+        uri, n = qname(q, "type", node)
+        if uri == XSD_URI:
+            if n not in PRIMITIVES:
+                raise SchemaError("unsupported primitive type xs:%s" % n)
+            if n in LIST_BUILTINS:
+                generated_name = "__builtin_" + n
+                if generated_name not in types:
+                    singular = {"NMTOKENS": "NMTOKEN", "IDREFS": "IDREF", "ENTITIES": "ENTITY"}[n]
+                    item = {
+                        "base": PRIMITIVES[singular],
+                        "simple": None,
+                        "complex": None,
+                        "builtin": singular,
+                        "list_builtin": False,
+                    }
+                    types[generated_name] = {
+                        "kind": "simple",
+                        "base": PRIMITIVES[singular],
+                        "facets": {},
+                        "enums": [],
+                        "whitespace": "MXSD_WS_COLLAPSE",
+                        "variety": "MXSD_SIMPLE_LIST",
+                        "item": item,
+                        "members": [],
+                    }
+                return {
+                    "base": PRIMITIVES[n],
+                    "simple": generated_name,
+                    "complex": None,
+                    "builtin": n,
+                    "list_builtin": True,
+                }
+            return {
+                "base": PRIMITIVES[n],
+                "simple": None,
+                "complex": None,
+                "builtin": n,
+                "list_builtin": n in LIST_BUILTINS,
+            }
+        if uri is None:
+            uri = (
+                contexts[id(node)]["target"]
+                if node is not None and id(node) in contexts
+                else target
+            )
+        key = schema_key(uri, n)
+        if q in types:
+            key = q
+        if key in types:
+            t = types[key]
+            return {
+                "base": t.get("base", "MXSD_T_COMPLEX"),
+                "simple": key if t["kind"] == "simple" else None,
+                "complex": key if t["kind"] == "complex" else None,
+                "builtin": None,
+                "list_builtin": False,
+            }
+        if key not in type_nodes:
+            raise SchemaError("invalid reference to type %r" % q)
+        parse_named(key)
+        t = types[key]
+        return {
+            "base": t.get("base", "MXSD_T_COMPLEX"),
+            "simple": key if t["kind"] == "simple" else None,
+            "complex": key if t["kind"] == "complex" else None,
+            "builtin": None,
+            "list_builtin": False,
+        }
+
+    def parse_simple(n, name):
+        """Compile a simple type, including restrictions, lists, and unions."""
+        check(n, {"name", "id", "final"})
+        children = list(n)
+        context = contexts.get(id(n), main)
+        final = derivation_methods(
+            n.get("final", context["final_default"]), {"restriction", "list", "union"}
+        )
+        type_name = n.get("name")
+        type_namespace = context["target"] if type_name else None
+        if len(children) != 1:
+            raise SchemaError("xs:simpleType requires exactly one variety")
+        variety = lname(children[0].tag)
+        if variety not in ("restriction", "list", "union"):
+            raise SchemaError("unsupported XSD construct 'xs:%s'" % variety)
+
+        if variety == "list":
+            node = children[0]
+            check(node, {"itemType", "id"})
+            nested = list(node)
+            if bool(node.get("itemType")) == bool(nested):
+                raise SchemaError("xs:list requires exactly one itemType or nested simpleType")
+            if nested:
+                if len(nested) != 1 or lname(nested[0].tag) != "simpleType":
+                    raise SchemaError("xs:list requires a simpleType child")
+                anon[0] += 1
+                item_name = ident(name) + "__item_%d" % anon[0]
+                parse_simple(nested[0], item_name)
+                item = {
+                    "base": types[item_name]["base"],
+                    "simple": item_name,
+                    "complex": None,
+                    "builtin": None,
+                    "list_builtin": False,
+                }
+            else:
+                item = resolve_type(node.get("itemType"), node)
+            if item["complex"]:
+                raise SchemaError("xs:list item type must be simple")
+            if item.get("simple") and method_blocked(
+                types[item["simple"]].get("final", 0), "MXSD_DERIVATION_LIST"
+            ):
+                raise SchemaError("base type final blocks list derivation")
+            types[name] = {
+                "kind": "simple",
+                "base": item["base"],
+                "facets": {},
+                "enums": [],
+                "whitespace": "MXSD_WS_COLLAPSE",
+                "variety": "MXSD_SIMPLE_LIST",
+                "item": item,
+                "members": [],
+                "base_ref": item.get("simple"),
+                "derivation": "MXSD_DERIVATION_LIST",
+                "final": final,
+                "type_name": type_name,
+                "type_ns": type_namespace,
+            }
+            return
+
+        if variety == "union":
+            node = children[0]
+            check(node, {"memberTypes", "id"})
+            members = []
+            for q in node.get("memberTypes", "").split():
+                members.append(resolve_type(q, node))
+            for child in node:
+                if lname(child.tag) != "simpleType":
+                    raise SchemaError("xs:union accepts only simpleType children")
+                anon[0] += 1
+                member_name = ident(name) + "__member_%d" % anon[0]
+                parse_simple(child, member_name)
+                members.append(
+                    {
+                        "base": types[member_name]["base"],
+                        "simple": member_name,
+                        "complex": None,
+                        "builtin": None,
+                        "list_builtin": False,
+                    }
+                )
+            if not members or any(x["complex"] for x in members):
+                raise SchemaError("xs:union requires simple member types")
+            if any(
+                x.get("simple")
+                and method_blocked(types[x["simple"]].get("final", 0), "MXSD_DERIVATION_UNION")
+                for x in members
+            ):
+                raise SchemaError("member type final blocks union derivation")
+            types[name] = {
+                "kind": "simple",
+                "base": "MXSD_T_STRING",
+                "facets": {},
+                "enums": [],
+                "whitespace": "MXSD_WS_COLLAPSE",
+                "variety": "MXSD_SIMPLE_UNION",
+                "item": None,
+                "members": members,
+                "base_ref": None,
+                "derivation": "MXSD_DERIVATION_UNION",
+                "final": final,
+                "type_name": type_name,
+                "type_ns": type_namespace,
+            }
+            return
+
+        r = children[0]
+        check(r, {"base", "id"})
+        nested = [x for x in r if lname(x.tag) == "simpleType"]
+        if bool(r.get("base")) == bool(nested):
+            raise SchemaError("xs:restriction requires exactly one base or nested simpleType")
+        if nested:
+            if len(nested) != 1:
+                raise SchemaError("xs:restriction permits one nested simpleType")
+            anon[0] += 1
+            base_name = ident(name) + "__base_%d" % anon[0]
+            parse_simple(nested[0], base_name)
+            base = {
+                "base": types[base_name]["base"],
+                "simple": base_name,
+                "complex": None,
+                "builtin": None,
+                "list_builtin": False,
+            }
+        else:
+            base = resolve_type(r.get("base"), r)
+        if base["complex"]:
+            raise SchemaError("simple type cannot restrict a complex type")
+        inherited = types[base["simple"]] if base["simple"] else None
+        if inherited and method_blocked(inherited.get("final", 0), "MXSD_DERIVATION_RESTRICTION"):
+            raise SchemaError("base type final blocks restriction")
+        primitive = base["base"]
+        facets = dict(inherited["facets"]) if inherited else {}
+        enums = list(inherited["enums"]) if inherited else []
+        whitespace = (
+            inherited["whitespace"]
+            if inherited
+            else (
+                "MXSD_WS_PRESERVE"
+                if base.get("builtin") in WHITESPACE_PRESERVE
+                else (
+                    "MXSD_WS_REPLACE"
+                    if base.get("builtin") in WHITESPACE_REPLACE
+                    else "MXSD_WS_COLLAPSE"
+                )
+            )
+        )
+        simple_variety = (
+            inherited["variety"]
+            if inherited
+            else ("MXSD_SIMPLE_LIST" if base.get("list_builtin") else "MXSD_SIMPLE_ATOMIC")
+        )
+        item = inherited.get("item") if inherited else None
+        if base.get("list_builtin"):
+            singular = {"NMTOKENS": "NMTOKEN", "IDREFS": "IDREF", "ENTITIES": "ENTITY"}[
+                base["builtin"]
+            ]
+            item = {
+                "base": PRIMITIVES[singular],
+                "simple": None,
+                "complex": None,
+                "builtin": singular,
+                "list_builtin": False,
+            }
+        members = list(inherited.get("members", [])) if inherited else []
+        local_enums = []
+        allowed = {
+            "enumeration",
+            "length",
+            "minLength",
+            "maxLength",
+            "minInclusive",
+            "maxInclusive",
+            "minExclusive",
+            "maxExclusive",
+            "pattern",
+            "whiteSpace",
+        }
+        for f in r:
+            k = lname(f.tag)
+            if k == "simpleType":
+                continue
+            check(f, {"value", "id", "fixed"})
+            if k not in allowed:
+                raise SchemaError("unsupported XSD construct 'xs:%s'" % k)
+            if f.get("value") is None:
+                raise SchemaError("xs:%s requires value" % k)
+            v = f.get("value")
+            if k == "enumeration":
+                local_enums.append(v)
+            elif k in ("length", "minLength", "maxLength"):
+                if not re.fullmatch(r"0|[1-9][0-9]*", v):
+                    raise SchemaError("invalid xs:%s value" % k)
+                facets[k] = int(v)
+            elif k == "whiteSpace":
+                values = {
+                    "preserve": "MXSD_WS_PRESERVE",
+                    "replace": "MXSD_WS_REPLACE",
+                    "collapse": "MXSD_WS_COLLAPSE",
+                }
+                if v not in values:
+                    raise SchemaError("invalid xs:whiteSpace value")
+                ranks = {"MXSD_WS_PRESERVE": 0, "MXSD_WS_REPLACE": 1, "MXSD_WS_COLLAPSE": 2}
+                if ranks[values[v]] < ranks[whitespace]:
+                    raise SchemaError("xs:whiteSpace cannot weaken its base")
+                whitespace = values[v]
+            else:
+                if k == "pattern":
+                    if len(v) > 256:
+                        raise SchemaError("pattern is too long")
+                    validate_pattern(v)
+                facets[k] = v
+        if local_enums:
+            if whitespace == "MXSD_WS_REPLACE":
+                local_enums = [re.sub(r"[\t\r\n]", " ", x) for x in local_enums]
+            elif whitespace == "MXSD_WS_COLLAPSE":
+                local_enums = [re.sub(r"[ \t\r\n]+", " ", x.strip(" \t\r\n")) for x in local_enums]
+            enums = local_enums
+        if "length" in facets and (
+            facets["length"] < facets.get("minLength", 0)
+            or facets["length"] > facets.get("maxLength", 2**63)
+        ):
+            raise SchemaError("length is outside inherited length bounds")
+        if facets.get("minLength", 0) > facets.get("maxLength", 2**63):
+            raise SchemaError("minLength exceeds maxLength")
+        types[name] = {
+            "kind": "simple",
+            "base": primitive,
+            "facets": facets,
+            "enums": enums,
+            "whitespace": whitespace,
+            "variety": simple_variety,
+            "item": item,
+            "members": members,
+            "base_ref": base.get("simple"),
+            "derivation": "MXSD_DERIVATION_RESTRICTION",
+            "final": final,
+            "type_name": type_name,
+            "type_ns": type_namespace,
+        }
+
+    def anon_type(node, parent):
+        """Compile the single anonymous type owned by a declaration."""
+        kids = [x for x in node if lname(x.tag) in ("simpleType", "complexType")]
+        if len(kids) != 1:
+            raise SchemaError("element requires exactly one anonymous type when type is omitted")
+        anon[0] += 1
+        name = ident(parent) + "__anon_%d" % anon[0]
+        (parse_simple if lname(kids[0].tag) == "simpleType" else parse_complex)(kids[0], name)
+        t = types[name]
+        return {
+            "base": t.get("base", "MXSD_T_COMPLEX"),
+            "simple": name if t["kind"] == "simple" else None,
+            "complex": name if t["kind"] == "complex" else None,
+        }
+
+    def parse_element(n, parent, global_=False):
+        """Compile a local or global element declaration."""
+        context = contexts.get(id(n), main)
+        local_target = context["target"]
+        local_efd = context["efd"]
+        check(
+            n,
+            (
+                {
+                    "name",
+                    "type",
+                    "ref",
+                    "minOccurs",
+                    "maxOccurs",
+                    "id",
+                    "form",
+                    "default",
+                    "fixed",
+                    "nillable",
+                }
+                if not global_
+                else {
+                    "name",
+                    "type",
+                    "id",
+                    "abstract",
+                    "default",
+                    "fixed",
+                    "nillable",
+                    "substitutionGroup",
+                    "block",
+                    "final",
+                }
+            ),
+        )
+        if n.get("ref"):
+            if n.get("name") or n.get("type") or list(n):
+                raise SchemaError("xs:element ref cannot also define name or type")
+            uri, rn = qname(n.get("ref"), "element", n)
+            if uri is None:
+                uri = local_target
+            ref_key = schema_key(uri, rn)
+            if ref_key not in global_nodes:
+                raise SchemaError("invalid element ref %r" % n.get("ref"))
+            base = parse_global(ref_key)
+            name = base["name"]
+            ens = base["ns"]
+            typ = base["type"]
+            metadata = {
+                key: base[key]
+                for key in (
+                    "default",
+                    "fixed",
+                    "nillable",
+                    "abstract",
+                    "block",
+                    "substitution_head",
+                )
+            }
+        else:
+            name = n.get("name")
+            if not name:
+                raise SchemaError("xs:element requires name or ref")
+            typ = (
+                resolve_type(n.get("type"), n)
+                if n.get("type")
+                else anon_type(n, parent + "_" + name)
+            )
+            form = n.get("form", local_efd)
+            if form not in ("qualified", "unqualified"):
+                raise SchemaError("invalid element form %r" % form)
+            ens = local_target if global_ or form == "qualified" else None
+            if n.get("default") is not None and n.get("fixed") is not None:
+                raise SchemaError("element cannot have both default and fixed")
+            boolean = n.get("nillable", "false")
+            abstract = n.get("abstract", "false") if global_ else "false"
+            if boolean not in ("true", "false", "1", "0") or abstract not in (
+                "true",
+                "false",
+                "1",
+                "0",
+            ):
+                raise SchemaError("invalid element boolean property")
+            block_value = n.get("block", context["block_default"] if global_ else "")
+            block = derivation_methods(block_value, {"extension", "restriction", "substitution"})
+            substitution_head = None
+            if global_ and n.get("substitutionGroup"):
+                head_uri, head_name = qname(n.get("substitutionGroup"), "substitutionGroup", n)
+                if head_uri is None:
+                    head_uri = local_target
+                substitution_head = (head_name, head_uri)
+            metadata = {
+                "default": n.get("default"),
+                "fixed": n.get("fixed"),
+                "nillable": boolean in ("true", "1"),
+                "abstract": abstract in ("true", "1"),
+                "block": block,
+                "substitution_head": substitution_head,
+            }
+            if (
+                typ["complex"]
+                and (metadata["default"] is not None or metadata["fixed"] is not None)
+                and not types[typ["complex"]].get("simple_content")
+            ):
+                raise SchemaError("element-only complex element cannot have default/fixed")
+        lo, hi = (1, 1) if global_ else occurs(n)
+        return {"name": name, "ns": ens, "type": typ, "min": lo, "max": hi, "node": n, **metadata}
+
+    def parse_attribute(n, parent):
+        """Compile an attribute use in its owning complex type."""
+        context = contexts.get(id(n), main)
+        local_target = context["target"]
+        local_afd = context["afd"]
+        check(n, {"name", "type", "use", "id", "form", "default", "fixed"})
+        if not n.get("name"):
+            raise SchemaError("xs:attribute requires name")
+        use = n.get("use", "optional")
+        if use not in ("optional", "required", "prohibited"):
+            raise SchemaError("unsupported attribute use %r" % use)
+        if n.get("default") is not None and n.get("fixed") is not None:
+            raise SchemaError("attribute cannot have both default and fixed")
+        if use == "required" and n.get("default") is not None:
+            raise SchemaError("required attribute cannot have a default")
+        form = n.get("form", local_afd)
+        if form not in ("qualified", "unqualified"):
+            raise SchemaError("invalid attribute form %r" % form)
+        if use == "prohibited":
+            return {
+                "name": n.get("name"),
+                "ns": local_target if form == "qualified" else None,
+                "type": None,
+                "required": False,
+                "prohibited": True,
+                "default": None,
+                "fixed": None,
+            }
+        typ = (
+            resolve_type(n.get("type"), n)
+            if n.get("type")
+            else anon_type(n, parent + "_" + n.get("name"))
+        )
+        if typ["complex"]:
+            raise SchemaError("attribute type must be simple")
+        return {
+            "name": n.get("name"),
+            "ns": local_target if form == "qualified" else None,
+            "type": typ,
+            "required": use == "required",
+            "prohibited": use == "prohibited",
+            "default": n.get("default"),
+            "fixed": n.get("fixed"),
+        }
+
+    def parse_complex(n, name):
+        """Compile complex content, particles, attributes, and derivation."""
+        check(n, {"name", "id", "mixed", "abstract", "final"})
+        context = contexts.get(id(n), main)
+        final = derivation_methods(
+            n.get("final", context["final_default"]), {"extension", "restriction"}
+        )
+        type_name = n.get("name")
+        type_namespace = context["target"] if type_name else None
+        if n.get("mixed", "false") != "false":
+            raise SchemaError("mixed complex types are not supported")
+        abstract = n.get("abstract", "false")
+        if abstract not in ("true", "false", "1", "0"):
+            raise SchemaError("invalid abstract value")
+
+        def parse_particle(node):
+            """Compile a recursive sequence, choice, all, element, or wildcard."""
+            kind = lname(node.tag)
+            lo, hi = occurs(node)
+            if kind == "element":
+                element = parse_element(node, name)
+                return {"kind": "element", "min": lo, "max": hi, "element": element, "children": []}
+            if kind == "any":
+                check(node, {"id", "minOccurs", "maxOccurs", "namespace", "processContents"})
+                process = node.get("processContents", "strict")
+                if process not in ("strict", "lax", "skip"):
+                    raise SchemaError("invalid processContents %r" % process)
+                namespace = node.get("namespace", "##any")
+                tokens = namespace.split()
+                if (
+                    not tokens
+                    or "##any" in tokens
+                    and len(tokens) != 1
+                    or "##other" in tokens
+                    and len(tokens) != 1
+                ):
+                    raise SchemaError("invalid wildcard namespace constraint")
+                for token in tokens:
+                    if token not in (
+                        "##any",
+                        "##other",
+                        "##targetNamespace",
+                        "##local",
+                    ) and not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", token):
+                        raise SchemaError("invalid wildcard namespace token %r" % token)
+                return {
+                    "kind": "any",
+                    "min": lo,
+                    "max": hi,
+                    "children": [],
+                    "namespace": " ".join(tokens),
+                    "process": process,
+                }
+            if kind not in ("sequence", "choice", "all"):
+                raise SchemaError("unsupported content particle xs:%s" % kind)
+            check(node, {"id", "minOccurs", "maxOccurs"})
+            children = [parse_particle(child) for child in node]
+            if not children:
+                raise SchemaError("xs:%s must contain a particle" % kind)
+            return {"kind": kind, "min": lo, "max": hi, "children": children}
+
+        def leaves(particle):
+            if not particle:
+                return []
+            if particle["kind"] == "element":
+                return [particle["element"]]
+            result = []
+            for child in particle["children"]:
+                result.extend(leaves(child))
+            return result
+
+        def body(children, base_elements=None, base_attributes=None, base_particle=None):
+            """Compile the body shared by direct and derived complex types."""
+            model = "MXSD_SEQUENCE"
+            group_min = 0
+            group_max = 1
+            elements = list(base_elements or [])
+            attributes = list(base_attributes or [])
+            got = False
+            particle = base_particle
+            any_attribute = None
+            for c in children:
+                k = lname(c.tag)
+                if k in ("sequence", "choice", "all"):
+                    if got:
+                        raise SchemaError("complex type may contain only one content model")
+                    got = True
+                    local_particle = parse_particle(c)
+                    group_min, group_max = local_particle["min"], local_particle["max"]
+                    model = {
+                        "sequence": "MXSD_SEQUENCE",
+                        "choice": "MXSD_CHOICE",
+                        "all": "MXSD_ALL",
+                    }[k]
+                    if particle:
+                        particle = {
+                            "kind": "sequence",
+                            "min": 1,
+                            "max": 1,
+                            "children": [particle, local_particle],
+                        }
+                    else:
+                        particle = local_particle
+                    elements.extend(leaves(local_particle))
+                    if len(elements) > MAX_ITEMS:
+                        raise SchemaError("too many elements in complex type %r" % name)
+                elif k == "attribute":
+                    attribute = parse_attribute(c, name)
+                    attributes = [
+                        x
+                        for x in attributes
+                        if (x["name"], x["ns"]) != (attribute["name"], attribute["ns"])
+                    ]
+                    if not attribute["prohibited"]:
+                        attributes.append(attribute)
+                elif k == "anyAttribute":
+                    check(c, {"id", "namespace", "processContents"})
+                    process = c.get("processContents", "strict")
+                    if process not in ("strict", "lax", "skip"):
+                        raise SchemaError("invalid processContents %r" % process)
+                    any_attribute = {"namespace": c.get("namespace", "##any"), "process": process}
+                else:
+                    raise SchemaError("unsupported XSD construct 'xs:%s'" % k)
+            if len(attributes) > MAX_ITEMS:
+                raise SchemaError("too many attributes in complex type %r" % name)
+            if len({(x["name"], x["ns"]) for x in attributes}) != len(attributes):
+                raise SchemaError("duplicate attribute in %r" % name)
+            return model, group_min, group_max, elements, attributes, particle, any_attribute
+
+        children = list(n)
+        if len(children) == 1 and lname(children[0].tag) in ("complexContent", "simpleContent"):
+            content = children[0]
+            ck = lname(content.tag)
+            check(content, {"id", "mixed"})
+            derivations = list(content)
+            if len(derivations) != 1 or lname(derivations[0].tag) not in (
+                "extension",
+                "restriction",
+            ):
+                raise SchemaError("xs:%s requires one extension or restriction" % ck)
+            deriv = derivations[0]
+            dk = lname(deriv.tag)
+            check(deriv, {"base", "id"})
+            base = resolve_type(deriv.get("base"), deriv)
+            if ck == "complexContent":
+                if not base["complex"]:
+                    raise SchemaError("complexContent base must be complex")
+                bt = types[base["complex"]]
+                derivation_flag = (
+                    "MXSD_DERIVATION_EXTENSION"
+                    if dk == "extension"
+                    else "MXSD_DERIVATION_RESTRICTION"
+                )
+                if method_blocked(bt.get("final", 0), derivation_flag):
+                    raise SchemaError("base type final blocks %s" % dk)
+                if bt.get("simple_content"):
+                    raise SchemaError("complexContent cannot derive from simpleContent")
+                inherited_elements = bt["elements"] if dk == "extension" else []
+                inherited_attributes = bt["attributes"]
+                inherited_particle = bt.get("particle") if dk == "extension" else None
+                model, gmin, gmax, elements, attributes, particle, any_attribute = body(
+                    list(deriv), inherited_elements, inherited_attributes, inherited_particle
+                )
+                if dk == "extension" and not any(
+                    lname(x.tag) in ("sequence", "choice", "all") for x in deriv
+                ):
+                    model, gmin, gmax = bt["model"], bt["group_min"], bt["group_max"]
+                if dk == "restriction":
+                    allowed_names = {(x["name"], x["ns"]) for x in bt["elements"]}
+                    if any((x["name"], x["ns"]) not in allowed_names for x in elements):
+                        raise SchemaError("complex restriction introduces an element")
+                types[name] = {
+                    "kind": "complex",
+                    "model": model,
+                    "group_min": gmin,
+                    "group_max": gmax,
+                    "elements": elements,
+                    "attributes": attributes,
+                    "simple_content": None,
+                    "abstract": abstract in ("true", "1"),
+                    "particle": particle,
+                    "any_attribute": any_attribute or bt.get("any_attribute"),
+                    "base_ref": base["complex"],
+                    "derivation": (
+                        "MXSD_DERIVATION_EXTENSION"
+                        if dk == "extension"
+                        else "MXSD_DERIVATION_RESTRICTION"
+                    ),
+                    "final": final,
+                    "type_name": type_name,
+                    "type_ns": type_namespace,
+                }
+                return
+
+            if base["complex"]:
+                bt = types[base["complex"]]
+                if not bt.get("simple_content"):
+                    raise SchemaError("simpleContent base must have simple content")
+                simple_ref = bt["simple_content"]
+                inherited_attributes = bt["attributes"]
+            else:
+                simple_ref = base
+                inherited_attributes = []
+            deriv_children = list(deriv)
+            if dk == "restriction":
+                facet_tags = {
+                    "enumeration",
+                    "length",
+                    "minLength",
+                    "maxLength",
+                    "minInclusive",
+                    "maxInclusive",
+                    "minExclusive",
+                    "maxExclusive",
+                    "pattern",
+                    "whiteSpace",
+                    "simpleType",
+                }
+                facets = [x for x in deriv_children if lname(x.tag) in facet_tags]
+                attrs = [x for x in deriv_children if lname(x.tag) == "attribute"]
+                synthetic = ET.Element(XS + "simpleType")
+                anon[0] += 1
+                alias = ident(name) + "__content_base_%d" % anon[0]
+                if simple_ref.get("simple"):
+                    types[alias] = dict(types[simple_ref["simple"]])
+                else:
+                    builtin = simple_ref.get("builtin")
+                    types[alias] = {
+                        "kind": "simple",
+                        "base": simple_ref["base"],
+                        "facets": {},
+                        "enums": [],
+                        "whitespace": (
+                            "MXSD_WS_PRESERVE"
+                            if builtin in WHITESPACE_PRESERVE
+                            else (
+                                "MXSD_WS_REPLACE"
+                                if builtin in WHITESPACE_REPLACE
+                                else "MXSD_WS_COLLAPSE"
+                            )
+                        ),
+                        "variety": "MXSD_SIMPLE_ATOMIC",
+                        "item": None,
+                        "members": [],
+                    }
+                restriction = ET.SubElement(synthetic, XS + "restriction", {"base": alias})
+                for facet in facets:
+                    restriction.append(facet)
+                anon[0] += 1
+                restricted_name = ident(name) + "__content_%d" % anon[0]
+                parse_simple(synthetic, restricted_name)
+                simple_ref = {
+                    "base": types[restricted_name]["base"],
+                    "simple": restricted_name,
+                    "complex": None,
+                    "builtin": None,
+                    "list_builtin": False,
+                }
+                deriv_children = attrs
+            model, gmin, gmax, elements, attributes, particle, any_attribute = body(
+                deriv_children, [], inherited_attributes
+            )
+            types[name] = {
+                "kind": "complex",
+                "model": model,
+                "group_min": gmin,
+                "group_max": gmax,
+                "elements": elements,
+                "attributes": attributes,
+                "simple_content": simple_ref,
+                "abstract": abstract in ("true", "1"),
+                "particle": particle,
+                "any_attribute": any_attribute,
+                "base_ref": base.get("complex"),
+                "derivation": (
+                    "MXSD_DERIVATION_EXTENSION"
+                    if dk == "extension"
+                    else "MXSD_DERIVATION_RESTRICTION"
+                ),
+                "final": final,
+                "type_name": type_name,
+                "type_ns": type_namespace,
+            }
+            return
+
+        model, group_min, group_max, elements, attributes, particle, any_attribute = body(children)
+        types[name] = {
+            "kind": "complex",
+            "model": model,
+            "group_min": group_min,
+            "group_max": group_max,
+            "elements": elements,
+            "attributes": attributes,
+            "simple_content": None,
+            "abstract": abstract in ("true", "1"),
+            "particle": particle,
+            "any_attribute": any_attribute,
+            "base_ref": None,
+            "derivation": 0,
+            "final": final,
+            "type_name": type_name,
+            "type_ns": type_namespace,
+        }
+
+    def parse_named(name):
+        """Compile a named type once and detect recursive definitions."""
+        if name in types:
+            return
+        if name in visiting:
+            raise SchemaError("recursive definition involving %r" % name)
+        visiting.add(name)
+        n = type_nodes[name]
+        (parse_simple if lname(n.tag) == "simpleType" else parse_complex)(n, name)
+        visiting.remove(name)
+
+    def parse_global(name):
+        """Compile a global element once and detect recursive references."""
+        if name in globals_:
+            return globals_[name]
+        if name in global_visiting:
+            raise SchemaError("recursive element reference involving %r" % name)
+        global_visiting.add(name)
+        globals_[name] = parse_element(global_nodes[name], "global", True)
+        global_visiting.remove(name)
+        return globals_[name]
+
+    def parse_xpath(expression, field=False, context_node=None):
+        """Compile the restricted XSD 1.0 identity XPath subset."""
+        if not expression:
+            raise SchemaError("identity XPath must not be empty")
+        descendant = expression.startswith(".//")
+        if descendant:
+            expression = expression[3:]
+        elif expression.startswith("./"):
+            expression = expression[2:]
+        attribute = False
+        raw = expression.split("/") if expression else []
+        if field and raw and raw[-1].startswith("@"):
+            attribute = True
+            raw[-1] = raw[-1][1:]
+        if raw == ["."]:
+            raw = []
+        if not raw and expression != ".":
+            raise SchemaError("invalid identity XPath")
+        steps = []
+        for step in raw:
+            if not step or step in (".", ".."):
+                raise SchemaError("unsupported identity XPath step %r" % step)
+            if step == "*":
+                steps.append({"name": None, "ns": None})
+                continue
+            uri, local = qname(step, "XPath name", context_node)
+            if ":" not in step:
+                uri = None
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", local):
+                raise SchemaError("invalid identity XPath name %r" % step)
+            steps.append({"name": local, "ns": uri})
+        if len(steps) > 8:
+            raise SchemaError("identity XPath exceeds MXSD_MAX_XPATH_DEPTH")
+        return {"steps": steps, "descendant": descendant, "attribute": attribute}
+
+    def parse_identities(element_node):
+        """Compile unique, key, and keyref constraints on a global element."""
+        constraints = []
+        names = {}
+        for node in element_node:
+            kind = lname(node.tag)
+            if kind not in ("unique", "key", "keyref"):
+                continue
+            check(node, {"name", "id", "refer"})
+            name = node.get("name")
+            if not name or name in names:
+                raise SchemaError("identity constraint requires a unique name")
+            children = list(node)
+            if not children or lname(children[0].tag) != "selector":
+                raise SchemaError("identity constraint requires selector first")
+            check(children[0], {"xpath", "id"})
+            selector = parse_xpath(children[0].get("xpath"), False, children[0])
+            fields = []
+            for field in children[1:]:
+                if lname(field.tag) != "field":
+                    raise SchemaError("identity constraint accepts only field after selector")
+                check(field, {"xpath", "id"})
+                fields.append(parse_xpath(field.get("xpath"), True, field))
+            if not fields or len(fields) > 8:
+                raise SchemaError("identity constraint requires 1 to 8 fields")
+            constraint = {
+                "name": name,
+                "kind": kind,
+                "selector": selector,
+                "fields": fields,
+                "refer": node.get("refer"),
+                "refer_index": 0,
+            }
+            names[name] = len(constraints)
+            constraints.append(constraint)
+        for constraint in constraints:
+            if constraint["kind"] == "keyref":
+                uri, refer = qname(constraint["refer"], "keyref refer", node)
+                if uri not in (None, contexts[id(node)]["target"]) or refer not in names:
+                    raise SchemaError("keyref refers to an unknown local key")
+                index = names[refer]
+                if constraints[index]["kind"] not in ("key", "unique"):
+                    raise SchemaError("keyref refer must name a key or unique")
+                if len(constraint["fields"]) != len(constraints[index]["fields"]):
+                    raise SchemaError("keyref field count differs from referenced key")
+                constraint["refer_index"] = index
+        return constraints
+
+    # Phase 2: resolve declarations and their dependency relationships.
+    for n in list(type_nodes):
+        parse_named(n)
+    for n in order:
+        parse_global(n)
+
+    def type_derivation_path(candidate, base):
+        if candidate == base:
+            return []
+        path = []
+        current = candidate
+        seen = set()
+        while current and current not in seen:
+            seen.add(current)
+            definition = types.get(current)
+            if not definition:
+                break
+            path.append(definition.get("derivation", 0))
+            current = definition.get("base_ref")
+            if current == base:
+                return path
+        return None
+
+    for element_key in order:
+        element = globals_[element_key]
+        if element["substitution_head"]:
+            head_name, head_uri = element["substitution_head"]
+            head_key = schema_key(head_uri, head_name)
+            if head_key not in globals_:
+                raise SchemaError("unknown substitutionGroup head %r" % head_name)
+            head = globals_[head_key]
+            child_ref = element["type"].get("complex") or element["type"].get("simple")
+            head_ref = head["type"].get("complex") or head["type"].get("simple")
+            path = (
+                type_derivation_path(child_ref, head_ref)
+                if child_ref or head_ref
+                else ([] if element["type"]["base"] == head["type"]["base"] else None)
+            )
+            if path is None:
+                raise SchemaError("substitutionGroup member type is not derived from head type")
+            final = derivation_methods(
+                global_nodes[head_key].get(
+                    "final", contexts[id(global_nodes[head_key])]["final_default"]
+                ),
+                {"extension", "restriction"},
+            )
+            if any(method_blocked(final, method) for method in path if method):
+                raise SchemaError("head final blocks substitution member type")
+    for n in order:
+        globals_[n]["identities"] = parse_identities(global_nodes[n])
+    # Phase 3: assemble the immutable model consumed by the C emitter.
+    global_attributes = []
+    for attribute_key in attribute_order:
+        node = global_attribute_nodes[attribute_key]
+        name = node.get("name")
+        context = contexts[id(node)]
+        typ = (
+            resolve_type(node.get("type"), node)
+            if node.get("type")
+            else anon_type(node, "global_attribute_" + name)
+        )
+        if typ["complex"]:
+            raise SchemaError("global attribute type must be simple")
+        if node.get("default") is not None and node.get("fixed") is not None:
+            raise SchemaError("global attribute cannot have both default and fixed")
+        global_attributes.append(
+            {
+                "name": name,
+                "ns": context["target"],
+                "type": typ,
+                "default": node.get("default"),
+                "fixed": node.get("fixed"),
+            }
+        )
+    return {
+        "target": target,
+        "types": types,
+        "globals": globals_,
+        "order": order,
+        "global_attributes": global_attributes,
+    }
+
+
+def generate(stem, m):
+    """Render a compiled schema model as deterministic C header/source text."""
+    guard = ident(stem).upper() + "_MXSD_H"
+    sid = ident(stem)
+
+    def symbol(key, collection):
+        if "|" not in key:
+            return ident(key)
+        uri, name = key.split("|", 1)
+        duplicates = sum(1 for candidate in collection if candidate.split("|", 1)[-1] == name)
+        return ident(name) if duplicates == 1 else ident(uri + "_" + name)
+
+    type_symbol = lambda key: symbol(key, m["types"])
+    root_symbol = lambda key: symbol(key, m["order"])
+    license_header = (
+        "/*\n * Copyright (c) 2026 mxsd contributors\n *\n"
+        " * SPDX-License-Identifier: Apache-2.0\n */\n\n"
+    )
+    file_doc = license_header + (
+        "/**\n * @file\n * @brief Generated mxsd validator for the " + stem + " schema.\n"
+        " *\n * @note Generated by mxsdc. Do not edit manually.\n */\n\n"
+    )
+    decl = [
+        f"/**\n * @brief Validate XML against the default {stem} root.\n *\n * @param xml NUL-terminated XML document.\n * @return A structured validation result.\n */\nmxsd_result_t {sid}_validate(const char *xml);",
+        f"/**\n * @brief Validate XML against any global root in {stem}.\n *\n * This helper is intended for document collections where the selected global\n * element is not known by the caller.\n *\n * @param xml NUL-terminated XML document.\n * @return A structured validation result.\n */\nmxsd_result_t {sid}_validate_document(const char *xml);",
+        f"/**\n * @brief Initialize streaming validation for the default {stem} root.\n *\n * @param stream Caller-owned streaming context.\n * @return A structured validation result.\n */\nmxsd_result_t {sid}_stream_init(mxsd_stream_t *stream);",
+        f"/** Return the default generated schema descriptor. */\nconst mxsd_schema_t *{sid}_schema(void);",
+    ] + [
+        f"/**\n * @brief Validate XML whose root element is {m['globals'][n]['name']}.\n *\n * @param xml NUL-terminated XML document.\n * @return A structured validation result.\n */\nmxsd_result_t {sid}_{root_symbol(n)}_validate(const char *xml);\n\n/**\n * @brief Initialize streaming validation for root {m['globals'][n]['name']}.\n *\n * @param stream Caller-owned streaming context.\n * @return A structured validation result.\n */\nmxsd_result_t {sid}_{root_symbol(n)}_stream_init(mxsd_stream_t *stream);\n\n/** Return the generated descriptor for root {m['globals'][n]['name']}. */\nconst mxsd_schema_t *{sid}_{root_symbol(n)}_schema(void);"
+        for n in m["order"]
+    ]
+    h = (
+        file_doc
+        + f"#ifndef {guard}\n#define {guard}\n\n#include <mxsd.h>\n\n"
+        + "\n\n".join(decl)
+        + "\n\n#endif\n"
+    )
+    out = [file_doc.rstrip(), "", f'#include "{stem}.mxsd.h"', "", "#include <limits.h>", ""]
+    for n, t in m["types"].items():
+        out.append(f"static const mxsd_{t['kind']}_t type_{type_symbol(n)};")
+    out.append("")
+
+    def simple_ref(ref):
+        if not ref:
+            return "{MXSD_T_STRING, NULL}"
+        pointer = f"&type_{type_symbol(ref['simple'])}" if ref.get("simple") else "NULL"
+        return "{%s, %s}" % (ref["base"], pointer)
+
+    particle_serial = [0]
+
+    def element_init(e):
+        ty = e["type"]
+        cp = f"&type_{type_symbol(ty['complex'])}" if ty["complex"] else "NULL"
+        sp = f"&type_{type_symbol(ty['simple'])}" if ty["simple"] else "NULL"
+        mx = "ULONG_MAX" if e["max"] is None else str(e["max"]) + "UL"
+        ns = cstr(e["ns"]) if e["ns"] else "NULL"
+        default = cstr(e["default"]) if e.get("default") is not None else "NULL"
+        fixed = cstr(e["fixed"]) if e.get("fixed") is not None else "NULL"
+        head = e.get("substitution_head")
+        hn = cstr(head[0]) if head else "NULL"
+        hns = cstr(head[1]) if head and head[1] else "NULL"
+        return f"{{{cstr(e['name'])}, {ty['base']}, {cp}, {e['min']}UL, {mx}, {sp}, {ns}, {default}, {fixed}, {1 if e.get('nillable') else 0}, {1 if e.get('abstract') else 0}, {e.get('block',0)}, {hn}, {hns}}}"
+
+    def emit_particle(p, prefix):
+        particle_serial[0] += 1
+        serial = particle_serial[0]
+        tag = f"{prefix}_{serial}"
+        maximum = "ULONG_MAX" if p["max"] is None else str(p["max"]) + "UL"
+        if p["kind"] == "element":
+            out.append(
+                f"static const mxsd_element_t particle_element_{tag} = {element_init(p['element'])};"
+            )
+            return f"{{MXSD_PARTICLE_ELEMENT, {p['min']}UL, {maximum}, &particle_element_{tag}, NULL, 0, NULL}}"
+        if p["kind"] == "any":
+            process = {
+                "strict": "MXSD_PROCESS_STRICT",
+                "lax": "MXSD_PROCESS_LAX",
+                "skip": "MXSD_PROCESS_SKIP",
+            }[p["process"]]
+            target = cstr(m["target"]) if m["target"] else "NULL"
+            out.append(
+                f"static const mxsd_wildcard_t wildcard_{tag} = {{{cstr(p['namespace'])}, {target}, {process}}};"
+            )
+            return f"{{MXSD_PARTICLE_ANY, {p['min']}UL, {maximum}, NULL, NULL, 0, &wildcard_{tag}}}"
+        child_inits = [emit_particle(child, tag) for child in p["children"]]
+        out.append(
+            f"static const mxsd_particle_t particle_children_{tag}[] = {{\n  "
+            + ",\n  ".join(child_inits)
+            + "\n};"
+        )
+        kind = {
+            "sequence": "MXSD_PARTICLE_SEQUENCE",
+            "choice": "MXSD_PARTICLE_CHOICE",
+            "all": "MXSD_PARTICLE_ALL",
+        }[p["kind"]]
+        return f"{{{kind}, {p['min']}UL, {maximum}, NULL, particle_children_{tag}, {len(child_inits)}, NULL}}"
+
+    for n, t in m["types"].items():
+        ni = type_symbol(n)
+        if t["kind"] == "simple":
+            if t["enums"]:
+                out.append(
+                    f"static const char *const enum_{ni}[] = {{"
+                    + ", ".join(cstr(x) for x in t["enums"])
+                    + "};"
+                )
+            if t.get("members"):
+                out.append(
+                    f"static const mxsd_simple_ref_t members_{ni}[] = {{"
+                    + ", ".join(simple_ref(x) for x in t["members"])
+                    + "};"
+                )
+            f = t["facets"]
+            fmap = {
+                "length": "MXSD_F_LENGTH",
+                "minLength": "MXSD_F_MIN_LENGTH",
+                "maxLength": "MXSD_F_MAX_LENGTH",
+                "minInclusive": "MXSD_F_MIN_INCLUSIVE",
+                "maxInclusive": "MXSD_F_MAX_INCLUSIVE",
+                "minExclusive": "MXSD_F_MIN_EXCLUSIVE",
+                "maxExclusive": "MXSD_F_MAX_EXCLUSIVE",
+                "pattern": "MXSD_F_PATTERN",
+            }
+            flag = " | ".join(v for k, v in fmap.items() if k in f) or "0"
+            val = lambda k: cstr(str(f[k])) if k in f else "NULL"
+            enum = f"enum_{ni}" if t["enums"] else "NULL"
+            member_ptr = f"members_{ni}" if t.get("members") else "NULL"
+            base_ptr = f"&type_{type_symbol(t['base_ref'])}" if t.get("base_ref") else "NULL"
+            tn = cstr(t["type_name"]) if t.get("type_name") else "NULL"
+            tns = cstr(t["type_ns"]) if t.get("type_ns") else "NULL"
+            out.append(
+                f"static const mxsd_simple_t type_{ni} = {{{t['base']}, {flag}, {f.get('length',0)}, {f.get('minLength',0)}, {f.get('maxLength',0)}, {val('minInclusive')}, {val('maxInclusive')}, {val('minExclusive')}, {val('maxExclusive')}, {val('pattern')}, {enum}, {len(t['enums'])}, {t.get('whitespace','MXSD_WS_PRESERVE')}, {t.get('variety','MXSD_SIMPLE_ATOMIC')}, {simple_ref(t.get('item'))}, {member_ptr}, {len(t.get('members',[]))}, {base_ptr}, {t.get('derivation',0)}, {t.get('final',0)}, {tn}, {tns}}};\n"
+            )
+        else:
+            es = t["elements"]
+            ats = t["attributes"]
+            if es:
+                out.append(f"static const mxsd_element_t elements_{ni}[] = {{")
+                for e in es:
+                    out.append("  " + element_init(e) + ",")
+                out.append("};")
+            if ats:
+                out.append(f"static const mxsd_attribute_t attributes_{ni}[] = {{")
+                for a in ats:
+                    ty = a["type"]
+                    sp = f"&type_{type_symbol(ty['simple'])}" if ty["simple"] else "NULL"
+                    ns = cstr(a["ns"]) if a["ns"] else "NULL"
+                    default = cstr(a["default"]) if a.get("default") is not None else "NULL"
+                    fixed = cstr(a["fixed"]) if a.get("fixed") is not None else "NULL"
+                    out.append(
+                        f"  {{{cstr(a['name'])}, {ty['base']}, {1 if a['required'] else 0}, {sp}, {ns}, {default}, {fixed}}},"
+                    )
+                out.append("};")
+            particle_ptr = "NULL"
+            if t.get("particle"):
+                root_init = emit_particle(t["particle"], ni)
+                out.append(f"static const mxsd_particle_t particle_{ni} = {root_init};")
+                particle_ptr = f"&particle_{ni}"
+            any_attribute_ptr = "NULL"
+            if t.get("any_attribute"):
+                wildcard = t["any_attribute"]
+                process = {
+                    "strict": "MXSD_PROCESS_STRICT",
+                    "lax": "MXSD_PROCESS_LAX",
+                    "skip": "MXSD_PROCESS_SKIP",
+                }[wildcard["process"]]
+                target = cstr(m["target"]) if m["target"] else "NULL"
+                out.append(
+                    f"static const mxsd_wildcard_t any_attribute_{ni} = {{{cstr(wildcard['namespace'])}, {target}, {process}}};"
+                )
+                any_attribute_ptr = f"&any_attribute_{ni}"
+            ep = f"elements_{ni}" if es else "NULL"
+            ap = f"attributes_{ni}" if ats else "NULL"
+            mx = "ULONG_MAX" if t["group_max"] is None else str(t["group_max"]) + "UL"
+            content = t.get("simple_content")
+            content_ptr = (
+                f"&type_{type_symbol(content['simple'])}"
+                if content and content.get("simple")
+                else "NULL"
+            )
+            content_type = content["base"] if content else "MXSD_T_STRING"
+            base_ptr = f"&type_{type_symbol(t['base_ref'])}" if t.get("base_ref") else "NULL"
+            tn = cstr(t["type_name"]) if t.get("type_name") else "NULL"
+            tns = cstr(t["type_ns"]) if t.get("type_ns") else "NULL"
+            out.append(
+                f"static const mxsd_complex_t type_{ni} = {{{ep}, {len(es)}, {ap}, {len(ats)}, {t['model']}, {t['group_min']}UL, {mx}, {content_ptr}, {content_type}, {1 if content else 0}, {1 if t.get('abstract') else 0}, {particle_ptr}, {any_attribute_ptr}, {base_ptr}, {t.get('derivation',0)}, {t.get('final',0)}, {tn}, {tns}}};\n"
+            )
+    out.append("static const mxsd_global_element_t global_elements[] = {")
+    for n in m["order"]:
+        e = m["globals"][n]
+        ty = e["type"]
+        cp = f"&type_{type_symbol(ty['complex'])}" if ty["complex"] else "NULL"
+        sp = f"&type_{type_symbol(ty['simple'])}" if ty["simple"] else "NULL"
+        ns = cstr(e["ns"]) if e["ns"] else "NULL"
+        default = cstr(e["default"]) if e.get("default") is not None else "NULL"
+        fixed = cstr(e["fixed"]) if e.get("fixed") is not None else "NULL"
+        head = e.get("substitution_head")
+        hn = cstr(head[0]) if head else "NULL"
+        hns = cstr(head[1]) if head and head[1] else "NULL"
+        out.append(
+            f"  {{{cstr(e['name'])}, {ns}, {ty['base']}, {cp}, {sp}, {default}, {fixed}, {1 if e.get('nillable') else 0}, {1 if e.get('abstract') else 0}, {e.get('block',0)}, {hn}, {hns}}},"
+        )
+    out.append("};")
+    if m.get("global_attributes"):
+        out.append("static const mxsd_global_attribute_t global_attributes[] = {")
+        for attribute in m["global_attributes"]:
+            ty = attribute["type"]
+            sp = f"&type_{type_symbol(ty['simple'])}" if ty["simple"] else "NULL"
+            ns = cstr(attribute["ns"]) if attribute["ns"] else "NULL"
+            default = cstr(attribute["default"]) if attribute.get("default") is not None else "NULL"
+            fixed = cstr(attribute["fixed"]) if attribute.get("fixed") is not None else "NULL"
+            out.append(
+                f"  {{{cstr(attribute['name'])}, {ns}, {ty['base']}, {sp}, {default}, {fixed}}},"
+            )
+        out.append("};")
+        global_attribute_pointer = "global_attributes"
+    else:
+        global_attribute_pointer = "NULL"
+    named = [(key, value) for key, value in m["types"].items() if value.get("type_name")]
+    if named:
+        out.append("static const mxsd_named_type_t named_types[] = {")
+        for key, value in named:
+            ns = cstr(value["type_ns"]) if value.get("type_ns") else "NULL"
+            if value["kind"] == "complex":
+                out.append(
+                    f"  {{{cstr(value['type_name'])}, {ns}, MXSD_T_COMPLEX, &type_{type_symbol(key)}, NULL}},"
+                )
+            else:
+                out.append(
+                    f"  {{{cstr(value['type_name'])}, {ns}, {value['base']}, NULL, &type_{type_symbol(key)}}},"
+                )
+        out.append("};")
+        named_pointer = "named_types"
+    else:
+        named_pointer = "NULL"
+    identity_names = {}
+
+    def emit_xpath(xpath, prefix):
+        if xpath["steps"]:
+            out.append(f"static const mxsd_xpath_step_t xpath_steps_{prefix}[] = {{")
+            for step in xpath["steps"]:
+                step_name = cstr(step["name"]) if step["name"] else "NULL"
+                step_ns = cstr(step["ns"]) if step["ns"] else "NULL"
+                out.append(f"  {{{step_name}, {step_ns}}},")
+            out.append("};")
+            steps = f"xpath_steps_{prefix}"
+        else:
+            steps = "NULL"
+        return f"{{{steps}, {len(xpath['steps'])}, {1 if xpath['descendant'] else 0}, {1 if xpath['attribute'] else 0}}}"
+
+    for n in m["order"]:
+        constraints = m["globals"][n].get("identities", [])
+        ni = root_symbol(n)
+        if not constraints:
+            continue
+        entries = []
+        for ci, constraint in enumerate(constraints):
+            selector = emit_xpath(constraint["selector"], f"{ni}_{ci}_selector")
+            field_values = []
+            for fi, field in enumerate(constraint["fields"]):
+                field_values.append(emit_xpath(field, f"{ni}_{ci}_field_{fi}"))
+            out.append(
+                f"static const mxsd_xpath_t identity_fields_{ni}_{ci}[] = {{"
+                + ", ".join(field_values)
+                + "};"
+            )
+            kind = {"unique": "MXSD_ID_UNIQUE", "key": "MXSD_ID_KEY", "keyref": "MXSD_ID_KEYREF"}[
+                constraint["kind"]
+            ]
+            entries.append(
+                f"{{{cstr(constraint['name'])}, {kind}, {selector}, identity_fields_{ni}_{ci}, {len(field_values)}, {constraint['refer_index']}}}"
+            )
+        out.append(
+            f"static const mxsd_identity_t identities_{ni}[] = {{\n  "
+            + ",\n  ".join(entries)
+            + "\n};"
+        )
+        identity_names[n] = f"identities_{ni}"
+    for n in m["order"]:
+        e = m["globals"][n]
+        ty = e["type"]
+        cp = f"&type_{type_symbol(ty['complex'])}" if ty["complex"] else "NULL"
+        sp = f"&type_{type_symbol(ty['simple'])}" if ty["simple"] else "NULL"
+        ns = cstr(e["ns"]) if e["ns"] else "NULL"
+        identities = identity_names.get(n, "NULL")
+        count = len(e.get("identities", []))
+        default = cstr(e["default"]) if e.get("default") is not None else "NULL"
+        fixed = cstr(e["fixed"]) if e.get("fixed") is not None else "NULL"
+        out.append(
+            f"static const mxsd_schema_t schema_{root_symbol(n)} = {{{cstr(e['name'])}, {ty['base']}, {cp}, {sp}, {ns}, {identities}, {count}, global_elements, {len(m['order'])}, {global_attribute_pointer}, {len(m.get('global_attributes',[]))}, {named_pointer}, {len(named)}, {default}, {fixed}, {1 if e.get('nillable') else 0}, {1 if e.get('abstract') else 0}, {e.get('block',0)}}};"
+        )
+    first = root_symbol(m["order"][0])
+    any_root = [
+        f"mxsd_result_t {sid}_validate_document(const char *xml) {{",
+        "  mxsd_result_t result;",
+    ]
+    for n in m["order"]:
+        any_root += [
+            f"  result = mxsd_validate(&schema_{root_symbol(n)}, xml);",
+            "  if (result.code != MXSD_ERR_WRONG_ROOT) return result;",
+        ]
+    any_root += ["  return result;", "}"]
+    out += (
+        [
+            "",
+            f"mxsd_result_t {sid}_validate(const char *xml) {{ return mxsd_validate(&schema_{first}, xml); }}",
+        ]
+        + any_root
+        + [
+            f"mxsd_result_t {sid}_stream_init(mxsd_stream_t *stream) {{ return mxsd_stream_init(stream, &schema_{first}); }}",
+            f"const mxsd_schema_t *{sid}_schema(void) {{ return &schema_{first}; }}",
+        ]
+        + [
+            f"mxsd_result_t {sid}_{root_symbol(n)}_validate(const char *xml) {{ return mxsd_validate(&schema_{root_symbol(n)}, xml); }}\nmxsd_result_t {sid}_{root_symbol(n)}_stream_init(mxsd_stream_t *stream) {{ return mxsd_stream_init(stream, &schema_{root_symbol(n)}); }}\nconst mxsd_schema_t *{sid}_{root_symbol(n)}_schema(void) {{ return &schema_{root_symbol(n)}; }}"
+            for n in m["order"]
+        ]
+    )
+    return h, "\n".join(out) + "\n"
+
+
+def main():
+    """Parse command-line arguments and compile one root schema."""
+    parser = argparse.ArgumentParser(prog="mxsdc")
+    parser.add_argument("schema", type=pathlib.Path)
+    parser.add_argument("-o", "--output", required=True, type=pathlib.Path)
+    parser.add_argument(
+        "-I",
+        "--schema-path",
+        action="append",
+        default=[],
+        type=pathlib.Path,
+        help="explicit local schema search directory",
+    )
+    parser.add_argument(
+        "--max-schema-complexity",
+        type=int,
+        default=MAX_SCHEMA_COMPLEXITY,
+        help="maximum XSD element count across the schema graph",
+    )
+    args = parser.parse_args()
+    try:
+        model = parse(
+            args.schema,
+            search_paths=args.schema_path,
+            max_schema_complexity=args.max_schema_complexity,
+        )
+        args.output.mkdir(parents=True, exist_ok=True)
+        stem = ident(args.schema.stem)
+        header, source = generate(stem, model)
+        (args.output / (stem + ".mxsd.h")).write_text(header, encoding="utf-8", newline="\n")
+        (args.output / (stem + ".mxsd.c")).write_text(source, encoding="utf-8", newline="\n")
+    except (OSError, SchemaError) as error:
+        print("error: %s" % error, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

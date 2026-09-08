@@ -1,0 +1,38 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:w="urn:mxsd:wildcards" targetNamespace="urn:mxsd:wildcards"
+           elementFormDefault="qualified">
+  <xs:element name="known" type="xs:int"/>
+  <xs:attribute name="externalFlag" type="xs:int"/>
+  <xs:element name="nested">
+    <xs:complexType>
+      <xs:sequence minOccurs="1" maxOccurs="2">
+        <xs:choice minOccurs="1" maxOccurs="2">
+          <xs:element name="a" type="xs:string"/>
+          <xs:sequence>
+            <xs:element name="b" type="xs:int"/>
+            <xs:element name="c" type="xs:boolean" minOccurs="0"/>
+          </xs:sequence>
+        </xs:choice>
+        <xs:all minOccurs="0">
+          <xs:element name="x" type="xs:string" minOccurs="0"/>
+          <xs:element name="y" type="xs:string" minOccurs="0"/>
+        </xs:all>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="strict">
+    <xs:complexType><xs:sequence><xs:any namespace="##targetNamespace" processContents="strict"/></xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="lax">
+    <xs:complexType>
+      <xs:sequence><xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="skip">
+    <xs:complexType><xs:sequence><xs:any processContents="skip" minOccurs="0" maxOccurs="4294967295"/></xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="attributeStrict">
+    <xs:complexType><xs:anyAttribute namespace="##targetNamespace" processContents="strict"/></xs:complexType>
+  </xs:element>
+</xs:schema>

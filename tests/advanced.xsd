@@ -1,0 +1,44 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:t="urn:mxsd:test" targetNamespace="urn:mxsd:test"
+           elementFormDefault="qualified">
+  <xs:simpleType name="Code">
+    <xs:restriction base="xs:string">
+      <xs:length value="3"/>
+      <xs:pattern value="[A-Z]{3}"/>
+      <xs:enumeration value="ABC"/>
+      <xs:enumeration value="XYZ"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Level">
+    <xs:restriction base="xs:int">
+      <xs:minInclusive value="1"/>
+      <xs:maxExclusive value="10"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="shared" type="t:Code"/>
+  <xs:element name="root">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="t:shared"/>
+        <xs:element name="level" type="t:Level"/>
+        <xs:element name="inner">
+          <xs:complexType>
+            <xs:all>
+              <xs:element name="left" type="xs:string"/>
+              <xs:element name="right" type="xs:string"/>
+            </xs:all>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="tag" type="t:Code" use="required"/>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="pick">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element name="one" type="xs:string"/>
+        <xs:element name="two" type="xs:int"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

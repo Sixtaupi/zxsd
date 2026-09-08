@@ -1,0 +1,21 @@
+{
+  "license": "Apache-2.0",
+  "suite": "mxsd-xsd10",
+  "features": [
+    {"name": "elements-sequences-attributes", "classification": "supported", "test": "runtime", "positive_and_negative": true},
+    {"name": "facets-choice-all-namespaces", "classification": "supported", "test": "advanced-runtime", "positive_and_negative": true},
+    {"name": "type-derivation", "classification": "supported", "test": "mxsd_derivation_test", "positive_and_negative": true},
+    {"name": "simple-types-list-union", "classification": "supported", "test": "mxsd_simple_types_test", "positive_and_negative": true},
+    {"name": "wildcards", "classification": "supported", "test": "mxsd_wildcards_test", "positive_and_negative": true},
+    {"name": "identity-constraints", "classification": "supported", "test": "mxsd_identity_test", "positive_and_negative": true},
+    {"name": "schema-composition", "classification": "supported", "test": "mxsd_composition_test", "positive_and_negative": true},
+    {"name": "element-instance-semantics", "classification": "supported", "test": "mxsd_element_semantics_test", "positive_and_negative": true},
+    {"name": "annotations-and-strict-rejection", "classification": "supported", "test": "compiler", "positive_and_negative": true},
+    {"name": "streaming-validation", "classification": "supported", "test": "runtime", "positive_and_negative": true},
+    {"name": "resource-limits", "classification": "supported", "test": "runtime", "positive_and_negative": true},
+    {"name": "custom-allocator", "classification": "supported", "test": "mxsd_identity_test", "positive_and_negative": true},
+    {"name": "mixed-content", "classification": "unsupported"},
+    {"name": "model-groups-and-attribute-groups", "classification": "unsupported"},
+    {"name": "notation-declarations", "classification": "expected-failure"}
+  ]
+}

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:annotation>
+    <xs:documentation xml:lang="fr">Schéma utilisé par les tests.</xs:documentation>
+    <xs:appinfo source="urn:mxsd:test"><meta xmlns="urn:test">ignored</meta></xs:appinfo>
+  </xs:annotation>
+  <xs:complexType name="Device">
+    <xs:annotation><xs:documentation>Un périphérique.</xs:documentation></xs:annotation>
+    <xs:sequence>
+      <xs:annotation><xs:documentation>Ordre des mesures.</xs:documentation></xs:annotation>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="enabled" type="xs:boolean" minOccurs="0"/>
+      <xs:element name="sample" type="xs:int" minOccurs="1" maxOccurs="2"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:unsignedInt" use="required">
+      <xs:annotation><xs:documentation>Identifiant numérique.</xs:documentation></xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+  <xs:element name="device" type="Device"/>
+</xs:schema>

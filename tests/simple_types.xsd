@@ -1,0 +1,48 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="IntList"><xs:list itemType="xs:int"/></xs:simpleType>
+  <xs:simpleType name="Pair"><xs:restriction base="IntList"><xs:length value="2"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="NumberOrName"><xs:union memberTypes="xs:int xs:NCName"/></xs:simpleType>
+  <xs:simpleType name="InlineUnion"><xs:union><xs:simpleType><xs:restriction base="xs:token"><xs:enumeration value="yes"/></xs:restriction></xs:simpleType><xs:simpleType><xs:restriction base="xs:boolean"/></xs:simpleType></xs:union></xs:simpleType>
+  <xs:simpleType name="Collapsed"><xs:restriction base="xs:token"><xs:length value="3"/><xs:enumeration value="a b"/></xs:restriction></xs:simpleType>
+  <xs:element name="list" type="Pair"/>
+  <xs:element name="union" type="NumberOrName"/>
+  <xs:element name="inlineUnion" type="InlineUnion"/>
+  <xs:element name="collapsed" type="Collapsed"/>
+  <xs:element name="normalized" type="xs:normalizedString"/>
+  <xs:element name="language" type="xs:language"/>
+  <xs:element name="name" type="xs:Name"/>
+  <xs:element name="ncname" type="xs:NCName"/>
+  <xs:element name="nmtoken" type="xs:NMTOKEN"/>
+  <xs:element name="nmtokens" type="xs:NMTOKENS"/>
+  <xs:element name="id" type="xs:ID"/>
+  <xs:element name="idref" type="xs:IDREF"/>
+  <xs:element name="idrefs" type="xs:IDREFS"/>
+  <xs:element name="entity" type="xs:ENTITY"/>
+  <xs:element name="entities" type="xs:ENTITIES"/>
+  <xs:element name="qname" type="xs:QName"/>
+  <xs:element name="uri" type="xs:anyURI"/>
+  <xs:element name="duration" type="xs:duration"/>
+  <xs:element name="date" type="xs:date"/>
+  <xs:element name="dateTime" type="xs:dateTime"/>
+  <xs:element name="time" type="xs:time"/>
+  <xs:element name="year" type="xs:gYear"/>
+  <xs:element name="yearMonth" type="xs:gYearMonth"/>
+  <xs:element name="month" type="xs:gMonth"/>
+  <xs:element name="monthDay" type="xs:gMonthDay"/>
+  <xs:element name="day" type="xs:gDay"/>
+  <xs:element name="hex" type="xs:hexBinary"/>
+  <xs:element name="base64" type="xs:base64Binary"/>
+  <xs:element name="float" type="xs:float"/>
+  <xs:element name="double" type="xs:double"/>
+  <xs:element name="long" type="xs:long"/>
+  <xs:element name="short" type="xs:short"/>
+  <xs:element name="byte" type="xs:byte"/>
+  <xs:element name="nonPositive" type="xs:nonPositiveInteger"/>
+  <xs:element name="negative" type="xs:negativeInteger"/>
+  <xs:element name="nonNegative" type="xs:nonNegativeInteger"/>
+  <xs:element name="positive" type="xs:positiveInteger"/>
+  <xs:element name="unsignedLong" type="xs:unsignedLong"/>
+  <xs:element name="unsignedShort" type="xs:unsignedShort"/>
+  <xs:element name="unsignedByte" type="xs:unsignedByte"/>
+  <xs:element name="notation" type="xs:NOTATION"/>
+</xs:schema>

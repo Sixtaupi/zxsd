@@ -1,0 +1,6 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:mxsd:composition" elementFormDefault="qualified">
+  <xs:complexType name="IncludedType">
+    <xs:sequence><xs:element name="includedValue" type="xs:int"/></xs:sequence>
+  </xs:complexType>
+</xs:schema>
