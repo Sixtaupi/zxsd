@@ -1,0 +1,81 @@
+# Copyright (c) 2026 Romain Pelletant
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig MXSD
+	bool "mxsd XML Schema validation runtime"
+	help
+	  Enable the mxsd descriptor-driven XML validation runtime. XML Schema
+	  files are compiled on the host and are never parsed on the target.
+
+if MXSD
+
+config MXSD_MAX_INPUT
+	int "Maximum XML input size"
+	default 1048576
+	range 1 2147483647
+	help
+	  Maximum size, in bytes, of a NUL-terminated XML document accepted by
+	  the validator. Documents larger than this value produce
+	  MXSD_ERR_INPUT_TOO_LARGE.
+
+config MXSD_MAX_DEPTH
+	int "Maximum XML nesting depth"
+	default 32
+	range 1 256
+	help
+	  Maximum number of nested XML elements. Lower values reduce the worst-case
+	  stack usage of the allocation-free parser.
+
+config MXSD_MAX_PARTICLES
+	int "Maximum particles per complex type"
+	default 32
+	range 1 256
+	help
+	  Maximum number of element particles accepted in one generated complex
+	  type. The runtime keeps one occurrence counter per particle on the stack.
+
+config MXSD_MAX_ATTRIBUTES
+	int "Maximum attributes per element"
+	default 32
+	range 1 256
+	help
+	  Maximum number of non-namespace attributes accepted on one XML element.
+	  The same limit applies to generated attribute descriptors.
+
+config MXSD_MAX_NAMESPACES
+	int "Maximum active namespace bindings"
+	default 16
+	range 1 256
+	help
+	  Maximum number of namespace declarations simultaneously visible while
+	  validating a document.
+
+config MXSD_MAX_IDENTITY_VALUES
+	int "Maximum identity values per constraint"
+	default 64
+	range 1 4096
+	help
+	  Maximum key, unique, or keyref tuples retained for one constraint.
+
+config MXSD_MAX_TEXT_LENGTH
+	int "Maximum text value length"
+	default 1024
+	range 1 1048576
+	help
+	  Maximum decoded lexical value length and per-frame streaming text buffer.
+
+config MXSD_MAX_SCHEMA_COMPLEXITY
+	int "Maximum runtime schema complexity"
+	default 4096
+	range 1 1048576
+	help
+	  Maximum aggregate count of runtime-visible schema descriptors.
+
+config MXSD_NO_HEAP
+	bool "Disable runtime heap allocation"
+	default y
+	help
+	  Build a zero-heap validator. Schemas using identity constraints return
+	  MXSD_ERR_RESOURCE_LIMIT; all other supported validation stays available.
+
+endif # MXSD

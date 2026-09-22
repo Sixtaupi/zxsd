@@ -1,0 +1,21 @@
+manifest:
+  self:
+    path: mxsd
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+    - name: michaelrsweet
+      url-base: https://github.com/michaelrsweet
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.4.0
+      import:
+        name-allowlist:
+          - cmsis_6
+    - name: mxml
+      remote: michaelrsweet
+      revision: v4.0.6
+      path: modules/lib/mxml

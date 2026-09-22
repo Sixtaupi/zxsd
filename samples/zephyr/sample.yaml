@@ -1,0 +1,7 @@
+sample:
+  name: mxsd validation
+tests:
+  mxsd.validation:
+    tags: xml validation
+    platform_allow:
+      - qemu_x86

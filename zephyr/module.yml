@@ -1,0 +1,5 @@
+name: mxsd
+
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig
