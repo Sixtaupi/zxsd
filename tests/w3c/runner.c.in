@@ -1,0 +1,38 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#include "@HEADER@"
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+	FILE *input;
+	long size;
+	char *xml;
+	mxsd_result_t result;
+	if (argc != 2 || !(input = fopen(argv[1], "rb"))) {
+		return 125;
+	}
+	if (fseek(input, 0, SEEK_END) || (size = ftell(input)) < 0 || fseek(input, 0, SEEK_SET)) {
+		fclose(input);
+		return 125;
+	}
+	xml = (char *)malloc((size_t)size + 1U);
+	if (!xml) {
+		fclose(input);
+		return 125;
+	}
+	if (fread(xml, 1U, (size_t)size, input) != (size_t)size) {
+		free(xml);
+		fclose(input);
+		return 125;
+	}
+	fclose(input);
+	xml[size] = '\0';
+	result = @SYMBOL @_validate_document(xml);
+	free(xml);
+	if (result.code != MXSD_OK) {
+		fprintf(stderr, "%d:%lu:%s:%s\n", (int)result.code, (unsigned long)result.offset,
+			result.path, result.message);
+	}
+	return result.code == MXSD_OK ? 0 : 1;
+}
