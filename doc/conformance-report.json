@@ -1,0 +1,40 @@
+{
+  "expected-failure": [
+    "notation-declarations"
+  ],
+  "failed": [],
+  "license": "Apache-2.0",
+  "passed": [
+    "annotations-and-strict-rejection",
+    "custom-allocator",
+    "element-instance-semantics",
+    "elements-sequences-attributes",
+    "facets-choice-all-namespaces",
+    "identity-constraints",
+    "resource-limits",
+    "schema-composition",
+    "simple-types-list-union",
+    "streaming-validation",
+    "type-derivation",
+    "wildcards"
+  ],
+  "suite": "mxsd-xsd10",
+  "supported": [
+    "annotations-and-strict-rejection",
+    "custom-allocator",
+    "element-instance-semantics",
+    "elements-sequences-attributes",
+    "facets-choice-all-namespaces",
+    "identity-constraints",
+    "resource-limits",
+    "schema-composition",
+    "simple-types-list-union",
+    "streaming-validation",
+    "type-derivation",
+    "wildcards"
+  ],
+  "unsupported": [
+    "mixed-content",
+    "model-groups-and-attribute-groups"
+  ]
+}

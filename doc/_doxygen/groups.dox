@@ -1,0 +1,5 @@
+/**
+ * @defgroup mxsd_adapters XML parser adapters
+ * @brief Optional adapters that translate parser trees or events to mxsd.
+ */
+

@@ -1,0 +1,4 @@
+_build_sphinx/
+_build_doxygen/
+__pycache__/
+!Makefile

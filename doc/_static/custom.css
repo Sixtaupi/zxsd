@@ -1,0 +1,50 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+:root {
+    --mxsd-blue: #165d8c;
+    --mxsd-cyan: #39a9c6;
+    --mxsd-ink: #17212b;
+}
+
+.wy-side-nav-search,
+.wy-nav-top {
+    background: linear-gradient(135deg, var(--mxsd-blue), var(--mxsd-cyan));
+}
+
+.wy-side-nav-search > a {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.wy-nav-content {
+    max-width: 1040px;
+}
+
+.mxsd-hero {
+    margin: 0 0 2rem;
+    padding: 1.5rem 1.75rem;
+    border-left: 5px solid var(--mxsd-cyan);
+    border-radius: 0.3rem;
+    background: linear-gradient(135deg, #edf7fb, #f7fbfd);
+    color: var(--mxsd-ink);
+    font-size: 1.1rem;
+}
+
+.mxsd-hero p:last-child {
+    margin-bottom: 0;
+}
+
+.sd-card {
+    border-top: 3px solid var(--mxsd-cyan) !important;
+}
+
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+    white-space: normal;
+    vertical-align: top;
+}
+
+code.literal {
+    color: #8b2846;
+}
+

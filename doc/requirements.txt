@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+Sphinx>=7.2,<9
+breathe>=4.35,<5
+myst-parser>=2,<5
+sphinx-design>=0.6,<1
+sphinx-rtd-theme>=2,<4

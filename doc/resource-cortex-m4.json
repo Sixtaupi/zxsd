@@ -1,0 +1,12 @@
+{
+  "generated_code_bytes": 805,
+  "image_flash_bytes": 46072,
+  "image_static_ram_bytes": 9179,
+  "largest_function_stack_frame": "simple_values_equal",
+  "largest_function_stack_frame_bytes": 2120,
+  "libmxsd_flash_bytes": 16770,
+  "libmxsd_static_ram_bytes": 0,
+  "peak_heap_bytes": 0,
+  "platform": "nucleo_f401re/stm32f401xe",
+  "stack_note": "Static compiler frame maximum; recursive call-chain peak depends on XML/schema depth."
+}

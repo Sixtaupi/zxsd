@@ -1,0 +1,17 @@
+# Resource measurements
+
+Measurements use the Zephyr sample, `MXSD_NO_HEAP=y`, GCC `-Os`, and the
+default v0.13 limits. Run `tools/measure_resources.py` on the resulting object,
+ELF, and `.su` files to regenerate machine-readable results.
+
+| Target | Generated code | libmxsd flash | libmxsd static RAM | Complete image flash | Complete image static RAM | Largest mxsd stack frame | Peak mxsd heap |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| NUCLEO-F401RE, Cortex-M4 | 805 B | 16,770 B | 0 B | 46,072 B | 9,179 B | 2,120 B | 0 B |
+| native_sim | Linux measurement required | — | — | — | — | — | 0 B |
+
+The Cortex-M values were measured on Zephyr 4.5.0-rc1 with Zephyr SDK 1.0.0.
+`native_sim` cannot be built on macOS because Zephyr's POSIX architecture
+explicitly requires Linux. The measurement command is otherwise identical on
+a Linux CI worker. Static stack-frame measurement does not include the
+multiplication caused by recursive XML/schema depth; configure
+`MXSD_MAX_DEPTH` according to the application stack budget.

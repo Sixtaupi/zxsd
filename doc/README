@@ -1,0 +1,21 @@
+mxsd documentation
+==================
+
+The documentation uses Doxygen for the C API and Sphinx/Breathe for the guide.
+
+Linux/macOS:
+
+  python3 -m venv .venv-docs
+  . .venv-docs/bin/activate
+  python -m pip install -r doc/requirements.txt
+  make -C doc html
+
+Windows PowerShell:
+
+  py -m venv .venv-docs
+  .\.venv-docs\Scripts\Activate.ps1
+  python -m pip install -r doc\requirements.txt
+  doc\make.bat html
+
+The HTML entry point is doc/_build_sphinx/html/index.html.
+

@@ -1,0 +1,92 @@
+C API reference
+###############
+
+The public API consists of the portable validator in ``mxsd.h`` and an
+optional Mini-XML 4 adapter. Generated headers add schema-specific accessor,
+validation, and streaming-initializer functions.
+
+Validation runtime
+******************
+
+Core types
+==========
+
+.. doxygenenum:: mxsd_error_t
+   :project: mxsd
+
+.. doxygenstruct:: mxsd_result_t
+   :project: mxsd
+   :members:
+
+.. doxygenstruct:: mxsd_allocator_t
+   :project: mxsd
+   :members:
+
+.. doxygenstruct:: mxsd_schema_t
+   :project: mxsd
+   :members:
+
+.. doxygenstruct:: mxsd_stream_t
+   :project: mxsd
+   :members:
+
+Validation functions
+====================
+
+.. code-block:: c
+
+   mxsd_result_t mxsd_validate(const mxsd_schema_t *schema, const char *xml);
+   mxsd_result_t mxsd_validate_with_allocator(
+           const mxsd_schema_t *schema,
+           const char *xml,
+           const mxsd_allocator_t *allocator);
+   const char *mxsd_error_string(mxsd_error_t error);
+
+``mxsd_validate()`` validates one NUL-terminated document. The allocator
+variant supplies bounded scratch storage for identity constraints.
+``mxsd_error_string()`` returns a stable static description.
+
+Streaming functions
+===================
+
+.. code-block:: c
+
+   mxsd_result_t mxsd_stream_init(mxsd_stream_t *stream,
+                                  const mxsd_schema_t *schema);
+   mxsd_result_t mxsd_start_element(mxsd_stream_t *stream,
+                                    const char *namespace_uri,
+                                    const char *local_name);
+   mxsd_result_t mxsd_attribute(mxsd_stream_t *stream,
+                                const char *namespace_uri,
+                                const char *local_name,
+                                const char *value);
+   mxsd_result_t mxsd_xsi_type(mxsd_stream_t *stream,
+                               const char *type_namespace_uri,
+                               const char *type_local_name);
+   mxsd_result_t mxsd_start_content(mxsd_stream_t *stream);
+   mxsd_result_t mxsd_text(mxsd_stream_t *stream,
+                           const char *text, size_t length);
+   mxsd_result_t mxsd_end_element(mxsd_stream_t *stream,
+                                  const char *namespace_uri,
+                                  const char *local_name);
+   mxsd_result_t mxsd_stream_finish(mxsd_stream_t *stream);
+
+Initialize once, send decoded events in document order, and finish after the
+root closes. The first error is sticky. A generated ``<schema>_stream_init()``
+wrapper selects the default root descriptor.
+
+The `complete Doxygen reference <doxygen/index.html>`_ is exhaustive: it also
+lists every descriptor type, compile-time limit, callback typedef, and
+generated-data structure used by ``mxsdc`` output. In a local build it is
+available under ``doc/_build_doxygen/html``.
+
+Mini-XML adapter
+****************
+
+The adapter is built only when CMake finds Mini-XML 4 and
+``MXSD_USE_MXML=ON``. It walks an existing Mini-XML tree and feeds expanded
+events to the same runtime.
+
+.. doxygenfile:: mxsd_mxml.h
+   :project: mxsd
+
