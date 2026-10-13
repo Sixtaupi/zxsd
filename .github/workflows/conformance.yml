@@ -1,0 +1,84 @@
+name: Conformance
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  internal:
+    name: Internal positive and negative suite
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMXSD_USE_MXML=OFF
+          cmake --build build --parallel
+      - name: Run conformance gate
+        run: ctest --test-dir build -R '^mxsd_conformance_report$' --output-on-failure
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: internal-conformance-report
+          path: build/conformance-report.json
+          if-no-files-found: error
+
+  w3c:
+    name: W3C XSD 1.0 (${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'full' || 'smoke' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - uses: actions/cache@v5
+        with:
+          path: .cache/w3c
+          key: w3c-xsts-2007-06-20-902176b2
+
+      - name: Fetch pinned W3C suite
+        run: python tests/w3c/fetch.py .cache/w3c
+
+      - name: Run W3C suite
+        id: w3c
+        continue-on-error: true
+        shell: bash
+        run: |
+          args=()
+          if [[ "${{ github.event_name }}" != "schedule" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            args+=(--limit 500)
+          fi
+          python tests/w3c/run.py \
+            --suite .cache/w3c/xmlschema2006-11-06 \
+            --work-dir build/w3c \
+            --output build/w3c-xsd10-report.json \
+            "${args[@]}"
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## W3C XSD 1.0"
+            echo
+            echo "- Inventory: $(jq -r '.inventory_count' build/w3c-xsd10-report.json)"
+            echo "- Counts: \`$(jq -cS '.counts' build/w3c-xsd10-report.json)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: w3c-xsd10-${{ github.event_name }}-report
+          path: build/w3c-xsd10-report.json
+          if-no-files-found: error

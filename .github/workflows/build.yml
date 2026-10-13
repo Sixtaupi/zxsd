@@ -1,0 +1,92 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    name: ${{ matrix.os }} / shared=${{ matrix.shared }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+        shared: [OFF, ON]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }}
+          -DMXSD_USE_MXML=OFF
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Install
+        run: cmake --install build --config Release --prefix install
+
+      - name: Configure host sample
+        run: >-
+          cmake -S samples/host -B build-sample
+          -DCMAKE_BUILD_TYPE=Release
+          -DMXSD_USE_MXML=OFF
+
+      - name: Build host sample
+        run: cmake --build build-sample --config Release --parallel
+
+      - name: Run host sample
+        run: ctest --test-dir build-sample -C Release --output-on-failure
+
+  no-heap:
+    name: Linux / no heap
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DMXSD_USE_MXML=OFF
+          -DMXSD_NO_HEAP=ON
+      - name: Build and test
+        run: |
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
+  zephyr:
+    name: Zephyr / qemu_x86
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/zephyrproject-rtos/ci:v0.28.4
+      options: --user root
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: mxsd
+
+      - name: Initialize west workspace
+        run: |
+          west init -l mxsd
+          west update --narrow -o=--depth=1
+          west zephyr-export
+
+      - name: Build and run Zephyr sample
+        run: west twister -T mxsd/samples/zephyr -p qemu_x86 --inline-logs
