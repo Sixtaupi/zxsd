@@ -141,15 +141,13 @@ Follow `.editorconfig` and `.clang-format`.
 - CMake, Kconfig, YAML, reStructuredText, and Markdown must follow the
   indentation rules in `.editorconfig`.
 
-Format checks equivalent to CI are:
+Run the format checks used by CI with:
 
 ```sh
-clang-format --dry-run --Werror \
-  src/*.c src/*.h include/*.h \
-  samples/host/*.c samples/zephyr/src/*.c \
-  tests/test_*.c tests/w3c/runner.c.in
-black --check --line-length 100 mxsdc tests tools doc/conf.py
+scripts/check-format.sh
 ```
+
+Pass `--fix` to format the files in place.
 
 Use the formatter to fix only files relevant to the change; do not mix broad
 unrelated reformatting into functional work.

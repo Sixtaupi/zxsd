@@ -6,9 +6,9 @@ with tempfile.TemporaryDirectory(dir=build) as a, tempfile.TemporaryDirectory(di
         subprocess.run([sys.executable, str(compiler), str(schema), "-o", out], check=True)
     for name in ("device.mxsd.c", "device.mxsd.h"):
         assert (pathlib.Path(a) / name).read_bytes() == (pathlib.Path(b) / name).read_bytes(), name
-        assert (pathlib.Path(a) / name).read_bytes() == (expected / name).read_bytes(), (
-            "golden " + name
-        )
+        assert (pathlib.Path(a) / name).read_text(encoding="utf-8") == (expected / name).read_text(
+            encoding="utf-8"
+        ), ("golden " + name)
 with tempfile.TemporaryDirectory(dir=build) as d:
     bad = pathlib.Path(d) / "bad.xsd"
     bad.write_text(

@@ -11,6 +11,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True, type=pathlib.Path)
     parser.add_argument("--build-dir", required=True, type=pathlib.Path)
+    parser.add_argument("--build-config")
     parser.add_argument("--ctest", required=True)
     parser.add_argument("--output", required=True, type=pathlib.Path)
     args = parser.parse_args()
@@ -33,15 +34,18 @@ def main():
         if not feature.get("positive_and_negative", False):
             report["failed"].append(name)
             continue
+        command = [
+            args.ctest,
+            "--test-dir",
+            str(args.build_dir),
+            "-R",
+            "^" + feature["test"] + "$",
+            "--output-on-failure",
+        ]
+        if args.build_config:
+            command.extend(["-C", args.build_config])
         process = subprocess.run(
-            [
-                args.ctest,
-                "--test-dir",
-                str(args.build_dir),
-                "-R",
-                "^" + feature["test"] + "$",
-                "--output-on-failure",
-            ],
+            command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

@@ -2,7 +2,9 @@ Building this documentation
 ###########################
 
 The documentation combines Sphinx narrative pages with Doxygen XML rendered
-through Breathe. Doxygen is required for the Sphinx HTML build.
+through Breathe. Doxygen and Graphviz are required for the Sphinx HTML build.
+Install both tools through the system package manager and ensure that the
+``doxygen`` and ``dot`` executables are available on ``PATH``.
 
 .. code-block:: console
 

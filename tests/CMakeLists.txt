@@ -52,6 +52,7 @@ add_test(NAME mxsd_conformance_report
           ${CMAKE_CURRENT_SOURCE_DIR}/conformance/conformance.py
           --manifest ${CMAKE_CURRENT_SOURCE_DIR}/conformance/manifest.json
           --build-dir ${CMAKE_BINARY_DIR}
+          --build-config $<CONFIG>
           --ctest ${CMAKE_CTEST_COMMAND}
           --output ${CMAKE_BINARY_DIR}/conformance-report.json)
 set_tests_properties(mxsd_conformance_report PROPERTIES
