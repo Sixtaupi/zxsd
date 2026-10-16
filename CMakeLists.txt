@@ -7,6 +7,9 @@ option(MXSD_USE_MXML "Use Mini-XML 4 and build its mxsd streaming adapter" ON)
 option(MXSD_BUILD_TESTS "Build the mxsd host test suite" ON)
 option(MXSD_NO_HEAP "Disable all runtime heap allocation" OFF)
 
+# Keep Windows DLLs beside test and sample executables so the loader can find them.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 set(MXSD_SOURCES
   src/mxsd.c
   src/mxsd_dom.c
