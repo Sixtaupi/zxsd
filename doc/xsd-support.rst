@@ -26,16 +26,18 @@ Schema structure and types
      - Nested particles and bounded or ``unbounded`` occurrences.
    * - attributes
      - Supported
-     - Optional, required, prohibited, form, default, and fixed.
+     - Optional, required, prohibited, form, default, fixed, and global references.
    * - attribute ``ref``
-     - Unsupported
-     - Local attributes must declare ``name``.
+     - Supported
+     - References preserve the global declaration namespace, type, and value constraint.
    * - ``group`` and ``attributeGroup``
-     - Unsupported
-     - Content and attributes must be declared inline.
+     - Supported
+     - Nested references, occurrences, namespace resolution, wildcard algebra, and
+       legal self references in redefinitions; circular definitions are rejected.
    * - simple restriction and facets
      - Supported
-     - Enumeration, lengths, bounds, whitespace, and inherited restrictions.
+     - Enumeration, lengths, bounds, decimal digit limits, whitespace, and inherited
+       restrictions.
    * - ``xs:list`` and ``xs:union``
      - Supported
      - Named and anonymous item/member types.
@@ -44,8 +46,8 @@ Schema structure and types
      - String/name, numeric, date/time, duration, binary, QName, URI, ID/IDREF,
        ENTITY, and lexical NOTATION families.
    * - ``xs:notation`` declarations
-     - Unsupported
-     - NOTATION datatype lexical validation is separate and supported.
+     - Supported
+     - Public/system metadata and namespace-aware enumerated NOTATION values.
    * - type extension and restriction
      - Supported
      - ``simpleContent`` and ``complexContent`` with inherited content/attributes.
@@ -53,11 +55,12 @@ Schema structure and types
      - Supported
      - Direct use is rejected; valid derived runtime types are accepted.
    * - recursive type definitions
-     - Unsupported
-     - Circular definitions are rejected during generation.
+     - Supported
+     - Direct and mutual named complex types plus guarded recursive global element
+       references, bounded at runtime by ``MXSD_MAX_DEPTH``.
    * - ``xs:anyType`` and mixed content
-     - Unsupported
-     - Unrestricted and ``mixed=\"true\"`` content is rejected.
+     - Supported
+     - Interleaved text, lax arbitrary content, implicit element types, and restrictions.
 
 Namespaces and composition
 **************************
@@ -79,8 +82,9 @@ Namespaces and composition
      - Supported
      - Explicit local resolution only; implicit network access is forbidden.
    * - ``xs:redefine``
-     - Partial
-     - Accepted type redefinitions only; group redefinitions are unavailable.
+     - Supported
+     - Type, model-group, and attribute-group redefinitions with original-component
+       self references.
    * - resolver callback and schema registry
      - Supported
      - Search paths, namespace registry, and circular-dependency detection.
@@ -108,8 +112,9 @@ Instance validation
      - Supported
      - Bounded tuple storage suitable for embedded targets.
    * - identity XPath
-     - Partial
-     - XSD restricted child/descendant/attribute paths; no general XPath engine.
+     - Supported
+     - XSD restricted child/descendant/attribute paths, wildcards, and unions; no
+       general XPath engine.
    * - ``nillable`` and ``xsi:nil``
      - Supported
      - Nil content and fixed/nillable rules are enforced.
@@ -118,17 +123,20 @@ Instance validation
      - Runtime QName resolution plus derivation and block checks.
    * - element and attribute defaults/fixed values
      - Supported
-     - Simple and simple-content values.
+     - Atomic, list, union, simple-content, ``anyType``, and mixed-complex value constraints.
    * - pattern facet
-     - Partial
-     - Literals, dot, classes, ``\\d``, ``\\s``, ``\\w``, ``?``, ``*``, ``+``,
-       and ``{m,n}``; alternation, grouping, and anchors are rejected.
+     - Supported
+     - Complete XSD 1.0 grammar: grouping, alternation, repetition, class
+       subtraction, implicit whole-value anchoring, name/multi-character escapes,
+       and Unicode categories/blocks.
    * - DTD and XML entities
      - Unsupported
      - Rejected deliberately by schema and embedded XML processing.
    * - event-driven validation
-     - Partial
-     - Fixed-memory API; names, nesting, and a simple text value are bounded.
+     - Supported
+     - Bounded expanded-name events, namespace/QName values, recursive content models,
+       substitution, wildcards, dynamic types, and identity constraints. Identity
+       constraints require the optional scratch allocator.
    * - Mini-XML 4 adapter
      - Supported
      - Optional adapter selected when Mini-XML is available.

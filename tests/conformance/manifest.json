@@ -10,12 +10,14 @@
     {"name": "identity-constraints", "classification": "supported", "test": "mxsd_identity_test", "positive_and_negative": true},
     {"name": "schema-composition", "classification": "supported", "test": "mxsd_composition_test", "positive_and_negative": true},
     {"name": "element-instance-semantics", "classification": "supported", "test": "mxsd_element_semantics_test", "positive_and_negative": true},
+    {"name": "model-groups-and-attribute-groups", "classification": "supported", "test": "mxsd_groups_test", "positive_and_negative": true},
+    {"name": "mixed-content-and-any-type", "classification": "supported", "test": "mxsd_mixed_any_test", "positive_and_negative": true},
+    {"name": "recursive-complex-types", "classification": "supported", "test": "mxsd_recursive_test", "positive_and_negative": true},
+    {"name": "xsd-regular-expressions", "classification": "supported", "test": "mxsd_regex_test", "positive_and_negative": true},
     {"name": "annotations-and-strict-rejection", "classification": "supported", "test": "compiler", "positive_and_negative": true},
     {"name": "streaming-validation", "classification": "supported", "test": "runtime", "positive_and_negative": true},
     {"name": "resource-limits", "classification": "supported", "test": "runtime", "positive_and_negative": true},
     {"name": "custom-allocator", "classification": "supported", "test": "mxsd_identity_test", "positive_and_negative": true},
-    {"name": "mixed-content", "classification": "unsupported"},
-    {"name": "model-groups-and-attribute-groups", "classification": "unsupported"},
-    {"name": "notation-declarations", "classification": "expected-failure"}
+    {"name": "notation-declarations", "classification": "supported", "test": "mxsd_notation_test", "positive_and_negative": true}
   ]
 }

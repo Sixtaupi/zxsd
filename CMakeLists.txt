@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(mxsd VERSION 0.14.0 LANGUAGES C)
+project(mxsd VERSION 0.19.0 LANGUAGES C)
 
 include(GNUInstallDirs)
 
@@ -14,7 +14,9 @@ set(MXSD_SOURCES
   src/mxsd.c
   src/mxsd_dom.c
   src/mxsd_identity.c
+  src/mxsd_regex.c
   src/mxsd_stream.c
+  src/mxsd_unicode.c
   src/mxsd_value.c)
 if(MXSD_USE_MXML)
   find_path(MXML_INCLUDE_DIR mxml.h)

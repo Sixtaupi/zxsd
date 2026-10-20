@@ -1,7 +1,5 @@
 {
-  "expected-failure": [
-    "notation-declarations"
-  ],
+  "expected-failure": [],
   "failed": [],
   "license": "Apache-2.0",
   "passed": [
@@ -11,12 +9,17 @@
     "elements-sequences-attributes",
     "facets-choice-all-namespaces",
     "identity-constraints",
+    "mixed-content-and-any-type",
+    "model-groups-and-attribute-groups",
+    "notation-declarations",
+    "recursive-complex-types",
     "resource-limits",
     "schema-composition",
     "simple-types-list-union",
     "streaming-validation",
     "type-derivation",
-    "wildcards"
+    "wildcards",
+    "xsd-regular-expressions"
   ],
   "suite": "mxsd-xsd10",
   "supported": [
@@ -26,15 +29,17 @@
     "elements-sequences-attributes",
     "facets-choice-all-namespaces",
     "identity-constraints",
+    "mixed-content-and-any-type",
+    "model-groups-and-attribute-groups",
+    "notation-declarations",
+    "recursive-complex-types",
     "resource-limits",
     "schema-composition",
     "simple-types-list-union",
     "streaming-validation",
     "type-derivation",
-    "wildcards"
+    "wildcards",
+    "xsd-regular-expressions"
   ],
-  "unsupported": [
-    "mixed-content",
-    "model-groups-and-attribute-groups"
-  ]
+  "unsupported": []
 }

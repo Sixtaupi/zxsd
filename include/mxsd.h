@@ -51,6 +51,10 @@ extern "C" {
 /** Maximum identity values, retained as a compatibility alias for rows. */
 #define MXSD_MAX_IDENTITY_VALUES MXSD_MAX_IDENTITY_ROWS
 #endif
+#ifndef MXSD_MAX_IDENTITY_TEXT
+/** Maximum total UTF-8 bytes retained for document ID and IDREF values. */
+#define MXSD_MAX_IDENTITY_TEXT 4096u
+#endif
 #ifndef MXSD_MAX_IDENTITY_CONSTRAINTS
 /** Maximum identity constraints attached to one root declaration. */
 #define MXSD_MAX_IDENTITY_CONSTRAINTS 16u
@@ -63,6 +67,10 @@ extern "C" {
 /** Maximum number of steps in a compiled identity XPath. */
 #define MXSD_MAX_XPATH_DEPTH 8u
 #endif
+#ifndef MXSD_MAX_XPATH_ALTERNATIVES
+/** Maximum union branches in one compiled identity XPath. */
+#define MXSD_MAX_XPATH_ALTERNATIVES 8u
+#endif
 #ifndef MXSD_STREAM_TEXT_CAPACITY
 /** Maximum decoded character data retained for one streamed element. */
 #define MXSD_STREAM_TEXT_CAPACITY MXSD_MAX_TEXT_LENGTH
@@ -71,6 +79,18 @@ extern "C" {
 /** Maximum lexical length of one element or attribute value. */
 #define MXSD_MAX_TEXT_LENGTH 1024u
 #endif
+#ifndef MXSD_MAX_PATTERN_LENGTH
+/** Maximum UTF-8 byte length of one generated XSD regular expression. */
+#define MXSD_MAX_PATTERN_LENGTH 4096u
+#endif
+#ifndef MXSD_MAX_REGEX_NODES
+/** Maximum parsed expression nodes used by the allocation-free regex engine. */
+#define MXSD_MAX_REGEX_NODES 512u
+#endif
+#ifndef MXSD_MAX_REGEX_DEPTH
+/** Maximum parenthesis and character-class subtraction nesting depth. */
+#define MXSD_MAX_REGEX_DEPTH 32u
+#endif
 #ifndef MXSD_MAX_SCHEMA_COMPLEXITY
 /** Maximum aggregate descriptor count accepted by the runtime. */
 #define MXSD_MAX_SCHEMA_COMPLEXITY 4096u
@@ -78,6 +98,10 @@ extern "C" {
 #ifndef MXSD_STREAM_NAME_CAPACITY
 /** Maximum local-name or namespace-URI length accepted by streaming calls. */
 #define MXSD_STREAM_NAME_CAPACITY 128u
+#endif
+#ifndef MXSD_STREAM_CHILD_CAPACITY
+/** Maximum child events retained for one streamed complex element. */
+#define MXSD_STREAM_CHILD_CAPACITY 64u
 #endif
 
 /** Validation status and error codes. */
@@ -207,14 +231,16 @@ typedef enum {
 
 /** Simple-type facet flags used by @ref mxsd_simple_t. */
 enum {
-	MXSD_F_LENGTH = 1u << 0,        /**< Exact length is active. */
-	MXSD_F_MIN_LENGTH = 1u << 1,    /**< Minimum length is active. */
-	MXSD_F_MAX_LENGTH = 1u << 2,    /**< Maximum length is active. */
-	MXSD_F_MIN_INCLUSIVE = 1u << 3, /**< Inclusive lower bound is active. */
-	MXSD_F_MAX_INCLUSIVE = 1u << 4, /**< Inclusive upper bound is active. */
-	MXSD_F_MIN_EXCLUSIVE = 1u << 5, /**< Exclusive lower bound is active. */
-	MXSD_F_MAX_EXCLUSIVE = 1u << 6, /**< Exclusive upper bound is active. */
-	MXSD_F_PATTERN = 1u << 7        /**< Pattern constraint is active. */
+	MXSD_F_LENGTH = 1u << 0,         /**< Exact length is active. */
+	MXSD_F_MIN_LENGTH = 1u << 1,     /**< Minimum length is active. */
+	MXSD_F_MAX_LENGTH = 1u << 2,     /**< Maximum length is active. */
+	MXSD_F_MIN_INCLUSIVE = 1u << 3,  /**< Inclusive lower bound is active. */
+	MXSD_F_MAX_INCLUSIVE = 1u << 4,  /**< Inclusive upper bound is active. */
+	MXSD_F_MIN_EXCLUSIVE = 1u << 5,  /**< Exclusive lower bound is active. */
+	MXSD_F_MAX_EXCLUSIVE = 1u << 6,  /**< Exclusive upper bound is active. */
+	MXSD_F_PATTERN = 1u << 7,        /**< Pattern constraint is active. */
+	MXSD_F_TOTAL_DIGITS = 1u << 8,   /**< Maximum decimal digits is active. */
+	MXSD_F_FRACTION_DIGITS = 1u << 9 /**< Maximum fractional digits is active. */
 };
 
 /** Type-derivation methods used by block and final. */
@@ -259,6 +285,12 @@ typedef struct mxsd_simple {
 	unsigned final_methods;                    /**< Methods forbidden to descendants. */
 	const char *type_name;                     /**< Named type local name, or @c NULL. */
 	const char *type_namespace;                /**< Named type namespace, or @c NULL. */
+	const char *const *patterns; /**< Pattern constraints from each restriction. */
+	size_t pattern_count;        /**< Number of conjunctive pattern constraints. */
+	/** Namespace URI for each QName/NOTATION enumeration, or @c NULL. */
+	const char *const *enumeration_namespaces;
+	size_t total_digits;    /**< Maximum significant decimal digits. */
+	size_t fraction_digits; /**< Maximum fractional decimal digits. */
 } mxsd_simple_t;
 
 struct mxsd_complex;
@@ -331,6 +363,10 @@ typedef struct mxsd_complex {
 	unsigned final_methods;                     /**< Methods forbidden to descendants. */
 	const char *type_name;                      /**< Named type local name, or @c NULL. */
 	const char *type_namespace;                 /**< Named type namespace, or @c NULL. */
+	int mixed_content;                          /**< Non-zero when character data is allowed. */
+	int any_type;                               /**< Non-zero for the built-in xs:anyType. */
+	unsigned block_methods; /**< Derivations forbidden when this type is used through xsi:type.
+				 */
 } mxsd_complex_t;
 
 /** One expanded-name step in the restricted identity XPath subset. */
@@ -340,11 +376,13 @@ typedef struct {
 } mxsd_xpath_step_t;
 
 /** Compiled restricted XPath used by identity constraints. */
-typedef struct {
-	const mxsd_xpath_step_t *steps; /**< Path steps. */
-	size_t step_count;              /**< Number of steps. */
-	int descendant;                 /**< Non-zero for a leading @c .//. */
-	int attribute;                  /**< Non-zero when the final step is an attribute. */
+typedef struct mxsd_xpath {
+	const mxsd_xpath_step_t *steps;        /**< Path steps. */
+	size_t step_count;                     /**< Number of steps. */
+	int descendant;                        /**< Non-zero for a leading @c .//. */
+	int attribute;                         /**< Non-zero when the final step is an attribute. */
+	const struct mxsd_xpath *alternatives; /**< Union branches, or @c NULL. */
+	size_t alternative_count;              /**< Number of union branches. */
 } mxsd_xpath_t;
 
 /** Identity-constraint category. */
@@ -358,6 +396,7 @@ typedef enum {
 typedef struct {
 	const char *name;           /**< Constraint name. */
 	mxsd_identity_kind_t kind;  /**< Constraint category. */
+	mxsd_xpath_t scope;         /**< Element path that owns each constraint scope. */
 	mxsd_xpath_t selector;      /**< Selected element path. */
 	const mxsd_xpath_t *fields; /**< Tuple fields. */
 	size_t field_count;         /**< Number of tuple fields. */
@@ -399,6 +438,14 @@ typedef struct {
 	const mxsd_simple_t *simple_type;        /**< Simple descriptor. */
 } mxsd_named_type_t;
 
+/** Global XML Schema notation declaration. */
+typedef struct {
+	const char *name;              /**< Notation local name. */
+	const char *namespace_uri;     /**< Target namespace URI, or @c NULL. */
+	const char *public_identifier; /**< Public identifier, or @c NULL. */
+	const char *system_identifier; /**< System URI, or @c NULL. */
+} mxsd_notation_t;
+
 /** Root descriptor consumed by the generic validation runtime. */
 typedef struct {
 	const char *root_name;                            /**< Root local name. */
@@ -416,9 +463,11 @@ typedef struct {
 	size_t named_type_count;                          /**< Number of named type entries. */
 	const char *default_value;                        /**< Root default, or @c NULL. */
 	const char *fixed_value;                          /**< Root fixed value, or @c NULL. */
-	int nillable;           /**< Non-zero when root permits xsi:nil. */
-	int abstract_element;   /**< Non-zero when root is abstract. */
-	unsigned block_methods; /**< Root block constraints. */
+	int nillable;                     /**< Non-zero when root permits xsi:nil. */
+	int abstract_element;             /**< Non-zero when root is abstract. */
+	unsigned block_methods;           /**< Root block constraints. */
+	const mxsd_notation_t *notations; /**< Global notation declaration registry. */
+	size_t notation_count;            /**< Number of notation declarations. */
 } mxsd_schema_t;
 
 /** Internal per-element state exposed only to permit static allocation. */
@@ -433,29 +482,45 @@ typedef struct {
 	unsigned char seen_attributes[MXSD_MAX_ATTRIBUTES]; /**< Seen attributes. */
 	unsigned long child_counts[MXSD_MAX_PARTICLES];     /**< Consumed child counts. */
 	size_t sequence_index;                              /**< Current sequence position. */
-	size_t text_length;                                 /**< Bytes currently in @ref text. */
-	size_t child_count;                                 /**< Number of child events received. */
-	int nillable;                                       /**< Whether xsi:nil is permitted. */
-	int nilled;                                         /**< Whether xsi:nil was true. */
-	int content_started;                                /**< Whether attributes are closed. */
-	int skip_validation;                           /**< Wildcard skip/lax unknown subtree. */
-	char local_name[MXSD_STREAM_NAME_CAPACITY];    /**< Actual local name. */
+	/** Matched leaf particle for each child, used by recursive content models. */
+	const struct mxsd_particle *child_particles[MXSD_STREAM_CHILD_CAPACITY];
+	size_t text_length;                         /**< Bytes currently in @ref text. */
+	size_t child_count;                         /**< Number of child events received. */
+	int nillable;                               /**< Whether xsi:nil is permitted. */
+	int nilled;                                 /**< Whether xsi:nil was true. */
+	int content_started;                        /**< Whether attributes are closed. */
+	int skip_validation;                        /**< Wildcard skip/lax unknown subtree. */
+	size_t namespace_base;                      /**< Namespace stack base for this element. */
+	char local_name[MXSD_STREAM_NAME_CAPACITY]; /**< Actual local name. */
 	char namespace_uri[MXSD_STREAM_NAME_CAPACITY]; /**< Actual namespace URI. */
 	char text[MXSD_STREAM_TEXT_CAPACITY + 1u];     /**< Decoded character data. */
 } mxsd_stream_frame_t;
 
+/** Internal namespace binding retained by the event-driven validator. */
+typedef struct {
+	char prefix[MXSD_STREAM_NAME_CAPACITY]; /**< Lexical prefix, or an empty string. */
+	char uri[MXSD_STREAM_NAME_CAPACITY];    /**< Bound namespace URI. */
+} mxsd_stream_namespace_t;
+
 /**
- * @brief Allocation-free state for the event-driven validator.
+ * @brief Bounded state for the event-driven validator.
  *
  * Initialize this object with @ref mxsd_stream_init before sending events.
- * Its storage is bounded entirely by compile-time configuration constants.
+ * Its storage is bounded by compile-time configuration constants. Identity
+ * constraints additionally use the configured allocator.
  */
 typedef struct {
-	const mxsd_schema_t *schema; /**< Generated schema being validated. */
-	mxsd_result_t result;        /**< Sticky result of the first failed event. */
-	size_t depth;                /**< Number of currently open elements. */
-	size_t event_offset;         /**< Monotonic event index used in diagnostics. */
-	int finished;                /**< Non-zero after a complete root element. */
+	const mxsd_schema_t *schema;         /**< Generated schema being validated. */
+	mxsd_result_t result;                /**< Sticky result of the first failed event. */
+	size_t depth;                        /**< Number of currently open elements. */
+	size_t event_offset;                 /**< Monotonic event index used in diagnostics. */
+	int finished;                        /**< Non-zero after a complete root element. */
+	mxsd_allocator_t identity_allocator; /**< Allocator for streamed identity validation. */
+	char *identity_xml;                  /**< Internal reconstructed XML buffer. */
+	size_t identity_xml_length;          /**< Bytes used in @ref identity_xml. */
+	size_t identity_xml_capacity;        /**< Allocated reconstructed XML bytes. */
+	mxsd_stream_namespace_t namespaces[MXSD_MAX_NAMESPACES]; /**< Active QName bindings. */
+	size_t namespace_count; /**< Number of active entries in @ref namespaces. */
 	mxsd_stream_frame_t frames[MXSD_MAX_DEPTH]; /**< Fixed element stack. */
 } mxsd_stream_t;
 
@@ -483,9 +548,28 @@ mxsd_result_t mxsd_validate_with_allocator(const mxsd_schema_t *schema, const ch
 /** Initialize an event-driven validation context. */
 mxsd_result_t mxsd_stream_init(mxsd_stream_t *stream, const mxsd_schema_t *schema);
 
+/**
+ * @brief Initialize streaming validation with identity-constraint scratch allocation.
+ *
+ * The allocator is used only when the schema contains identity constraints. Passing
+ * @c NULL is valid for schemas without them and otherwise returns
+ * @ref MXSD_ERR_RESOURCE_LIMIT.
+ */
+mxsd_result_t mxsd_stream_init_with_allocator(mxsd_stream_t *stream, const mxsd_schema_t *schema,
+					      const mxsd_allocator_t *allocator);
+
+/** Release optional streaming scratch after an application aborts an event sequence. */
+void mxsd_stream_dispose(mxsd_stream_t *stream);
+
 /** Begin an element identified by its expanded name. */
 mxsd_result_t mxsd_start_element(mxsd_stream_t *stream, const char *namespace_uri,
 				 const char *local_name);
+
+/**
+ * Add an in-scope namespace declaration to the current streamed start tag.
+ * Call this for bindings used by QName- or NOTATION-valued attributes/text.
+ */
+mxsd_result_t mxsd_namespace(mxsd_stream_t *stream, const char *prefix, const char *namespace_uri);
 
 /** Add an attribute to the current start tag using its expanded name. */
 mxsd_result_t mxsd_attribute(mxsd_stream_t *stream, const char *namespace_uri,

@@ -34,12 +34,12 @@ int main(void)
 			       "<extended id='7' "
 			       "tag='ok'><name>toolong</name><enabled>true</enabled></extended>"),
 		       MXSD_ERR_INVALID_VALUE);
-	failures +=
-		expect(derivation_restricted_validate("<restricted><name>abc</name></restricted>"),
-		       MXSD_OK);
 	failures += expect(
 		derivation_restricted_validate("<restricted id='1'><name>abc</name></restricted>"),
-		MXSD_ERR_UNEXPECTED_ATTRIBUTE);
+		MXSD_OK);
+	failures +=
+		expect(derivation_restricted_validate("<restricted><name>abc</name></restricted>"),
+		       MXSD_ERR_MISSING_ATTRIBUTE);
 	failures +=
 		expect(derivation_label_validate("<label lang='fr-FR'> hello </label>"), MXSD_OK);
 	failures += expect(derivation_label_validate("<label>hello</label>"),

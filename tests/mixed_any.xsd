@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="Mixed" mixed="true">
+    <xs:sequence>
+      <xs:element name="em" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="Code">
+    <xs:restriction base="xs:int"/>
+  </xs:simpleType>
+
+  <xs:complexType name="Strict">
+    <xs:complexContent mixed="false">
+      <xs:restriction base="xs:anyType">
+        <xs:sequence>
+          <xs:element name="child" type="xs:string"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="xs:unsignedInt" use="required"/>
+      </xs:restriction>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="AnySimpleCarrier">
+    <xs:simpleContent>
+      <xs:extension base="xs:anySimpleType">
+        <xs:attribute name="kind" type="xs:string" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:element name="p" type="Mixed"/>
+  <xs:element name="anything" type="xs:anyType"/>
+  <xs:element name="fixedAnything" type="xs:anyType" fixed="abc"/>
+  <xs:element name="fixedMixed" type="Mixed" fixed="abc"/>
+  <xs:element name="implicit"/>
+  <xs:element name="strict" type="Strict"/>
+  <xs:element name="simple" type="xs:anySimpleType"/>
+  <xs:element name="plain">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="child" type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

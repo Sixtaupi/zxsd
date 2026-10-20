@@ -333,6 +333,79 @@ Do not mark a feature supported solely because mxsdc accepts it.
 A feature is supported only when positive AND negative conformance tests
 pass.
 
+
+## v0.15 — Reusable declaration groups
+
+Implement:
+
+- `xs:group` definitions and references
+- `xs:attributeGroup` definitions and references
+- global `xs:attribute` references
+- occurrence constraints on model-group references
+- circular group-reference detection
+
+Group expansion MUST preserve namespace context and MUST remain bounded by the
+configured schema-complexity and runtime descriptor limits.
+
+
+## v0.16 — Mixed content and anyType
+
+Implement:
+
+- mixed complex content
+- the built-in `xs:anyType`
+- implicit `xs:anyType` for untyped element declarations
+- restrictions and runtime `xsi:type` derivation from `xs:anyType`
+- DOM and streaming validation of interleaved character data
+
+Arbitrary content MUST use the existing bounded wildcard machinery and MUST
+NOT cause character data to be retained in proportion to the input size.
+
+## v0.17 — Recursive complex types
+
+Implement:
+
+- direct recursion through local element declarations
+- mutual recursion between named complex types
+- deterministic C descriptor cycles through forward declarations
+- DOM and streaming validation bounded by `MXSD_MAX_DEPTH`
+- explicit rejection of recursive simple types and circular type derivation
+
+Recursive descriptors MUST NOT cause unbounded schema traversal or allocation.
+The first instance element beyond `MXSD_MAX_DEPTH` MUST fail with
+`MXSD_ERR_EXCESSIVE_NESTING`.
+
+## v0.18 — Complete XSD regular expressions
+
+Implement the complete XML Schema 1.0 regular-expression grammar:
+
+- grouping, alternation, empty branches, and every repetition form
+- positive and negative character classes, ranges, and class subtraction
+- single-character, multi-character, XML name, category, and block escapes
+- UTF-8 matching by Unicode scalar value using Unicode 16 categories and blocks
+- disjunction of sibling pattern facets and conjunction across restriction steps
+- implicit whole-value anchoring
+
+The target matcher MUST remain allocation-free and deterministically bounded by
+`MXSD_MAX_TEXT_LENGTH`, `MXSD_MAX_PATTERN_LENGTH`, `MXSD_MAX_REGEX_NODES`, and
+`MXSD_MAX_REGEX_DEPTH`. Invalid expressions and unknown Unicode properties MUST
+fail during schema compilation.
+
+## v0.19 — Notation declarations
+
+Implement:
+
+- global ``xs:notation`` declarations across composed schemas
+- public and system identifier metadata in generated descriptors
+- the XSD rule that ``xs:NOTATION`` is used only through a restriction with at
+  least one enumeration facet
+- namespace-aware QName resolution for NOTATION enumeration values
+- compile-time rejection of duplicate declarations, invalid identifiers, and
+  enumeration values that do not name a declared notation
+
+Runtime NOTATION validation MUST resolve the instance QName by namespace URI
+and local name, independently of the lexical prefix.
+
 ## Critical rule
 
 Unsupported XSD constructs MUST cause `mxsdc` to fail.
@@ -404,7 +477,7 @@ Treat both XSD and XML as untrusted input.
 
 The compiler MUST detect:
 
-- recursive definitions
+- invalid recursive simple types and circular type derivation
 - invalid references
 - integer overflow
 - pathological occurrence values

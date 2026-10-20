@@ -1,15 +1,31 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#include "@HEADER@"
+#include <mxsd.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+/* @DECLARATIONS@ */
+
+static mxsd_result_t (*const validators[])(const char *xml) = {
+	/* @VALIDATORS@ */
+};
 
 int main(int argc, char **argv)
 {
 	FILE *input;
 	long size;
 	char *xml;
+	char *end;
+	unsigned long index;
 	mxsd_result_t result;
-	if (argc != 2 || !(input = fopen(argv[1], "rb"))) {
+	if (argc != 3) {
+		return 125;
+	}
+	index = strtoul(argv[1], &end, 10);
+	if (*argv[1] == '\0' || *end != '\0' ||
+	    index >= sizeof(validators) / sizeof(validators[0])) {
+		return 125;
+	}
+	if (!(input = fopen(argv[2], "rb"))) {
 		return 125;
 	}
 	if (fseek(input, 0, SEEK_END) || (size = ftell(input)) < 0 || fseek(input, 0, SEEK_SET)) {
@@ -28,7 +44,7 @@ int main(int argc, char **argv)
 	}
 	fclose(input);
 	xml[size] = '\0';
-	result = @SYMBOL @_validate_document(xml);
+	result = validators[index](xml);
 	free(xml);
 	if (result.code != MXSD_OK) {
 		fprintf(stderr, "%d:%lu:%s:%s\n", (int)result.code, (unsigned long)result.offset,

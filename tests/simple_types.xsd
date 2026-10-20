@@ -4,10 +4,18 @@
   <xs:simpleType name="NumberOrName"><xs:union memberTypes="xs:int xs:NCName"/></xs:simpleType>
   <xs:simpleType name="InlineUnion"><xs:union><xs:simpleType><xs:restriction base="xs:token"><xs:enumeration value="yes"/></xs:restriction></xs:simpleType><xs:simpleType><xs:restriction base="xs:boolean"/></xs:simpleType></xs:union></xs:simpleType>
   <xs:simpleType name="Collapsed"><xs:restriction base="xs:token"><xs:length value="3"/><xs:enumeration value="a b"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Price"><xs:restriction base="xs:decimal"><xs:totalDigits value="4"/><xs:fractionDigits value="2"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="HugeBound"><xs:restriction base="xs:decimal"><xs:minExclusive value="-999999999999999999"/><xs:maxExclusive value="999999999999999999"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="AfterJanuary"><xs:restriction base="xs:gMonth"><xs:minExclusive value="--01"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="LongerThanMonth"><xs:restriction base="xs:duration"><xs:minExclusive value="P1M"/></xs:restriction></xs:simpleType>
   <xs:element name="list" type="Pair"/>
   <xs:element name="union" type="NumberOrName"/>
   <xs:element name="inlineUnion" type="InlineUnion"/>
   <xs:element name="collapsed" type="Collapsed"/>
+  <xs:element name="price" type="Price"/>
+  <xs:element name="hugeBound" type="HugeBound"/>
+  <xs:element name="afterJanuary" type="AfterJanuary"/>
+  <xs:element name="longerThanMonth" type="LongerThanMonth"/>
   <xs:element name="normalized" type="xs:normalizedString"/>
   <xs:element name="language" type="xs:language"/>
   <xs:element name="name" type="xs:Name"/>
@@ -21,6 +29,7 @@
   <xs:element name="entities" type="xs:ENTITIES"/>
   <xs:element name="qname" type="xs:QName"/>
   <xs:element name="uri" type="xs:anyURI"/>
+  <xs:element name="fixedText" type="xs:string" fixed="A&amp;B"/>
   <xs:element name="duration" type="xs:duration"/>
   <xs:element name="date" type="xs:date"/>
   <xs:element name="dateTime" type="xs:dateTime"/>
@@ -44,5 +53,4 @@
   <xs:element name="unsignedLong" type="xs:unsignedLong"/>
   <xs:element name="unsignedShort" type="xs:unsignedShort"/>
   <xs:element name="unsignedByte" type="xs:unsignedByte"/>
-  <xs:element name="notation" type="xs:NOTATION"/>
 </xs:schema>

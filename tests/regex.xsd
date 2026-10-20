@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="Choice">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(cat|dog)-(\d{2}|X)"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Consonants">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z-[aeiou]]+"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="UnicodeWord">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\p{Lu}\p{Ll}+"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="GreekText">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\p{IsGreek}+"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="XmlName">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\i\c*"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="NotDigits">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\P{Nd}+"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="RepeatedGroup">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(ab){2,3}"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Color">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="red"/>
+      <xs:pattern value="blue"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="BlueColor">
+    <xs:restriction base="Color">
+      <xs:pattern value=".*e"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="EmptyAlternative">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(none|)"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="NegativeClass">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[^0-9]+"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="LiteralOperators">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\^cost$\?"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="CurrentGreekBlock">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\p{IsGreekandCoptic}+"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="LeadingSpaceB">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\s+b"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Xsd10Digit">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\d"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Xsd10NonDigit">
+    <xs:restriction base="xs:string"><xs:pattern value="\D"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Xsd10WordCharacter">
+    <xs:restriction base="xs:string"><xs:pattern value="\w"/></xs:restriction>
+  </xs:simpleType>
+
+  <xs:element name="choice" type="Choice"/>
+  <xs:element name="consonants" type="Consonants"/>
+  <xs:element name="word" type="UnicodeWord"/>
+  <xs:element name="greek" type="GreekText"/>
+  <xs:element name="name" type="XmlName"/>
+  <xs:element name="not-digits" type="NotDigits"/>
+  <xs:element name="repeat" type="RepeatedGroup"/>
+  <xs:element name="color" type="Color"/>
+  <xs:element name="blue" type="BlueColor"/>
+  <xs:element name="empty-alternative" type="EmptyAlternative"/>
+  <xs:element name="negative-class" type="NegativeClass"/>
+  <xs:element name="literal-operators" type="LiteralOperators"/>
+  <xs:element name="current-greek-block" type="CurrentGreekBlock"/>
+  <xs:element name="xsd10-digit" type="Xsd10Digit"/>
+  <xs:element name="xsd10-non-digit" type="Xsd10NonDigit"/>
+  <xs:element name="xsd10-word" type="Xsd10WordCharacter"/>
+  <xs:element name="attribute-entity">
+    <xs:complexType>
+      <xs:attribute name="value" type="LeadingSpaceB" use="required"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

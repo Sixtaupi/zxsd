@@ -36,6 +36,22 @@ static size_t schema_particle_count(const mxsd_particle_t *particle, size_t dept
 	return count;
 }
 
+static int schema_xpath_within_limits(const mxsd_xpath_t *xpath)
+{
+	size_t index;
+
+	if (xpath->step_count > MXSD_MAX_XPATH_DEPTH ||
+	    xpath->alternative_count > MXSD_MAX_XPATH_ALTERNATIVES) {
+		return 0;
+	}
+	for (index = 0u; index < xpath->alternative_count; ++index) {
+		if (!schema_xpath_within_limits(&xpath->alternatives[index])) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 const char *mxsd_error_string(mxsd_error_t error)
 {
 	static const char *const messages[] = {
@@ -68,15 +84,36 @@ const char *mxsd_error_string(mxsd_error_t error)
 static int schema_within_limits(const mxsd_schema_t *schema)
 {
 	size_t complexity = schema->global_element_count + schema->global_attribute_count +
-			    schema->named_type_count + schema->identity_count;
+			    schema->named_type_count + schema->identity_count +
+			    schema->notation_count;
+
+	size_t identity;
 
 	if (schema->root_complex != NULL) {
 		complexity +=
 			schema->root_complex->element_count + schema->root_complex->attribute_count;
 		complexity += schema_particle_count(schema->root_complex->particle, 0u);
 	}
-	return complexity <= MXSD_MAX_SCHEMA_COMPLEXITY &&
-	       schema->identity_count <= MXSD_MAX_IDENTITY_CONSTRAINTS;
+	if (complexity > MXSD_MAX_SCHEMA_COMPLEXITY ||
+	    schema->identity_count > MXSD_MAX_IDENTITY_CONSTRAINTS) {
+		return 0;
+	}
+	for (identity = 0u; identity < schema->identity_count; ++identity) {
+		const mxsd_identity_t *constraint = &schema->identities[identity];
+		size_t field;
+
+		if (constraint->field_count > MXSD_MAX_IDENTITY_FIELDS ||
+		    !schema_xpath_within_limits(&constraint->scope) ||
+		    !schema_xpath_within_limits(&constraint->selector)) {
+			return 0;
+		}
+		for (field = 0u; field < constraint->field_count; ++field) {
+			if (!schema_xpath_within_limits(&constraint->fields[field])) {
+				return 0;
+			}
+		}
+	}
+	return 1;
 }
 
 mxsd_result_t mxsd_validate_with_allocator(const mxsd_schema_t *schema, const char *xml,
@@ -84,7 +121,7 @@ mxsd_result_t mxsd_validate_with_allocator(const mxsd_schema_t *schema, const ch
 {
 	mxsd_result_t result;
 
-	if (schema == NULL || schema->root_name == NULL || xml == NULL) {
+	if (schema == NULL || xml == NULL) {
 		return make_result(MXSD_ERR_ARGUMENT, 0, NULL);
 	}
 	if (!schema_within_limits(schema)) {

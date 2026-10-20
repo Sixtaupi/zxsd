@@ -16,13 +16,28 @@ W3C test-suite licensing terms.
 python3 tests/w3c/fetch.py build/w3c-suite
 python3 tests/w3c/run.py \
   --suite build/w3c-suite/xmlschema2006-11-06 \
-  --output build/w3c-xsd10-report.json
+  --output build/w3c-xsd10-report.json \
+  --html build/w3c-xsd10-report.html
+```
+
+The JSON report is exhaustive and large. `--html` also writes a standalone page
+with per-category totals, a per-test-set table, skip reasons, and a filterable
+list of failed, expected-failure, and unsupported cases with their diagnostics.
+An existing JSON report can be rendered without rerunning the suite:
+
+```sh
+python3 tests/w3c/report.py build/w3c-xsd10-report.json -o build/w3c-xsd10-report.html
 ```
 
 Use `--inventory-only` to verify discovery without compiling cases, `--limit N`
 for a smoke run, and `--status all` to include cases whose W3C status is not
 `accepted`. By default, every published case is inventoried while only accepted
 cases are executed.
+
+The runtime is compiled once per run, schema sets are processed in parallel
+(`--jobs N`, defaulting to the CPU count), and generated validators are linked
+in batches into shared runner executables. Batching matters on macOS, where the
+first launch of every new executable is scanned by the system.
 
 The W3C describes this suite as comprehensive rather than complete. Therefore
 the inventory can reach 100% of published cases, but it cannot prove that every

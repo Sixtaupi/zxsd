@@ -44,7 +44,8 @@ result classifications, and W3C suite integration are documented in
 ./mxsdc device.xsd -o generated
 cc -Iinclude -Isrc -Igenerated \
   src/mxsd.c src/mxsd_dom.c src/mxsd_value.c src/mxsd_identity.c \
-  src/mxsd_stream.c src/mxsd_xml_builtin.c generated/device.mxsd.c app.c
+  src/mxsd_regex.c src/mxsd_unicode.c src/mxsd_stream.c \
+  src/mxsd_xml_builtin.c generated/device.mxsd.c app.c
 ```
 
 ```c
@@ -53,14 +54,17 @@ mxsd_result_t r = device_validate(xml);
 if (r.code != MXSD_OK) { /* r.message, r.offset and r.path */ }
 ```
 
-The compiler implements the supported portions of the v0.1-v0.14 milestones
+The compiler implements the supported portions of the v0.1-v0.19 milestones
 in `SPEC.md`: type
 derivation, simple/complex content, inheritance, abstract types, lists,
 unions, the XSD 1.0 simple datatype family, whitespace normalization,
-content models, references, namespace/QName handling, recursive occurrence
+content models, model and attribute groups, declaration references,
+namespace/QName handling, recursive occurrence
 models, wildcards, identity constraints, schema composition, substitution
-groups, advanced instance semantics, annotations, and bounded event-driven
-validation. Unknown constructs and properties
+groups, recursive named complex types, complete XSD regular expressions,
+notation declarations, mixed
+content, `xs:anyType`, advanced
+instance semantics, and bounded event-driven validation. Unknown constructs and properties
 are errors. The portable XML reader has no filesystem, network,
 or POSIX dependency. Whitespace normalization uses a temporary buffer whose
 size is proportional to the simple value being checked. Limits such as
@@ -74,6 +78,8 @@ The runtime is split into focused implementation units:
 | `src/mxsd.c` | Public validation facade, allocators, and resource checks |
 | `src/mxsd_dom.c` | XML parsing, namespaces, elements, attributes, and content models |
 | `src/mxsd_value.c` | Simple datatypes, whitespace, patterns, and facets |
+| `src/mxsd_regex.c` | Bounded XSD regular-expression parser and matcher |
+| `src/mxsd_unicode.c` | Generated Unicode 16 category and block tables |
 | `src/mxsd_identity.c` | Bounded `unique`, `key`, `keyref`, and restricted XPath processing |
 | `src/mxsd_stream.c` | Fixed-memory event-driven validation |
 | `src/mxsd_internal.h` | Private contracts shared by runtime modules |
@@ -114,8 +120,8 @@ every published test and executes accepted schema and instance cases. It keeps
 unsupported behavior separate from failures and does not download data during
 normal CMake builds.
 
-Identity constraints use the XSD 1.0 restricted XPath subset compiled into
-fixed path descriptors; no general XPath engine is linked. Tuple storage is
+Identity constraints use the complete XSD 1.0 restricted XPath subset, including
+path unions, compiled into fixed descriptors; no general XPath engine is linked. Tuple storage is
 bounded by `MXSD_MAX_IDENTITY_VALUES`, `MXSD_MAX_IDENTITY_FIELDS`, and
 `MXSD_MAX_IDENTITY_CONSTRAINTS`.
 

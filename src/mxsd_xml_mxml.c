@@ -87,6 +87,12 @@ static mxsd_result_t emit_element(mxsd_stream_t *stream, mxml_node_t *node)
 		const char *attribute_uri;
 		if (!strncmp(attribute_name, "xmlns", 5u) &&
 		    (attribute_name[5] == '\0' || attribute_name[5] == ':')) {
+			const char *namespace_prefix =
+				attribute_name[5] == ':' ? attribute_name + 6u : "";
+			result = mxsd_namespace(stream, namespace_prefix, value);
+			if (result.code != MXSD_OK) {
+				return result;
+			}
 			continue;
 		}
 		if (!split_name(attribute_name, attribute_prefix, attribute_local)) {
@@ -140,20 +146,27 @@ static mxsd_result_t emit_element(mxsd_stream_t *stream, mxml_node_t *node)
 mxsd_result_t mxsd_mxml_validate(const mxsd_schema_t *schema, mxml_node_t *node)
 {
 	mxsd_stream_t stream;
-	mxsd_result_t result = mxsd_stream_init(&stream, schema);
-	if (result.code != MXSD_OK || node == NULL) {
-		return result.code == MXSD_OK
-			       ? (mxsd_result_t){MXSD_ERR_ARGUMENT, 0u, NULL, "invalid argument"}
-			       : result;
+	mxsd_result_t result;
+	if (node == NULL) {
+		return (mxsd_result_t){MXSD_ERR_ARGUMENT, 0u, NULL, "invalid argument"};
+	}
+	result = mxsd_stream_init(&stream, schema);
+	if (result.code != MXSD_OK) {
+		return result;
 	}
 	if (mxmlGetType(node) != MXML_TYPE_ELEMENT) {
 		node = mxmlFindElement(node, node, NULL, NULL, NULL, MXML_DESCEND_ALL);
 	}
 	if (node == NULL) {
+		mxsd_stream_dispose(&stream);
 		return (mxsd_result_t){MXSD_ERR_MALFORMED_XML, 0u, NULL, "malformed XML"};
 	}
 	result = emit_element(&stream, node);
-	return result.code == MXSD_OK ? mxsd_stream_finish(&stream) : result;
+	if (result.code == MXSD_OK) {
+		return mxsd_stream_finish(&stream);
+	}
+	mxsd_stream_dispose(&stream);
+	return result;
 }
 
 int mxsd_xml_well_formed(const char *xml)

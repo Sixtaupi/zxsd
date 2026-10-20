@@ -13,10 +13,10 @@
             <xs:element name="c" type="xs:boolean" minOccurs="0"/>
           </xs:sequence>
         </xs:choice>
-        <xs:all minOccurs="0">
-          <xs:element name="x" type="xs:string" minOccurs="0"/>
-          <xs:element name="y" type="xs:string" minOccurs="0"/>
-        </xs:all>
+        <xs:choice minOccurs="0" maxOccurs="2">
+          <xs:element name="x" type="xs:string"/>
+          <xs:element name="y" type="xs:string"/>
+        </xs:choice>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -35,4 +35,27 @@
   <xs:element name="attributeStrict">
     <xs:complexType><xs:anyAttribute namespace="##targetNamespace" processContents="strict"/></xs:complexType>
   </xs:element>
+  <xs:attributeGroup name="otherAttributes">
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:attributeGroup>
+  <xs:attributeGroup name="targetAndBAttributes">
+    <xs:anyAttribute namespace="##targetNamespace urn:b" processContents="lax"/>
+  </xs:attributeGroup>
+  <xs:attributeGroup name="localAndBAttributes">
+    <xs:anyAttribute namespace="##local urn:b" processContents="lax"/>
+  </xs:attributeGroup>
+  <xs:complexType name="OtherBase">
+    <xs:attributeGroup ref="w:otherAttributes"/>
+  </xs:complexType>
+  <xs:complexType name="WildcardUnion">
+    <xs:complexContent><xs:extension base="w:OtherBase">
+      <xs:attributeGroup ref="w:targetAndBAttributes"/>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="WildcardIntersection">
+    <xs:attributeGroup ref="w:otherAttributes"/>
+    <xs:attributeGroup ref="w:localAndBAttributes"/>
+  </xs:complexType>
+  <xs:element name="wildcardUnion" type="w:WildcardUnion"/>
+  <xs:element name="wildcardIntersection" type="w:WildcardIntersection"/>
 </xs:schema>

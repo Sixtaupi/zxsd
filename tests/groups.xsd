@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:g="urn:mxsd:groups"
+           targetNamespace="urn:mxsd:groups"
+           elementFormDefault="qualified">
+  <xs:attribute name="code" type="xs:token" fixed="A"/>
+
+  <xs:attributeGroup name="baseAttributes">
+    <xs:attribute ref="g:code" use="required"/>
+  </xs:attributeGroup>
+
+  <xs:attributeGroup name="allAttributes">
+    <xs:attributeGroup ref="g:baseAttributes"/>
+    <xs:attribute name="enabled" type="xs:boolean" default="true"/>
+  </xs:attributeGroup>
+
+  <xs:group name="payload">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="value" type="xs:int" minOccurs="0"/>
+    </xs:sequence>
+  </xs:group>
+
+  <xs:group name="tree">
+    <xs:sequence>
+      <xs:element name="label" type="xs:string"/>
+      <xs:element name="branch" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType><xs:group ref="g:tree"/></xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:group>
+
+  <xs:element name="root">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:group ref="g:payload" minOccurs="1" maxOccurs="2"/>
+      </xs:sequence>
+      <xs:attributeGroup ref="g:allAttributes"/>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="treeRoot">
+    <xs:complexType><xs:group ref="g:tree"/></xs:complexType>
+  </xs:element>
+</xs:schema>

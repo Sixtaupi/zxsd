@@ -82,6 +82,9 @@ int main(void)
 		    "id='42'><name>sensor</name><enabled>true</enabled><sample>-2</"
 		    "sample><sample>7</sample></device>",
 		    MXSD_OK);
+	n += expect("<!--before--><?test value?><device id='42'><!--inside--><name>sensor</name>"
+		    "<?next value?><sample>7</sample></device><!--after-->",
+		    MXSD_OK);
 	n += expect("<device><name>x</name><sample>1</sample></device>",
 		    MXSD_ERR_MISSING_ATTRIBUTE);
 	n += expect("<device id='1'><sample>1</sample></device>", MXSD_ERR_ELEMENT_ORDER);

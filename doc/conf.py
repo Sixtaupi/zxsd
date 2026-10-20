@@ -9,8 +9,8 @@ DOC_DIR = Path(__file__).resolve().parent
 REPOSITORY_ROOT = DOC_DIR.parent
 
 project = "mxsd"
-author = "mxsd contributors"
-copyright = "2026, mxsd contributors"
+author = "Sixtaupi"
+copyright = "2026, Sixtaupi"
 
 cmake_project = (REPOSITORY_ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
 version_match = re.search(r"project\(mxsd VERSION ([0-9.]+)", cmake_project)

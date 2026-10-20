@@ -21,23 +21,30 @@
 | nested sequence/choice/all and group occurrences | v0.7 | recursive particle tests |
 | `xs:any` and `xs:anyAttribute` | v0.7 | namespace and strict/lax/skip tests |
 | `xs:unique`, `xs:key`, `xs:keyref` | v0.8 | duplicate, missing and dangling-reference tests |
-| restricted identity XPath | v0.8 | child, descendant and attribute field tests |
-| include/import/redefine and schema registry | v0.9 | composed multi-namespace tests |
+| restricted identity XPath | v0.8 | child, descendant, attribute, wildcard, and union tests |
+| include/import/redefine and schema registry | v0.9 | type, model-group, attribute-group, and multi-namespace tests |
 | resolver callback and dependency cycles | v0.9 | local registry/network/cycle compiler tests |
 | substitution groups and abstract elements | v0.10 | direct/substituted/block tests |
 | nillable, `xsi:nil`, `xsi:type` | v0.10 | derived, blocked and nil-content tests |
 | default/fixed/form/block/final | v0.10 | compiler and runtime positive/negative tests |
 | annotation/documentation/appinfo | v0.11 | nested annotation and foreign metadata compiler test |
-| event-driven validation API | v0.12 | start/attribute/text/end positive and negative tests |
+| event-driven validation API | v0.12 | namespace/start/attribute/text/end events, recursive particles, dynamic types, and streamed identity constraints |
 | Mini-XML tree adapter | v0.12 | optional host adapter, expanded namespace events |
 | configurable runtime/schema limits | v0.13 | compiler limit and streaming overflow tests |
 | custom allocator and zero-heap mode | v0.13 | allocator accounting and no-heap builds |
 | machine-readable conformance report | v0.14 | Apache-2.0 manifest with positive/negative gates |
+| `xs:group`, `xs:attributeGroup`, attribute `ref` | v0.15 | expansion, occurrence, namespace, fixed-value, and cycle tests |
+| mixed complex content and `xs:anyType` | v0.16 | interleaved text, lax wildcard, restriction, implicit type, and streaming tests |
+| recursive named complex types | v0.17 | direct/mutual recursion, invalid derivation cycles, depth-bound DOM and streaming tests |
+| complete XSD 1.0 regular expressions | v0.18 | groups, alternation, class subtraction, Unicode categories/blocks, escapes, repetition, and facet composition |
+| `xs:notation` and `xs:NOTATION` | v0.19 | declaration metadata, QName enumeration resolution, direct-use and undeclared-name rejection |
 
 The generated public function is backend-independent. Mini-XML 4 is used when
-available; the allocation-free backend is used for Zephyr. Pattern facets use a
-documented embedded subset (literals, `.`, classes, `\\d`, `\\s`, `\\w`, and
-`?`, `*`, `+`, `{m,n}` quantifiers); unsupported operators fail compilation.
+available; the allocation-free backend is used for Zephyr. Pattern facets use
+the complete XSD 1.0 grammar with Unicode categories and blocks. Expressions
+are implicitly anchored to the complete lexical value, as required by XSD 1.0,
+and are bounded by
+`MXSD_MAX_PATTERN_LENGTH`, `MXSD_MAX_REGEX_NODES`, and `MXSD_MAX_REGEX_DEPTH`.
 Whitespace normalization happens before value-space validation. List length
 facets count items, while binary length facets count decoded octets.
 
@@ -58,11 +65,16 @@ memory without a bound.
 
 ## Streaming memory
 
-The event API retains one fixed frame per open XML element and never retains
-the input document. Its upper bound is `sizeof(mxsd_stream_t)`, primarily
-`MXSD_MAX_DEPTH * MXSD_STREAM_TEXT_CAPACITY`; occurrence and attribute state
-are bounded by `MXSD_MAX_PARTICLES` and `MXSD_MAX_ATTRIBUTES`. Exceeding a
-configured name or text capacity returns `MXSD_ERR_STREAM_LIMIT`.
+The event API retains one fixed frame per open XML element. Schemas without
+identity constraints are allocation-free and use `sizeof(mxsd_stream_t)`,
+primarily `MXSD_MAX_DEPTH * MXSD_STREAM_TEXT_CAPACITY`; occurrence, namespace,
+and attribute state are bounded by `MXSD_MAX_PARTICLES`, `MXSD_MAX_NAMESPACES`,
+and `MXSD_MAX_ATTRIBUTES`. For a schema with identity constraints, the stream
+allocator retains a bounded canonical XML copy of at most `MXSD_MAX_INPUT`
+bytes and releases it at finish or on the first error. This lets the same
+restricted-XPath and typed tuple implementation serve both APIs. Exceeding a
+configured name, text, child, namespace, or input capacity returns
+`MXSD_ERR_STREAM_LIMIT`.
 
 The DOM-style reader also limits every lexical value with
 `MXSD_MAX_TEXT_LENGTH`. `MXSD_MAX_SCHEMA_COMPLEXITY` rejects oversized runtime
@@ -74,3 +86,8 @@ With `MXSD_NO_HEAP`, schemas without identity constraints perform no runtime
 allocation. Identity constraints can still be validated explicitly through
 `mxsd_validate_with_allocator()`; passing no allocator returns
 `MXSD_ERR_RESOURCE_LIMIT`.
+
+Regular-expression parsing is also allocation-free. Its fixed automatic
+workspace is dominated by `MXSD_MAX_REGEX_NODES` (about 11 KiB at the default
+of 512 nodes), so pattern-enabled embedded applications must size the validator
+thread stack accordingly or lower the node limit for their trusted schemas.

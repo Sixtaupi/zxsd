@@ -46,6 +46,13 @@ mxsd_add_schema_test(mxsd_composition_test composition test_composition.c
   ${CMAKE_CURRENT_SOURCE_DIR}/composition_foreign.xsd
   ${CMAKE_CURRENT_SOURCE_DIR}/composition_base.xsd)
 mxsd_add_schema_test(mxsd_element_semantics_test element_semantics test_element_semantics.c)
+mxsd_add_schema_test(mxsd_groups_test groups test_groups.c)
+mxsd_add_schema_test(mxsd_mixed_any_test mixed_any test_mixed_any.c)
+mxsd_add_schema_test(mxsd_recursive_test recursive test_recursive.c)
+mxsd_add_schema_test(mxsd_regex_test regex test_regex.c)
+mxsd_add_schema_test(mxsd_notation_test notation test_notation.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/notation_formats.xsd)
+mxsd_add_schema_test(mxsd_declarations_test declarations test_declarations.c)
 
 add_test(NAME mxsd_conformance_report
   COMMAND ${Python3_EXECUTABLE}
@@ -56,7 +63,7 @@ add_test(NAME mxsd_conformance_report
           --ctest ${CMAKE_CTEST_COMMAND}
           --output ${CMAKE_BINARY_DIR}/conformance-report.json)
 set_tests_properties(mxsd_conformance_report PROPERTIES
-  DEPENDS "runtime;compiler;advanced-runtime;mxsd_derivation_test;mxsd_simple_types_test;mxsd_wildcards_test;mxsd_identity_test;mxsd_composition_test;mxsd_element_semantics_test")
+  DEPENDS "runtime;compiler;advanced-runtime;mxsd_derivation_test;mxsd_simple_types_test;mxsd_wildcards_test;mxsd_identity_test;mxsd_composition_test;mxsd_element_semantics_test;mxsd_groups_test;mxsd_mixed_any_test;mxsd_recursive_test;mxsd_regex_test;mxsd_notation_test;mxsd_declarations_test")
 
 set(MXSD_W3C_SUITE_DIR "" CACHE PATH "Extracted W3C XSD 1.0 test-suite directory")
 if(MXSD_W3C_SUITE_DIR)
@@ -66,6 +73,7 @@ if(MXSD_W3C_SUITE_DIR)
             --project ${PROJECT_SOURCE_DIR}
             --work-dir ${CMAKE_CURRENT_BINARY_DIR}/w3c
             --output ${CMAKE_BINARY_DIR}/w3c-xsd10-report.json
+            --html ${CMAKE_BINARY_DIR}/w3c-xsd10-report.html
             --cc ${CMAKE_C_COMPILER})
   set_tests_properties(mxsd_w3c_xsd10 PROPERTIES LABELS "conformance;w3c" TIMEOUT 7200)
 endif()

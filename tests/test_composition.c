@@ -20,23 +20,39 @@ static int expect(const char *xml, mxsd_error_t wanted)
 int main(void)
 {
 	int failures = 0;
-	failures += expect("<c:composed xmlns:c='urn:mxsd:composition' "
-			   "xmlns:f='urn:mxsd:foreign'><c:included><c:includedValue>4</"
-			   "c:includedValue></c:included><f:foreignItem><f:foreignValue>ok</"
-			   "f:foreignValue></f:foreignItem><c:record><c:baseValue>base</"
-			   "c:baseValue><c:extraValue>8</c:extraValue></c:record></c:composed>",
-			   MXSD_OK);
-	failures += expect("<c:composed xmlns:c='urn:mxsd:composition' "
-			   "xmlns:f='urn:mxsd:foreign'><c:included><c:includedValue>bad</"
-			   "c:includedValue></c:included><f:foreignItem><f:foreignValue>ok</"
-			   "f:foreignValue></f:foreignItem><c:record><c:baseValue>base</"
-			   "c:baseValue><c:extraValue>8</c:extraValue></c:record></c:composed>",
-			   MXSD_ERR_INVALID_VALUE);
+	failures +=
+		expect("<c:composed xmlns:c='urn:mxsd:composition' "
+		       "xmlns:f='urn:mxsd:foreign' baseCode='base' extraCode='extra'>"
+		       "<c:included><c:includedValue>4</"
+		       "c:includedValue></c:included><f:foreignItem><f:foreignValue>ok</"
+		       "f:foreignValue></f:foreignItem><c:record><c:baseValue>base</"
+		       "c:baseValue><c:extraValue>8</c:extraValue></c:record>"
+		       "<c:groupBase>x</c:groupBase><c:groupExtra>9</c:groupExtra></c:composed>",
+		       MXSD_OK);
+	failures +=
+		expect("<c:composed xmlns:c='urn:mxsd:composition' "
+		       "xmlns:f='urn:mxsd:foreign' baseCode='base' extraCode='extra'>"
+		       "<c:included><c:includedValue>bad</"
+		       "c:includedValue></c:included><f:foreignItem><f:foreignValue>ok</"
+		       "f:foreignValue></f:foreignItem><c:record><c:baseValue>base</"
+		       "c:baseValue><c:extraValue>8</c:extraValue></c:record>"
+		       "<c:groupBase>x</c:groupBase><c:groupExtra>9</c:groupExtra></c:composed>",
+		       MXSD_ERR_INVALID_VALUE);
+	failures +=
+		expect("<c:composed xmlns:c='urn:mxsd:composition' "
+		       "xmlns:f='urn:mxsd:foreign' baseCode='base' extraCode='extra'>"
+		       "<c:included><c:includedValue>4</c:includedValue></"
+		       "c:included><f:foreignItem><f:foreignValue>ok</f:foreignValue></"
+		       "f:foreignItem><c:record><c:extraValue>8</c:extraValue></c:record>"
+		       "<c:groupBase>x</c:groupBase><c:groupExtra>9</c:groupExtra></c:composed>",
+		       MXSD_ERR_ELEMENT_ORDER);
 	failures += expect(
-		"<c:composed xmlns:c='urn:mxsd:composition' "
-		"xmlns:f='urn:mxsd:foreign'><c:included><c:includedValue>4</c:includedValue></"
-		"c:included><f:foreignItem><f:foreignValue>ok</f:foreignValue></"
-		"f:foreignItem><c:record><c:extraValue>8</c:extraValue></c:record></c:composed>",
-		MXSD_ERR_ELEMENT_ORDER);
+		"<c:composed xmlns:c='urn:mxsd:composition' xmlns:f='urn:mxsd:foreign' "
+		"baseCode='base'><c:included><c:includedValue>4</c:includedValue></c:included>"
+		"<f:foreignItem><f:foreignValue>ok</f:foreignValue></f:foreignItem>"
+		"<c:record><c:baseValue>base</c:baseValue><c:extraValue>8</c:extraValue>"
+		"</c:record><c:groupBase>x</c:groupBase><c:groupExtra>9</c:groupExtra>"
+		"</c:composed>",
+		MXSD_ERR_MISSING_ATTRIBUTE);
 	return failures ? 1 : 0;
 }

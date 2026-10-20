@@ -32,6 +32,15 @@ the host and are never parsed on the target.
    * - ``CONFIG_MXSD_MAX_TEXT_LENGTH``
      - 1024
      - Maximum decoded lexical value and per-frame streaming text buffer.
+   * - ``CONFIG_MXSD_MAX_PATTERN_LENGTH``
+     - 256
+     - Maximum UTF-8 byte length of one XSD regular expression.
+   * - ``CONFIG_MXSD_MAX_REGEX_NODES``
+     - 512
+     - Fixed parser capacity and principal pattern-validation stack cost.
+   * - ``CONFIG_MXSD_MAX_REGEX_DEPTH``
+     - 32
+     - Maximum group and character-class subtraction nesting.
    * - ``CONFIG_MXSD_MAX_SCHEMA_COMPLEXITY``
      - 4096
      - Maximum aggregate runtime-visible descriptor count.
@@ -44,4 +53,10 @@ with an application allocator.
 Choose limits from the largest trusted schema and document the device accepts,
 then exercise the boundaries with tests. See :doc:`resource-usage` for the
 relationship between limits and memory.
+
+Pattern parsing is allocation-free and uses a fixed automatic workspace. With
+the default 512-node capacity, reserve approximately 11 KiB in the validating
+thread in addition to the normal validation stack. Lower
+``CONFIG_MXSD_MAX_REGEX_NODES`` when the compiled schemas use smaller patterns;
+the repository Zephyr sample reserves a 16 KiB main stack for the defaults.
 

@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mxsdc"
+dynamic = ["version"]
+description = "Host compiler that turns a supported XML Schema 1.0 subset into C descriptor tables for the mxsd runtime"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [{ name = "Sixtaupi" }]
+keywords = ["xsd", "xml-schema", "validation", "embedded", "code-generator", "zephyr"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Embedded Systems",
+    "Topic :: Text Processing :: Markup :: XML",
+]
+
+[project.urls]
+Homepage = "https://github.com/Sixtaupi/mxsd"
+Source = "https://github.com/Sixtaupi/mxsd"
+Issues = "https://github.com/Sixtaupi/mxsd/issues"
+
+[project.scripts]
+mxsdc = "mxsdc:main"
+
+# CMakeLists.txt is the single source of truth for the project version.
+[tool.hatch.version]
+path = "CMakeLists.txt"
+pattern = "project\\(mxsd VERSION (?P<version>[0-9.]+)"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["mxsdc", "CMakeLists.txt", "README.md", "LICENSE", "pyproject.toml"]
+
+# The repository keeps the compiler as a single extensionless script; ship it as
+# the mxsdc module so the console entry point can import main().
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"mxsdc" = "mxsdc/__init__.py"

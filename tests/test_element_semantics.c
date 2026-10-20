@@ -15,6 +15,34 @@ static int expect(mxsd_result_t result, mxsd_error_t wanted)
 	return 1;
 }
 
+/** Exercise a transitive substitution group through the streaming API. */
+static mxsd_result_t stream_substitution(void)
+{
+	static const char ns[] = "urn:mxsd:elements";
+	mxsd_stream_t stream;
+	mxsd_result_t result = element_semantics_container_stream_init(&stream);
+
+#define STREAM_EVENT(call)                                                                         \
+	do {                                                                                       \
+		if (result.code == MXSD_OK) {                                                      \
+			result = (call);                                                           \
+		}                                                                                  \
+	} while (0)
+	STREAM_EVENT(mxsd_start_element(&stream, ns, "container"));
+	STREAM_EVENT(mxsd_start_element(&stream, ns, "member"));
+	STREAM_EVENT(mxsd_start_element(&stream, ns, "name"));
+	STREAM_EVENT(mxsd_text(&stream, "x", 1u));
+	STREAM_EVENT(mxsd_end_element(&stream, ns, "name"));
+	STREAM_EVENT(mxsd_start_element(&stream, ns, "count"));
+	STREAM_EVENT(mxsd_text(&stream, "2", 1u));
+	STREAM_EVENT(mxsd_end_element(&stream, ns, "count"));
+	STREAM_EVENT(mxsd_end_element(&stream, ns, "member"));
+	STREAM_EVENT(mxsd_end_element(&stream, ns, "container"));
+	STREAM_EVENT(mxsd_stream_finish(&stream));
+#undef STREAM_EVENT
+	return result;
+}
+
 /** Exercise substitution, xsi semantics, defaults, fixed and form. */
 int main(void)
 {
@@ -22,6 +50,7 @@ int main(void)
 		"xmlns:e='urn:mxsd:elements' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'";
 	int failures = 0;
 	(void)ns;
+	failures += expect(stream_substitution(), MXSD_OK);
 	failures += expect(element_semantics_container_validate(
 				   "<e:container "
 				   "xmlns:e='urn:mxsd:elements'><e:member><e:name>x</"

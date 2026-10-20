@@ -34,7 +34,7 @@ static const mxsd_particle_t particle_children_Device_1[] = {
   {MXSD_PARTICLE_ELEMENT, 1UL, 2UL, &particle_element_Device_1_4, NULL, 0, NULL}
 };
 static const mxsd_particle_t particle_Device = {MXSD_PARTICLE_SEQUENCE, 1UL, 1UL, NULL, particle_children_Device_1, 3, NULL};
-static const mxsd_complex_t type_Device = {elements_Device, 3, attributes_Device, 1, MXSD_SEQUENCE, 1UL, 1UL, NULL, MXSD_T_STRING, 0, 0, &particle_Device, NULL, NULL, 0, 0, "Device", NULL};
+static const mxsd_complex_t type_Device = {elements_Device, 3, attributes_Device, 1, MXSD_SEQUENCE, 1UL, 1UL, NULL, MXSD_T_STRING, 0, 0, &particle_Device, NULL, NULL, 0, 0, "Device", NULL, 0, 0, 0};
 
 static const mxsd_global_element_t global_elements[] = {
   {"device", NULL, MXSD_T_COMPLEX, &type_Device, NULL, NULL, NULL, 0, 0, 0, NULL, NULL},
@@ -42,7 +42,7 @@ static const mxsd_global_element_t global_elements[] = {
 static const mxsd_named_type_t named_types[] = {
   {"Device", NULL, MXSD_T_COMPLEX, &type_Device, NULL},
 };
-static const mxsd_schema_t schema_device = {"device", MXSD_T_COMPLEX, &type_Device, NULL, NULL, NULL, 0, global_elements, 1, NULL, 0, named_types, 1, NULL, NULL, 0, 0, 0};
+static const mxsd_schema_t schema_device = {"device", MXSD_T_COMPLEX, &type_Device, NULL, NULL, NULL, 0, global_elements, 1, NULL, 0, named_types, 1, NULL, NULL, 0, 0, 0, NULL, 0};
 
 mxsd_result_t device_validate(const char *xml) { return mxsd_validate(&schema_device, xml); }
 mxsd_result_t device_validate_document(const char *xml) {

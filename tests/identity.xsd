@@ -7,21 +7,35 @@
             <xs:sequence><xs:element name="serial" type="xs:token"/></xs:sequence>
             <xs:attribute name="code" type="xs:token"/>
             <xs:attribute name="alias" type="xs:token"/>
+            <xs:attribute name="xmlId" type="xs:ID"/>
+            <xs:attribute name="qualified" type="xs:QName"/>
           </xs:complexType>
         </xs:element>
         <xs:element name="order" minOccurs="0" maxOccurs="unbounded">
-          <xs:complexType><xs:attribute name="product" type="xs:token"/></xs:complexType>
+          <xs:complexType>
+            <xs:attribute name="product" type="xs:token"/>
+            <xs:attribute name="qualifiedProduct" type="xs:QName"/>
+          </xs:complexType>
         </xs:element>
       </xs:sequence>
     </xs:complexType>
     <xs:unique name="uniqueAlias">
       <xs:selector xpath=".//product"/><xs:field xpath="@alias"/>
     </xs:unique>
+    <xs:unique name="uniqueSerialOrOrder">
+      <xs:selector xpath="product | order"/><xs:field xpath="serial | @product"/>
+    </xs:unique>
     <xs:key name="productKey">
       <xs:selector xpath="product"/><xs:field xpath="@code"/>
     </xs:key>
     <xs:keyref name="orderProduct" refer="productKey">
       <xs:selector xpath="order"/><xs:field xpath="@product"/>
+    </xs:keyref>
+    <xs:unique name="qualifiedProductKey">
+      <xs:selector xpath="product"/><xs:field xpath="@qualified"/>
+    </xs:unique>
+    <xs:keyref name="qualifiedOrderProduct" refer="qualifiedProductKey">
+      <xs:selector xpath="order"/><xs:field xpath="@qualifiedProduct"/>
     </xs:keyref>
   </xs:element>
 </xs:schema>

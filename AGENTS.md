@@ -36,7 +36,9 @@ documentation together. Do not let these descriptions drift apart.
 - `include/`: public, installed C headers.
 - `src/mxsd.c`: public validation facade and resource checks.
 - `src/mxsd_dom.c`: document parsing, namespaces, elements, and content models.
-- `src/mxsd_value.c`: simple datatypes, whitespace, patterns, and facets.
+- `src/mxsd_value.c`: simple datatypes, whitespace, and facets.
+- `src/mxsd_regex.c`: bounded XSD regular-expression parser and matcher.
+- `src/mxsd_unicode.c`: generated Unicode category and block tables.
 - `src/mxsd_identity.c`: `unique`, `key`, `keyref`, and restricted XPath.
 - `src/mxsd_stream.c`: bounded event-driven validator.
 - `src/mxsd_xml_builtin.c`: portable allocation-free XML backend.

@@ -31,20 +31,44 @@ int main(void)
 	CHECK(simple_types_inlineUnion_validate("<inlineUnion>no</inlineUnion>"),
 	      MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_collapsed_validate("<collapsed> a\t b </collapsed>"), MXSD_OK);
+	CHECK(simple_types_price_validate("<price>12.30</price>"), MXSD_OK);
+	CHECK(simple_types_price_validate("<price>123.45</price>"), MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_price_validate("<price>1.234</price>"), MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_hugeBound_validate("<hugeBound>-999999999999999998</hugeBound>"),
+	      MXSD_OK);
+	CHECK(simple_types_hugeBound_validate("<hugeBound>-999999999999999999</hugeBound>"),
+	      MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_hugeBound_validate("<hugeBound>999999999999999999</hugeBound>"),
+	      MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_afterJanuary_validate("<afterJanuary>--02</afterJanuary>"), MXSD_OK);
+	CHECK(simple_types_afterJanuary_validate("<afterJanuary>--01</afterJanuary>"),
+	      MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_longerThanMonth_validate("<longerThanMonth>P32D</longerThanMonth>"),
+	      MXSD_OK);
+	CHECK(simple_types_longerThanMonth_validate("<longerThanMonth>P27D</longerThanMonth>"),
+	      MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_language_validate("<language>fr-FR</language>"), MXSD_OK);
 	CHECK(simple_types_language_validate("<language>fr_XX</language>"), MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_name_validate("<name>a:b</name>"), MXSD_OK);
+	CHECK(simple_types_name_validate("<name>一00</name>"), MXSD_OK);
 	CHECK(simple_types_ncname_validate("<ncname>a:b</ncname>"), MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_nmtoken_validate("<nmtoken>a:b-1</nmtoken>"), MXSD_OK);
 	CHECK(simple_types_nmtokens_validate("<nmtokens>a b:c</nmtokens>"), MXSD_OK);
 	CHECK(simple_types_id_validate("<id>node_1</id>"), MXSD_OK);
-	CHECK(simple_types_idref_validate("<idref>node_1</idref>"), MXSD_OK);
-	CHECK(simple_types_idrefs_validate("<idrefs>a b</idrefs>"), MXSD_OK);
+	CHECK(simple_types_idref_validate("<idref>node_1</idref>"), MXSD_ERR_IDENTITY_CONSTRAINT);
+	CHECK(simple_types_idrefs_validate("<idrefs>a b</idrefs>"), MXSD_ERR_IDENTITY_CONSTRAINT);
 	CHECK(simple_types_entity_validate("<entity>logo</entity>"), MXSD_OK);
 	CHECK(simple_types_entities_validate("<entities>logo icon</entities>"), MXSD_OK);
 	CHECK(simple_types_qname_validate("<qname xmlns:p='urn:test'>p:item</qname>"), MXSD_OK);
 	CHECK(simple_types_qname_validate("<qname>p:item</qname>"), MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_uri_validate("<uri>https://example.com/a</uri>"), MXSD_OK);
+	CHECK(simple_types_uri_validate("<uri>A&amp;B</uri>"), MXSD_OK);
+	CHECK(simple_types_fixedText_validate("<fixedText>A&amp;B</fixedText>"), MXSD_OK);
+	CHECK(simple_types_fixedText_validate("<fixedText><![CDATA[A&B]]></fixedText>"), MXSD_OK);
+	CHECK(simple_types_fixedText_validate("<fixedText>A<!-- split -->&amp;B</fixedText>"),
+	      MXSD_OK);
+	CHECK(simple_types_fixedText_validate("<fixedText><![CDATA[A&amp;B]]></fixedText>"),
+	      MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_duration_validate("<duration>P1Y2M3DT4H5M6.5S</duration>"), MXSD_OK);
 	CHECK(simple_types_date_validate("<date>2024-02-29Z</date>"), MXSD_OK);
 	CHECK(simple_types_date_validate("<date>2023-02-29</date>"), MXSD_ERR_INVALID_VALUE);
@@ -76,7 +100,5 @@ int main(void)
 	CHECK(simple_types_unsignedShort_validate("<unsignedShort>65536</unsignedShort>"),
 	      MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_unsignedByte_validate("<unsignedByte>255</unsignedByte>"), MXSD_OK);
-	CHECK(simple_types_notation_validate("<notation xmlns:p='urn:test'>p:item</notation>"),
-	      MXSD_OK);
 	return failures ? 1 : 0;
 }

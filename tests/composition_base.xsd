@@ -1,5 +1,11 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            targetNamespace="urn:mxsd:composition" elementFormDefault="qualified">
+  <xs:group name="RecordFields">
+    <xs:sequence><xs:element name="groupBase" type="xs:string"/></xs:sequence>
+  </xs:group>
+  <xs:attributeGroup name="RecordAttributes">
+    <xs:attribute name="baseCode" type="xs:token" use="required"/>
+  </xs:attributeGroup>
   <xs:complexType name="Record">
     <xs:sequence><xs:element name="baseValue" type="xs:string"/></xs:sequence>
   </xs:complexType>

@@ -1,0 +1,273 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.18.0]
+
+### Added
+
+- Complete XML Schema 1.0 regular-expression grammar, including grouping, alternation, empty branches, and repetition forms.
+- Positive and negative character classes, ranges, and character-class subtraction.
+- XML Schema single-character, multi-character, XML name, Unicode category, and Unicode block escapes.
+- UTF-8 matching by Unicode scalar value with Unicode 16 categories and blocks.
+- Correct pattern-facet composition: disjunction between sibling patterns and conjunction across restriction steps.
+- Implicit whole-value anchoring for XSD regular expressions.
+- Configurable bounds for pattern length, regex nodes, regex depth, and text length.
+- Compile-time rejection of invalid regular expressions and unknown Unicode properties.
+
+### Changed
+
+- Regular-expression matching is allocation-free and deterministically bounded on the target.
+
+## [0.17.0]
+
+### Added
+
+- Direct recursion through local element declarations.
+- Mutual recursion between named complex types.
+- Deterministic C descriptor cycles using forward declarations.
+- Recursive complex-type validation in both DOM and streaming modes.
+- Explicit rejection of recursive simple types and circular type derivation.
+
+### Changed
+
+- Recursive validation is bounded by `MXSD_MAX_DEPTH` and reports `MXSD_ERR_EXCESSIVE_NESTING` when exceeded.
+
+## [0.16.0]
+
+### Added
+
+- Mixed complex content.
+- Built-in `xs:anyType` support.
+- Implicit `xs:anyType` for untyped element declarations.
+- Restrictions and runtime `xsi:type` derivation from `xs:anyType`.
+- DOM and streaming validation of interleaved character data.
+
+### Changed
+
+- Arbitrary content uses bounded wildcard machinery without retaining character data in proportion to input size.
+
+## [0.15.0]
+
+### Added
+
+- `xs:group` definitions and references.
+- `xs:attributeGroup` definitions and references.
+- Global `xs:attribute` references.
+- Occurrence constraints on model-group references.
+- Circular group-reference detection.
+
+### Changed
+
+- Group expansion preserves namespace context and is bounded by schema-complexity and runtime descriptor limits.
+
+## [0.14.0]
+
+### Added
+
+- XSD 1.0 conformance test-suite integration.
+- Machine-readable conformance reporting for supported, unsupported, expected-failure, passed, and failed cases.
+- Positive and negative conformance criteria for declaring a feature supported.
+
+## [0.13.0]
+
+### Added
+
+- Configurable limits for XML depth, schema complexity, attributes, identity values, and text value length.
+- Custom allocator support.
+- Zero-heap validation mode for schemas that do not require dynamic storage.
+- Resource measurements for generated code size, runtime flash size, static RAM, peak stack, and peak heap.
+- Resource measurements for `native_sim` and Cortex-M targets.
+
+## [0.12.0]
+
+### Added
+
+- Event-driven streaming validation API independent of the Mini-XML DOM.
+- Start-element, attribute, text, and end-element validation events.
+- Mini-XML adapter for the streaming validator.
+- Shared generated schema representation for DOM and streaming validation.
+
+### Changed
+
+- Streaming validation does not require storage proportional to the XML document size.
+
+## [0.11.0]
+
+### Added
+
+- Recognition of `xs:annotation`, `xs:documentation`, and `xs:appinfo`.
+
+### Changed
+
+- Annotation metadata may be ignored for validation while still being parsed correctly.
+- Unknown XSD constructs remain fatal compiler errors.
+
+## [0.10.0]
+
+### Added
+
+- `substitutionGroup` support.
+- Abstract elements.
+- `nillable` and `xsi:nil` support.
+- Runtime `xsi:type` handling.
+- Default and fixed values.
+- `form`, `block`, and `final` semantics.
+- Runtime validation of `xsi:type` substitutions.
+
+## [0.9.0]
+
+### Added
+
+- `xs:include`, `xs:import`, and `xs:redefine` schema composition.
+- Schema resolver callback.
+- Namespace-aware schema registry.
+- Circular schema-dependency detection.
+
+### Security
+
+- Schema resolution never performs implicit network access.
+
+## [0.8.0]
+
+### Added
+
+- `xs:unique`, `xs:key`, and `xs:keyref` identity constraints.
+- Restricted XPath subset required by XML Schema 1.0 identity constraints.
+- Embedded-target memory documentation for identity constraints.
+
+### Changed
+
+- Identity constraints do not require a general-purpose XPath engine.
+
+## [0.7.0]
+
+### Added
+
+- `xs:any` and `xs:anyAttribute` wildcards.
+- Namespace constraints and `processContents` handling.
+- Nested `xs:sequence`, `xs:choice`, and `xs:all` content models.
+- Arbitrary `minOccurs` and `maxOccurs` combinations.
+
+### Changed
+
+- Content models use deterministic validation structures where possible.
+- Runtime storage does not grow proportionally to `maxOccurs`.
+
+## [0.6.0]
+
+### Added
+
+- `xs:list` and `xs:union` simple types.
+- Additional XSD 1.0 built-in datatypes:
+  - `normalizedString`
+  - `token`
+  - `language`
+  - `Name`
+  - `NCName`
+  - `NMTOKEN`
+  - `NMTOKENS`
+  - `ID`
+  - `IDREF`
+  - `IDREFS`
+  - `ENTITY`
+  - `ENTITIES`
+  - `QName`
+  - `anyURI`
+  - `duration`
+  - `date`
+  - `dateTime`
+  - `time`
+  - `gYear`
+  - `gYearMonth`
+  - `gMonth`
+  - `gMonthDay`
+  - `gDay`
+  - `hexBinary`
+  - `base64Binary`
+- XSD whitespace normalization modes: `preserve`, `replace`, and `collapse`.
+- Restriction processing against the appropriate XSD lexical and value spaces.
+
+## [0.5.0]
+
+### Added
+
+- Simple-type restriction.
+- Complex-type extension and restriction.
+- `simpleContent` and `complexContent`.
+- Base-type resolution.
+- Anonymous and named types.
+- Type inheritance.
+- Abstract types.
+- Validation of inherited constraints.
+- Positive and negative tests for type-derivation mechanisms.
+
+## [0.4.0]
+
+### Added
+
+- `targetNamespace` support.
+- QName resolution.
+- `elementFormDefault` handling.
+- Qualified element validation.
+
+## [0.3.0]
+
+### Added
+
+- `xs:choice` and `xs:all` content models.
+- Nested complex types.
+- Named types.
+- Element references through `ref`.
+
+## [0.2.0]
+
+### Added
+
+- Simple-type restriction facets:
+  - `enumeration`
+  - `length`
+  - `minLength`
+  - `maxLength`
+  - `minInclusive`
+  - `maxInclusive`
+  - `minExclusive`
+  - `maxExclusive`
+  - `pattern`
+
+## [0.1.0]
+
+### Added
+
+- Initial `mxsdc` host-side XSD compiler and portable `libmxsd` C validation runtime.
+- Deterministic generation of schema-specific C source and header files.
+- Initial Mini-XML backend.
+- Support for:
+  - `xs:schema`
+  - `xs:element`
+  - `xs:complexType`
+  - `xs:simpleType`
+  - `xs:sequence`
+  - `xs:attribute`
+- Support for `name`, `type`, `minOccurs`, `maxOccurs`, and `use` properties.
+- Primitive types:
+  - `xs:string`
+  - `xs:boolean`
+  - `xs:int`
+  - `xs:unsignedInt`
+  - `xs:integer`
+  - `xs:decimal`
+- Structured runtime validation errors.
+- Validation of required and unexpected elements, element order, occurrence constraints, required attributes, unexpected attributes, primitive values, and restrictions.
+- Portable C target runtime without POSIX, filesystem, or network dependencies.
+- Zephyr compatibility.
+
+### Security
+
+- Unsupported XSD constructs fail explicitly during schema compilation instead of being silently ignored.
+- Embedded targets do not parse XSD schemas at runtime.

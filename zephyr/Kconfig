@@ -64,6 +64,27 @@ config MXSD_MAX_TEXT_LENGTH
 	help
 	  Maximum decoded lexical value length and per-frame streaming text buffer.
 
+config MXSD_MAX_PATTERN_LENGTH
+	int "Maximum XSD regular-expression length"
+	default 256
+	range 1 4096
+	help
+	  Maximum UTF-8 byte length of one generated pattern expression.
+
+config MXSD_MAX_REGEX_NODES
+	int "Maximum regular-expression nodes"
+	default 512
+	range 16 4096
+	help
+	  Fixed parser capacity used while validating a pattern-constrained value.
+
+config MXSD_MAX_REGEX_DEPTH
+	int "Maximum regular-expression nesting depth"
+	default 32
+	range 1 256
+	help
+	  Maximum nesting of groups and character-class subtraction.
+
 config MXSD_MAX_SCHEMA_COMPLEXITY
 	int "Maximum runtime schema complexity"
 	default 4096

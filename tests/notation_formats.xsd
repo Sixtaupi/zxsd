@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:fmt="urn:mxsd:formats"
+           targetNamespace="urn:mxsd:formats">
+  <xs:notation name="jpeg" public="image/jpeg" system="viewer-jpeg"/>
+  <xs:notation name="png" public="image/png"/>
+  <xs:simpleType name="PictureFormat">
+    <xs:restriction base="xs:NOTATION">
+      <xs:enumeration value="fmt:jpeg"/>
+      <xs:enumeration value="fmt:png"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

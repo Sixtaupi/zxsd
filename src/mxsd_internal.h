@@ -42,6 +42,16 @@ typedef struct {
 	size_t global_attribute_count;
 	const mxsd_named_type_t *named_types;
 	size_t named_type_count;
+	const mxsd_notation_t *notations;
+	size_t notation_count;
+	int mixed_content;
+	int values_are_decoded;
+	text_span_t ids[MXSD_MAX_IDENTITY_VALUES];
+	size_t id_count;
+	text_span_t idrefs[MXSD_MAX_IDENTITY_VALUES];
+	size_t idref_count;
+	char identity_text[MXSD_MAX_IDENTITY_TEXT];
+	size_t identity_text_length;
 } xml_parser_t;
 
 /** Information collected while scanning an XML start tag. */
@@ -59,6 +69,7 @@ mxsd_result_t mxsd_make_result(mxsd_error_t code, size_t offset, const char *pat
 int mxsd_span_equals_string(text_span_t span, const char *string);
 int mxsd_span_equals_nullable(text_span_t span, const char *text);
 void mxsd_skip_whitespace(xml_parser_t *parser);
+void mxsd_skip_ignorable_markup(xml_parser_t *parser);
 int mxsd_parse_xml_name(xml_parser_t *parser, text_span_t *name);
 int mxsd_parse_attribute(xml_parser_t *parser, text_span_t *name, text_span_t *value);
 int mxsd_is_namespace_declaration(text_span_t name);
@@ -77,6 +88,7 @@ mxsd_result_t mxsd_validate_identities(const mxsd_schema_t *schema, const char *
 				       const mxsd_allocator_t *allocator);
 mxsd_result_t mxsd_dom_validate(const mxsd_schema_t *schema, const char *xml);
 int mxsd_validate_boolean(text_span_t value);
+int mxsd_decode_xml_references(text_span_t input, text_span_t *output, char *storage);
 int mxsd_validate_simple_value(const xml_parser_t *parser, mxsd_type_t type,
 			       const mxsd_simple_t *simple, text_span_t value);
 int mxsd_simple_values_equal(const xml_parser_t *parser, mxsd_type_t type,
@@ -85,12 +97,15 @@ int mxsd_complex_derives_from(const mxsd_complex_t *candidate, const mxsd_comple
 			      unsigned blocked);
 int mxsd_simple_derives_from(const mxsd_simple_t *candidate, const mxsd_simple_t *base,
 			     unsigned blocked);
+int mxsd_global_substitutes_for(const xml_parser_t *parser, const mxsd_global_element_t *candidate,
+				const mxsd_element_t *head);
 
 /* Keep call sites compact while retaining namespaced link symbols. */
 #define make_result              mxsd_make_result
 #define span_equals_string       mxsd_span_equals_string
 #define span_equals_nullable     mxsd_span_equals_nullable
 #define skip_whitespace          mxsd_skip_whitespace
+#define skip_ignorable_markup    mxsd_skip_ignorable_markup
 #define parse_xml_name           mxsd_parse_xml_name
 #define parse_attribute          mxsd_parse_attribute
 #define is_namespace_declaration mxsd_is_namespace_declaration

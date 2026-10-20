@@ -10,7 +10,8 @@
     </xs:extension></xs:complexContent>
   </xs:complexType>
   <xs:element name="head" type="e:Base" abstract="true"/>
-  <xs:element name="member" type="e:Derived" substitutionGroup="e:head"/>
+  <xs:element name="middle" type="e:Base" abstract="true" substitutionGroup="e:head"/>
+  <xs:element name="member" type="e:Derived" substitutionGroup="e:middle"/>
   <xs:element name="blockedHead" type="e:Base" abstract="true" block="substitution"/>
   <xs:element name="blockedMember" type="e:Derived" substitutionGroup="e:blockedHead"/>
   <xs:element name="container"><xs:complexType><xs:sequence><xs:element ref="e:head"/></xs:sequence></xs:complexType></xs:element>

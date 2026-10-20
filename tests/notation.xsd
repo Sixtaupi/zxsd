@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:fmt="urn:mxsd:formats"
+           xmlns:main="urn:mxsd:notation-test"
+           targetNamespace="urn:mxsd:notation-test">
+  <xs:import namespace="urn:mxsd:formats" schemaLocation="notation_formats.xsd"/>
+  <xs:element name="format" type="fmt:PictureFormat"/>
+</xs:schema>

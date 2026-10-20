@@ -20,9 +20,10 @@ def main():
     args.destination.mkdir(parents=True, exist_ok=True)
     archive = args.destination / "xsts-2007-06-20.tar.gz"
     if not archive.exists() or hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
-        with urllib.request.urlopen(URL) as response, tempfile.NamedTemporaryFile(
-            delete=False
-        ) as output:
+        with (
+            urllib.request.urlopen(URL) as response,
+            tempfile.NamedTemporaryFile(delete=False) as output,
+        ):
             shutil.copyfileobj(response, output)
             temporary = pathlib.Path(output.name)
         if hashlib.sha256(temporary.read_bytes()).hexdigest() != SHA256:
