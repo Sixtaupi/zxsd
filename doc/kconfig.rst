@@ -50,6 +50,11 @@ constraints remain fully usable. A schema requiring identity tuple storage
 returns :c:enumerator:`MXSD_ERR_RESOURCE_LIMIT` unless validation is invoked
 with an application allocator.
 
+``CONFIG_MXSD_BINDINGS`` builds the reader and writer for structures generated
+with ``mxsdc --bindings``; see :doc:`bindings`. It is disabled by default and
+adds no RAM: reading uses a caller-provided arena and writing streams to a
+caller-provided sink.
+
 Choose limits from the largest trusted schema and document the device accepts,
 then exercise the boundaries with tests. See :doc:`resource-usage` for the
 relationship between limits and memory.

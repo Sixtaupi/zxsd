@@ -18,6 +18,7 @@
     {"name": "streaming-validation", "classification": "supported", "test": "runtime", "positive_and_negative": true},
     {"name": "resource-limits", "classification": "supported", "test": "runtime", "positive_and_negative": true},
     {"name": "custom-allocator", "classification": "supported", "test": "mxsd_identity_test", "positive_and_negative": true},
-    {"name": "notation-declarations", "classification": "supported", "test": "mxsd_notation_test", "positive_and_negative": true}
+    {"name": "notation-declarations", "classification": "supported", "test": "mxsd_notation_test", "positive_and_negative": true},
+    {"name": "typed-bindings", "classification": "supported", "test": "mxsd_bindings_test", "positive_and_negative": true}
   ]
 }

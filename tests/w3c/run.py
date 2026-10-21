@@ -35,6 +35,26 @@ RUNTIME_DEFINES = (
     "-DMXSD_MAX_REGEX_NODES=4096",
 )
 RUNNER_BATCH = 256
+# Reviewed accepted cases whose published expectation encodes one processor's
+# implementation limit rather than an XSD 1.0 rule. Each entry gives the result
+# the Recommendation requires; a case is reclassified as skipped only when
+# mxsd produces exactly that result, so a regression still reports a failure.
+_Z036_REASON = (
+    "disputed suite expectation: the documentation of this case says that the "
+    "Microsoft engine validates a particle as xs:any when maxOccurs exceeds 4096. "
+    "XSD 1.0 defines no such limit; the instance interleaves a* runs and b "
+    "elements within choice maxOccurs=100000, which particlesZ036_b.xsd accepts"
+)
+DISPUTED_CASES = {
+    "Microsoft/MS-Particles2006-07-15/particlesZ036_b1/particlesZ036_b1.i": (
+        "valid",
+        _Z036_REASON,
+    ),
+    "Microsoft/MS-Particles2006-07-15/particlesZ036_b2/particlesZ036_b2.i": (
+        "valid",
+        _Z036_REASON,
+    ),
+}
 
 
 def local_ref(metadata, value):
@@ -47,13 +67,18 @@ def local_ref(metadata, value):
 
 
 def instance_schemas(document):
-    """Return local schema hints carried by an XML instance document."""
+    """Return local schema hints carried by an XML instance document.
+
+    The second value reports whether a hint names an existing local file that
+    is not a well-formed schema document. A processor that honors hints must
+    then report an error, which mxsd's static schema model cannot reproduce.
+    """
     if document is None:
-        return []
+        return [], False
     try:
         root = ET.parse(document).getroot()
     except (OSError, ET.ParseError):
-        return []
+        return [], False
     hints = []
     for element in root.iter():
         locations = element.get(XSI + "schemaLocation", "").split()
@@ -62,15 +87,23 @@ def instance_schemas(document):
         if no_namespace:
             hints.append(no_namespace)
     paths = []
+    unusable = False
     for hint in hints:
         parsed = urlparse(hint)
         if not parsed.scheme and not parsed.netloc:
             resolved = (document.parent / unquote(parsed.path)).resolve()
-            if resolved.is_file() and resolved.suffix.lower() == ".xsd":
+            is_schema = resolved.is_file() and resolved.suffix.lower() == ".xsd"
+            if resolved.is_file() and not is_schema:
+                try:
+                    is_schema = ET.parse(resolved).getroot().tag == XS_SCHEMA
+                except (OSError, ET.ParseError):
+                    is_schema = False
+                    unusable = True
+            if is_schema:
                 path = str(resolved)
                 if path not in paths:
                     paths.append(path)
-    return paths
+    return paths, unusable
 
 
 def same_schema_document(left, right):
@@ -166,11 +199,19 @@ def inventory(suite):
                     None if document is None else local_ref(metadata, document.get(XLINK, ""))
                 )
                 effective_schemas = list(schema_docs)
+                requires_instance_schema_selection = False
                 if kind == "instance":
                     covered_namespaces = {
                         schema_target_namespace(existing) for existing in effective_schemas
                     }
-                    for hinted_schema in instance_schemas(instance_path):
+                    hinted_schemas, unusable_hint = instance_schemas(instance_path)
+                    requires_instance_schema_selection = unusable_hint
+                    for hinted_schema in hinted_schemas:
+                        if not any(
+                            same_schema_document(hinted_schema, existing)
+                            for existing in effective_schemas
+                        ):
+                            requires_instance_schema_selection = True
                         if (
                             schema_target_namespace(hinted_schema) not in covered_namespaces
                             and hinted_schema not in effective_schemas
@@ -201,6 +242,7 @@ def inventory(suite):
                         "schema_expected": schema_expected,
                         "status": None if current is None else current.get("status"),
                         "schema_documents": effective_schemas,
+                        "requires_instance_schema_selection": requires_instance_schema_selection,
                         "inline_documents": inline,
                         "standalone_schema": (
                             standalone_schema(instance_path)
@@ -267,16 +309,17 @@ def classify_schema(result, accepted, log):
     # A rejection of a W3C-valid schema describes an unsupported mxsd
     # feature, regardless of the diagnostic wording. Accepting a
     # W3C-invalid schema is a genuine conformance failure.
-    classification = (
-        "passed"
-        if passed
-        else ("unsupported" if not actual_valid and result["expected"] == "valid" else "failed")
-    )
+    crashed = log.lstrip().startswith("Traceback (most recent call last):")
+    classification = "failed" if crashed else ("passed" if passed else "failed")
+    if not passed and not crashed and not actual_valid and result["expected"] == "valid":
+        classification = "unsupported"
     result.update(
         classification=classification,
         actual="valid" if actual_valid else "invalid",
         diagnostic=log.strip(),
     )
+    if crashed:
+        result["reason"] = "mxsdc crashed"
 
 
 def generate_unit(args, unit, schemas, members, prefix):
@@ -301,13 +344,23 @@ def generate_unit(args, unit, schemas, members, prefix):
     log = process.stdout
     pending = []
     for position, (result, document) in enumerate(members):
+        if accepted and "warning: schema location" in log:
+            result["has_unresolved_schema_location"] = True
         if result["kind"] == "schema":
             classify_schema(result, accepted, log)
         elif not accepted:
+            crashed = log.lstrip().startswith("Traceback (most recent call last):")
             explicitly_invalid = log.startswith("error: invalid schema:") or log.startswith(
                 "error: malformed XSD:"
             )
-            if result["expected"] == "invalid" and (
+            if crashed:
+                result.update(
+                    classification="failed",
+                    actual="error",
+                    reason="mxsdc crashed",
+                    diagnostic=log.strip(),
+                )
+            elif result["expected"] == "invalid" and (
                 result.get("schema_expected") == "invalid"
                 or result.get("inline_documents") is not None
                 or explicitly_invalid
@@ -416,13 +469,17 @@ def run_documents(args, executable, index, members, pending):
             )
         else:
             actual_valid = process.returncode == 0
+            matches = actual_valid == (result["expected"] == "valid")
+            dynamic_schema = result.get("requires_instance_schema_selection") or result.get(
+                "has_unresolved_schema_location"
+            )
             result.update(
-                classification=(
-                    "passed" if actual_valid == (result["expected"] == "valid") else "failed"
-                ),
+                classification=("passed" if matches else "unsupported" if dynamic_schema else "failed"),
                 actual="valid" if actual_valid else "invalid",
                 diagnostic=process.stdout.strip(),
             )
+            if not matches and dynamic_schema:
+                result["reason"] = "instance-driven schema discovery is unsupported"
     return members
 
 
@@ -598,6 +655,14 @@ def main():
     args.mxsdc = (args.mxsdc or args.project / "mxsdc").resolve()
     cases = inventory(args.suite.resolve())
     results = cases if args.inventory_only else execute(args, cases)
+    for result in results:
+        disputed = DISPUTED_CASES.get(result["id"])
+        if (
+            disputed is not None
+            and result.get("classification") == "failed"
+            and result.get("actual") == disputed[0]
+        ):
+            result.update(classification="skipped", reason=disputed[1])
     expected_failures = set()
     if args.expected_failures:
         expected_failures = set(json.loads(args.expected_failures.read_text(encoding="utf-8")))

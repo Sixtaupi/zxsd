@@ -84,6 +84,13 @@ mxsd_result_t mxsd_parse_start_tag(xml_parser_t *parser, const char *path, start
 int mxsd_at_end_of_start_tag(const xml_parser_t *parser);
 int mxsd_at_end_element(const xml_parser_t *parser);
 mxsd_result_t mxsd_skip_xml_declaration(xml_parser_t *parser);
+/**
+ * @brief Skip one well-formed element, including its content and end tag.
+ *
+ * The parser must be positioned on the start tag. Namespace declarations of
+ * the skipped element are released before returning.
+ */
+mxsd_result_t mxsd_skip_element(xml_parser_t *parser, const char *path);
 mxsd_result_t mxsd_validate_identities(const mxsd_schema_t *schema, const char *xml,
 				       const mxsd_allocator_t *allocator);
 mxsd_result_t mxsd_dom_validate(const mxsd_schema_t *schema, const char *xml);
@@ -117,6 +124,7 @@ int mxsd_global_substitutes_for(const xml_parser_t *parser, const mxsd_global_el
 #define at_end_of_start_tag      mxsd_at_end_of_start_tag
 #define at_end_element           mxsd_at_end_element
 #define skip_xml_declaration     mxsd_skip_xml_declaration
+#define skip_any_element         mxsd_skip_element
 #define validate_identities      mxsd_validate_identities
 #define validate_boolean         mxsd_validate_boolean
 #define validate_simple_value    mxsd_validate_simple_value

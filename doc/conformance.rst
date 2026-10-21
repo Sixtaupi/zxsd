@@ -61,3 +61,10 @@ on scheduled or manual jobs. Internal conformance failures fail CI; W3C
 discrepancies are archived separately while the documented subset remains
 smaller than complete XSD 1.0.
 
+Each W3C run publishes the full JSON and HTML reports plus a compact gap
+analysis. The analysis groups failures, unsupported cases, and expected
+failures separately, lists their most frequent diagnostics, and identifies
+the test sets with the lowest pass rates. Scheduled and manually dispatched
+runs analyze the complete accepted suite; pull requests analyze the 500-case
+smoke selection.
+

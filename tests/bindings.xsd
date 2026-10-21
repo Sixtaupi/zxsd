@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Typed-binding fixture: every supported C representation and storage layout. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:inv="urn:mxsd:inventory"
+           targetNamespace="urn:mxsd:inventory"
+           elementFormDefault="qualified">
+
+  <xs:simpleType name="Status">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="active"/>
+      <xs:enumeration value="retired"/>
+      <xs:enumeration value="on-hold"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Code">
+    <xs:restriction base="xs:token">
+      <xs:pattern value="[A-Z]{2}[0-9]{3}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Percent">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:maxInclusive value="100"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Tags">
+    <xs:list itemType="xs:NCName"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="Limit">
+    <xs:union memberTypes="xs:int">
+      <xs:simpleType>
+        <xs:restriction base="xs:token">
+          <xs:enumeration value="none"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:union>
+  </xs:simpleType>
+
+  <xs:attribute name="unit" type="xs:token"/>
+
+  <xs:complexType name="Measure">
+    <xs:simpleContent>
+      <xs:extension base="xs:long">
+        <xs:attribute ref="inv:unit" use="required"/>
+        <xs:attribute name="precision" type="xs:byte" default="2"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="Location">
+    <xs:all>
+      <xs:element name="site" type="xs:string"/>
+      <xs:element name="shelf" type="xs:unsignedShort" minOccurs="0"/>
+    </xs:all>
+    <!-- Same local name as a child element: the C members must not collide. -->
+    <xs:attribute name="site" type="xs:token"/>
+  </xs:complexType>
+
+  <xs:complexType name="Part">
+    <xs:sequence>
+      <xs:element name="label" type="xs:normalizedString"/>
+      <xs:element name="part" type="inv:Part" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="ref" type="xs:ID" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="Item">
+    <xs:sequence>
+      <xs:element name="code" type="inv:Code"/>
+      <xs:element name="status" type="inv:Status" default="active"/>
+      <xs:element name="quantity" type="xs:int"/>
+      <xs:element name="weight" type="inv:Measure" minOccurs="0"/>
+      <xs:element name="tag" type="xs:token" minOccurs="0" maxOccurs="3"/>
+      <xs:choice>
+        <xs:element name="price" type="xs:decimal"/>
+        <xs:element name="free" type="xs:boolean"/>
+      </xs:choice>
+      <xs:element name="location" type="inv:Location"/>
+      <xs:element name="part" type="inv:Part" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:unsignedInt" use="required"/>
+    <xs:attribute name="rank" type="xs:short"/>
+    <xs:attribute name="note" type="xs:string"/>
+    <xs:attribute name="kind" fixed="stock">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="stock"/>
+          <xs:enumeration value="service"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="PerishableItem">
+    <xs:complexContent>
+      <xs:extension base="inv:Item">
+        <xs:sequence>
+          <xs:element name="expires" type="xs:date"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="inventory">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="owner">
+          <xs:complexType>
+            <xs:attribute name="name" type="xs:string" use="required"/>
+            <xs:attribute name="int" type="xs:int"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="item" type="inv:Item" maxOccurs="unbounded"/>
+        <xs:element name="perishable" type="inv:PerishableItem" minOccurs="0" maxOccurs="2"/>
+        <xs:element name="tags" type="inv:Tags" minOccurs="0"/>
+        <xs:element name="limit" type="inv:Limit" minOccurs="0"/>
+        <xs:element name="fill" type="inv:Percent" minOccurs="0"/>
+        <xs:element name="serial" type="xs:unsignedLong" minOccurs="0"/>
+        <xs:element name="offset" type="xs:long" minOccurs="0"/>
+        <xs:element name="delta" type="xs:byte" minOccurs="0"/>
+        <xs:element name="audited" type="xs:dateTime" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:token" use="required"/>
+    </xs:complexType>
+    <xs:key name="itemId">
+      <xs:selector xpath="inv:item"/>
+      <xs:field xpath="@id"/>
+    </xs:key>
+  </xs:element>
+
+  <!-- A second root without identity constraints, bound as its own document. -->
+  <xs:element name="part" type="inv:Part"/>
+</xs:schema>

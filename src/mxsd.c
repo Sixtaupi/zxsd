@@ -72,6 +72,8 @@ const char *mxsd_error_string(mxsd_error_t error)
 		"identity constraint violation",
 		"streaming capacity exceeded",
 		"resource limit exceeded",
+		"output failure",
+		"unsupported by binding",
 	};
 
 	if ((unsigned)error >= sizeof(messages) / sizeof(messages[0])) {

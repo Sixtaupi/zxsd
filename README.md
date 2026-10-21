@@ -1,5 +1,7 @@
 # mxsd - Mini-XSD class generator / validator
 
+# Draft / Experimental: not production ready
+
 `mxsd` compiles a small, deliberately strict subset of XML Schema into
 deterministic C validation code for embedded applications. XSD is processed on
 the host only; the target links `libmxsd` and the generated files.
@@ -16,7 +18,9 @@ the host only; the target links `libmxsd` and the generated files.
 A C99 compiler and CMake 3.16 or newer are required. Python 3 is required to
 run `mxsdc` and the tests, but not by the target runtime. A complete portable
 example is available in [`samples/host`](samples/host), and the Zephyr module
-example is in [`samples/zephyr`](samples/zephyr).
+examples are in [`samples/zephyr`](samples/zephyr): a validation test suite in
+[`basic`](samples/zephyr/basic) and typed bindings in
+[`bindings`](samples/zephyr/bindings).
 
 ```sh
 cmake -S . -B build -DMXSD_USE_MXML=OFF
@@ -54,14 +58,14 @@ mxsd_result_t r = device_validate(xml);
 if (r.code != MXSD_OK) { /* r.message, r.offset and r.path */ }
 ```
 
-The compiler implements the supported portions of the v0.1-v0.19 milestones
+The compiler implements the supported portions of the v0.1-v0.20 milestones
 in `SPEC.md`: type
 derivation, simple/complex content, inheritance, abstract types, lists,
 unions, the XSD 1.0 simple datatype family, whitespace normalization,
 content models, model and attribute groups, declaration references,
 namespace/QName handling, recursive occurrence
 models, wildcards, identity constraints, schema composition, substitution
-groups, recursive named complex types, complete XSD regular expressions,
+groups, recursive named complex types, bounded XSD regular expressions,
 notation declarations, mixed
 content, `xs:anyType`, advanced
 instance semantics, and bounded event-driven validation. Unknown constructs and properties
@@ -82,6 +86,7 @@ The runtime is split into focused implementation units:
 | `src/mxsd_unicode.c` | Generated Unicode 16 category and block tables |
 | `src/mxsd_identity.c` | Bounded `unique`, `key`, `keyref`, and restricted XPath processing |
 | `src/mxsd_stream.c` | Fixed-memory event-driven validation |
+| `src/mxsd_bind.c` | Typed binding reader and writer for `mxsdc --bindings` output |
 | `src/mxsd_internal.h` | Private contracts shared by runtime modules |
 
 The same generated descriptor can validate a complete string or an event
@@ -104,6 +109,35 @@ local name, and decoded text/attribute values. Resolve `xsi:type` QName values
 in the XML frontend and call `mxsd_xsi_type()`. Streaming state is fixed-size;
 text for one simple element is bounded by `MXSD_STREAM_TEXT_CAPACITY` and names
 by `MXSD_STREAM_NAME_CAPACITY`.
+
+## Typed bindings
+
+`mxsdc --bindings` also generates C structures and read/write functions for
+every global element with a complex type. Reading validates the document, then
+fills the structure using a caller-provided arena; writing produces a valid
+document from the structure. Neither uses the heap.
+
+```c
+#include "device.bind.h"
+
+static unsigned char storage[2048];
+mxsd_bind_arena_t arena;
+device_Device_t device;
+
+mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+if (device_device_read(xml, &device, &arena).code == MXSD_OK) {
+    /* device.id, device.name, device.sample[0 .. device.sample_count - 1] */
+}
+
+char out[256];
+mxsd_result_t r = device_device_write_buffer(&device, out, sizeof(out), NULL);
+```
+
+Integers and booleans use native C types, string enumerations become C enums,
+and other values stay as their normalized lexical text. Constructs without a
+faithful C representation, such as wildcards or mixed content, make
+generation fail instead of being dropped. See
+[Typed bindings](doc/bindings.rst).
 
 Resource-constrained builds can set `MXSD_NO_HEAP=ON`, override the
 `MXSD_MAX_*` compile-time limits, and use `mxsd_validate_with_allocator()` for
@@ -135,25 +169,33 @@ HTTP and other network URLs, so `mxsdc` never performs implicit network access.
 
 Mini-XML 4 is selected automatically when its headers and library are found;
 set `MXML_INCLUDE_DIR` and `MXML_LIBRARY` if it is installed outside the normal
-search paths. Zephyr uses the allocation-free embedded backend. Both sit behind
-the same internal boundary so a SAX backend does not affect generated APIs.
+search paths. CI and packaging checks can set `MXSD_REQUIRE_MXML=ON` to reject
+an accidental fallback to the portable backend. Zephyr uses the allocation-free
+embedded backend. Both sit behind the same internal boundary so a SAX backend
+does not affect generated APIs.
 When enabled, `<mxsd_mxml.h>` provides `mxsd_mxml_validate()` for an existing
 Mini-XML document or element tree; pass the generated `<schema>_schema()`
 descriptor accessor.
 
 ## Continuous integration
 
-GitHub Actions runs four independent workflows:
+GitHub Actions runs seven independent workflows:
 
 - `Code format` checks the Zephyr C style with clang-format and Python with Black;
 - `Build and test` builds static and shared libraries on Linux, macOS, and Windows,
-  exercises the host sample, checks the no-heap configuration, and runs the
-  Zephyr sample on `qemu_x86`;
+  exercises the host sample, checks the no-heap configuration, runs ASan and
+  UBSan, requires and tests the Mini-XML 4 adapter, and runs the Zephyr samples
+  on `qemu_x86`;
 - `Conformance` gates the internal positive/negative suite and archives W3C XSD
   1.0 reports. Pull requests run a 500-case smoke test; scheduled and manual
   runs execute every accepted W3C case;
 - `CodeQL` analyzes both C/C++ and Python on pushes, pull requests, and a weekly
-  schedule.
+  schedule;
+- `Fuzz smoke tests` exercises the portable XML validator with libFuzzer plus
+  ASan/UBSan and instruments `mxsdc` with Atheris;
+- `Documentation` builds Doxygen and Sphinx in strict mode;
+- `Python package` builds and verifies the wheel and source distribution before
+  trusted publishing to PyPI.
 
 W3C discrepancies are currently reported and archived without failing the
 workflow because the documented XSD subset is not yet fully W3C-conformant.

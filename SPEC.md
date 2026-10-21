@@ -406,6 +406,29 @@ Implement:
 Runtime NOTATION validation MUST resolve the instance QName by namespace URI
 and local name, independently of the lexical prefix.
 
+## v0.20 — Typed data bindings
+
+Implement, behind the opt-in `mxsdc --bindings` option:
+
+- generated C structures for complex types reachable from global elements
+- native C types for boolean and fixed-width integer types
+- C enumerations for string-derived enumerations
+- normalized lexical text for every other simple type
+- explicit presence flags, `NULL` pointers, and pointer/count arrays for
+  optional and repeated items
+- pointers for recursive structures
+- a reader that validates first, then fills a structure from a caller-provided
+  arena without heap allocation
+- a writer that streams to a caller-provided sink, rejects structural errors,
+  and can validate while writing
+
+The validator output MUST remain byte-identical with and without
+`--bindings`. Constructs that a structure cannot represent faithfully MUST
+make binding generation fail; they MUST NEVER be silently dropped. A valid
+document that a structure cannot represent MUST be rejected by the reader.
+Reading MUST NOT allocate in proportion to the input except from the
+caller-provided arena, and arena exhaustion MUST be reported.
+
 ## Critical rule
 
 Unsupported XSD constructs MUST cause `mxsdc` to fail.

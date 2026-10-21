@@ -25,7 +25,7 @@ Zephyr environment this is normally sufficient:
 
 .. code-block:: console
 
-   $ west build -b qemu_x86 samples/zephyr
+   $ west build -b qemu_x86 samples/zephyr/basic
    $ west build -t run
 
 Configure the runtime
@@ -65,3 +65,24 @@ For reproducible releases, generated files may instead be committed or
 produced in a dedicated host-generation stage. The target never needs Python
 or the XSD file.
 
+
+Typed bindings
+**************
+
+To read and write documents through generated C structures, add
+``--bindings`` to the ``mxsdc`` command, compile ``<schema>.bind.c`` with the
+application, and enable the runtime support:
+
+.. code-block:: kconfig
+
+   CONFIG_MXSD_BINDINGS=y
+
+``samples/zephyr/bindings`` is a complete application: it reads a settings
+document into structures, updates them, and writes a validated document. Its
+console output is checked by Twister:
+
+.. code-block:: console
+
+   $ west twister -T samples/zephyr/bindings -p qemu_x86 --inline-logs
+
+See :doc:`bindings` for the C representation and memory use.

@@ -56,16 +56,20 @@ fi
 
 c_files=()
 while IFS= read -r -d '' file; do
+    [[ -f "$file" ]] || continue
     case "$file" in
+        src/mxsd_unicode.c) continue ;;
         tests/expected/*.mxsd.c|tests/expected/*.mxsd.h) continue ;;
+        tests/expected/*.bind.c|tests/expected/*.bind.h) continue ;;
     esac
     c_files+=("$file")
-done < <(git ls-files -z -- '*.c' '*.h' 'tests/w3c/runner.c.in')
+done < <(git ls-files --cached --others --exclude-standard -z -- \
+    '*.c' '*.h' 'tests/w3c/runner.c.in')
 
 python_files=(mxsdc)
 while IFS= read -r -d '' file; do
     python_files+=("$file")
-done < <(git ls-files -z -- '*.py')
+done < <(git ls-files --cached --others --exclude-standard -z -- '*.py')
 
 if $fix; then
     "$clang_format" -i "${c_files[@]}"

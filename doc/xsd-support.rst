@@ -126,9 +126,10 @@ Instance validation
      - Atomic, list, union, simple-content, ``anyType``, and mixed-complex value constraints.
    * - pattern facet
      - Supported
-     - Complete XSD 1.0 grammar: grouping, alternation, repetition, class
-       subtraction, implicit whole-value anchoring, name/multi-character escapes,
-       and Unicode categories/blocks.
+     - Bounded subset with grouping, alternation, repetition, class subtraction,
+       implicit whole-value anchoring, standard name/multi-character escapes, and
+       Unicode categories/blocks. Some accepted W3C expressions are rejected
+       explicitly and are listed as unsupported in the W3C baseline.
    * - DTD and XML entities
      - Unsupported
      - Rejected deliberately by schema and embedded XML processing.
@@ -143,6 +144,16 @@ Instance validation
    * - XSD 1.1
      - Unsupported
      - mxsd targets XSD 1.0.
+
+Typed bindings
+**************
+
+``mxsdc --bindings`` generates C structures with read and write functions for
+global elements with a complex type. Bindings cover a subset of the constructs
+above: wildcards, mixed content, ``xs:anyType``, repeating model groups,
+nillable and abstract elements, substitution-group heads, abstract types, and
+``QName`` or ``NOTATION`` values are rejected with a ``bindings:`` diagnostic.
+They remain fully supported for validation. See :doc:`bindings`.
 
 This matrix is a feature contract, not a claim of complete XSD 1.0
 implementation. See :doc:`conformance` for how these claims are tested.

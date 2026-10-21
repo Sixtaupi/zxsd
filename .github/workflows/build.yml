@@ -71,6 +71,71 @@ jobs:
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
 
+  sanitizers:
+    name: Linux / ASan + UBSan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMXSD_USE_MXML=OFF
+          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build and test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure --timeout 120
+
+  mini-xml:
+    name: Linux / Mini-XML 4
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: mxsd
+
+      - uses: actions/checkout@v7
+        with:
+          repository: michaelrsweet/mxml
+          ref: v4.0.4
+          path: mxml
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Build Mini-XML
+        working-directory: mxml
+        run: |
+          ./configure --prefix="${RUNNER_TEMP}/mxml"
+          make --jobs="$(nproc)"
+          make install
+
+      - name: Configure mxsd with the required Mini-XML backend
+        working-directory: mxsd
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DMXSD_USE_MXML=ON
+          -DMXSD_REQUIRE_MXML=ON
+          -DMXML_INCLUDE_DIR="${RUNNER_TEMP}/mxml/include/libmxml4"
+          -DMXML_LIBRARY="${RUNNER_TEMP}/mxml/lib/libmxml4.a"
+
+      - name: Build and test
+        working-directory: mxsd
+        run: |
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure --timeout 120
+
   zephyr:
     name: Zephyr / qemu_x86
     runs-on: ubuntu-24.04
@@ -91,3 +156,37 @@ jobs:
 
       - name: Build and run Zephyr sample
         run: west twister -T mxsd/samples/zephyr -p qemu_x86 --inline-logs
+
+      - name: Build native_sim resource image
+        run: >-
+          west build -b native_sim mxsd/samples/zephyr/basic
+          -d build-native -- -DEXTRA_CFLAGS=-fstack-usage
+
+      - name: Measure native_sim resources
+        shell: bash
+        run: |
+          runtime_archive=$(find build-native/modules/mxsd -maxdepth 1 -type f -name '*.a' -print -quit)
+          generated_object=$(find build-native -type f -name 'device.mxsd.c.obj' -print -quit)
+          mapfile -t stack_usage < <(find build-native -type f -name '*.su' -print)
+          test -n "$runtime_archive"
+          test -n "$generated_object"
+          test "${#stack_usage[@]}" -gt 0
+          python mxsd/tools/measure_resources.py \
+            --platform native_sim \
+            --size-tool size \
+            --runtime-object "$runtime_archive" \
+            --generated-object "$generated_object" \
+            --elf build-native/zephyr/zephyr.elf \
+            --stack-usage "${stack_usage[@]}" \
+            --zero-heap \
+            --output native-sim-resources.json
+          echo '## native_sim resources' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat native-sim-resources.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: native-sim-resource-report
+          path: native-sim-resources.json
+          if-no-files-found: error

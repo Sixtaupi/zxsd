@@ -756,7 +756,8 @@ static mxsd_result_t validate_typed_wildcard_element(xml_parser_t *parser, const
 	size_t saved_position = parser->position;
 	size_t saved_namespaces = parser->namespace_count;
 	start_tag_t tag;
-	text_span_t prefix, local, uri;
+	/* Initialized for compilers that cannot see uri is set whenever it is used. */
+	text_span_t prefix = {NULL, 0}, local = {NULL, 0}, uri = {NULL, 0};
 	char local_storage[MXSD_MAX_TEXT_LENGTH + 1u];
 	char uri_storage[MXSD_MAX_TEXT_LENGTH + 1u];
 	size_t parsed = 0;
@@ -934,7 +935,7 @@ int mxsd_global_substitutes_for(const xml_parser_t *parser, const mxsd_global_el
 	return 0;
 }
 
-static mxsd_result_t skip_any_element(xml_parser_t *parser, const char *path)
+mxsd_result_t mxsd_skip_element(xml_parser_t *parser, const char *path)
 {
 	start_tag_t tag;
 	mxsd_result_t result = parse_start_tag(parser, path, &tag);
@@ -949,6 +950,19 @@ static mxsd_result_t skip_any_element(xml_parser_t *parser, const char *path)
 			}
 			if (parser->position >= parser->length) {
 				return make_result(MXSD_ERR_MALFORMED_XML, parser->position, path);
+			}
+			if (parser->position + 9u <= parser->length &&
+			    memcmp(parser->input + parser->position, "<![CDATA[", 9u) == 0) {
+				/* A CDATA section may contain markup characters; skip it whole. */
+				const char *end =
+					strstr(parser->input + parser->position + 9u, "]]>");
+
+				if (end == NULL) {
+					return make_result(MXSD_ERR_MALFORMED_XML, parser->position,
+							   path);
+				}
+				parser->position = (size_t)(end - parser->input) + 3u;
+				continue;
 			}
 			if (parser->input[parser->position] == '<') {
 				result = skip_any_element(parser, path);

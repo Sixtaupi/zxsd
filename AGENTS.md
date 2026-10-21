@@ -41,12 +41,14 @@ documentation together. Do not let these descriptions drift apart.
 - `src/mxsd_unicode.c`: generated Unicode category and block tables.
 - `src/mxsd_identity.c`: `unique`, `key`, `keyref`, and restricted XPath.
 - `src/mxsd_stream.c`: bounded event-driven validator.
+- `src/mxsd_bind.c`: typed binding reader and writer for `mxsdc --bindings`.
 - `src/mxsd_xml_builtin.c`: portable allocation-free XML backend.
 - `src/mxsd_xml_mxml.c`: optional Mini-XML 4 adapter.
 - `src/mxsd_internal.h` and `src/mxsd_xml.h`: private runtime contracts.
 - `tests/`: compiler, runtime, conformance, and optional W3C tests.
+- `fuzz/`: libFuzzer and Atheris targets with bounded seed corpora.
 - `samples/host/`: cross-platform CMake example.
-- `samples/zephyr/`: Zephyr module example and ztest suite.
+- `samples/zephyr/`: Zephyr examples: `basic` ztest suite and `bindings` application.
 - `zephyr/`: external-module CMake, Kconfig, and metadata.
 - `doc/`: Sphinx guide and Doxygen API configuration.
 - `.github/workflows/`: format, build, conformance, CodeQL, and documentation CI.
@@ -113,11 +115,11 @@ from `tests/device.xsd`, inspect the complete diff, and commit the compiler,
 tests, and golden outputs together:
 
 ```sh
-python3 mxsdc tests/device.xsd -o tests/expected
+python3 mxsdc tests/device.xsd -o tests/expected --bindings
 ```
 
-Never hand-edit `tests/expected/*.mxsd.c` or `*.mxsd.h` to conceal a generator
-bug. Generated files in build directories are disposable and must not be
+Never hand-edit `tests/expected/*.mxsd.[ch]` or `*.bind.[ch]` to conceal a
+generator bug. Generated files in build directories are disposable and must not be
 committed.
 
 ## Coding conventions
@@ -166,7 +168,7 @@ Every behavior change needs focused tests:
 - streaming behavior: test event ordering, sticky errors, and fixed limits;
 - resource-limit behavior: test the exact boundary and the first rejected
   value;
-- Zephyr configuration or integration: build the `samples/zephyr` test;
+- Zephyr configuration or integration: build the `samples/zephyr` tests;
 - public API changes: update Doxygen comments, Sphinx API guidance, and samples.
 
 Do not turn an unsupported W3C case into a pass by reclassifying or skipping it

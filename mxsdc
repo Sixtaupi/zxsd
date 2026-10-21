@@ -2511,6 +2511,8 @@ def parse(
                 head_key = schema_key(head_uri, head_name)
                 if head_key not in global_nodes:
                     raise SchemaError("unknown substitutionGroup head %r" % head_name)
+                if head_key in global_visiting:
+                    raise InvalidSchemaError("circular substitutionGroup declarations")
                 typ = parse_global(head_key)["type"]
             else:
                 any_type = ensure_any_type()
@@ -3546,9 +3548,11 @@ def parse(
                 ):
                     unused = list(right["children"])
                     position = 0
+                    # XSD 1.0 maps all:all with the order-preserving Recurse
+                    # rule; only sequence:all uses RecurseUnordered.
+                    ordered = right["kind"] == "sequence" or left["kind"] == "all"
                     for value in left["children"]:
                         matched = None
-                        ordered = right["kind"] == "sequence"
                         candidates = range(position, len(unused)) if ordered else range(len(unused))
                         for candidate_index in candidates:
                             candidate = unused[candidate_index]
@@ -3785,7 +3789,7 @@ def parse(
                 cached_attributes, cached_wildcard = attribute_groups[key]
                 return list(cached_attributes), cached_wildcard
             if key not in attribute_group_nodes:
-                raise SchemaError("invalid attributeGroup ref %r" % node.get("ref"))
+                raise SchemaError("invalid attributeGroup ref %r" % group_name)
             if key in attribute_group_visiting:
                 raise SchemaError("circular attributeGroup reference involving %r" % group_name)
             attribute_group_visiting.add(key)
@@ -4262,6 +4266,13 @@ def parse(
                             "simpleContent restriction type does not restrict its base content"
                         )
                     facets = [facet for facet in facets if facet is not nested_simple]
+                elif (
+                    simple_ref.get("builtin") == "anySimpleType"
+                    and facets
+                    and not schema_for_schemas
+                ):
+                    # xs:anySimpleType has no applicable constraining facets.
+                    raise InvalidSchemaError("facets cannot restrict xs:anySimpleType content")
                 elif simple_ref.get("simple"):
                     types[alias] = dict(types[simple_ref["simple"]])
                 else:
@@ -5212,6 +5223,717 @@ def generate(stem, m):
     return h, "\n".join(out) + "\n"
 
 
+class BindingError(SchemaError):
+    """Raised when a valid schema construct cannot be represented by typed bindings."""
+
+
+# Built-in value kinds with a native C representation in bindings.
+BIND_NATIVE_TYPES = {
+    "MXSD_T_BOOLEAN": ("MXSD_BIND_BOOLEAN", "bool"),
+    "MXSD_T_BYTE": ("MXSD_BIND_INT8", "int8_t"),
+    "MXSD_T_UNSIGNED_BYTE": ("MXSD_BIND_UINT8", "uint8_t"),
+    "MXSD_T_SHORT": ("MXSD_BIND_INT16", "int16_t"),
+    "MXSD_T_UNSIGNED_SHORT": ("MXSD_BIND_UINT16", "uint16_t"),
+    "MXSD_T_INT": ("MXSD_BIND_INT32", "int32_t"),
+    "MXSD_T_UNSIGNED_INT": ("MXSD_BIND_UINT32", "uint32_t"),
+    "MXSD_T_LONG": ("MXSD_BIND_INT64", "int64_t"),
+    "MXSD_T_UNSIGNED_LONG": ("MXSD_BIND_UINT64", "uint64_t"),
+}
+# Value kinds whose value space is their whitespace-normalized lexical space.
+BIND_ENUMERABLE_TYPES = {
+    "MXSD_T_STRING",
+    "MXSD_T_NORMALIZED_STRING",
+    "MXSD_T_TOKEN",
+    "MXSD_T_LANGUAGE",
+    "MXSD_T_NAME",
+    "MXSD_T_NCNAME",
+    "MXSD_T_NMTOKEN",
+    "MXSD_T_ANY_URI",
+    "MXSD_T_ID",
+    "MXSD_T_IDREF",
+    "MXSD_T_ENTITY",
+}
+# Identifiers that cannot name a structure member in C99 or C++ consumers.
+C_RESERVED_WORDS = set("""
+    alignas alignof and and_eq asm auto bitand bitor bool break case catch char char16_t
+    char32_t class compl concept const const_cast consteval constexpr continue decltype
+    default delete do double dynamic_cast else enum explicit export extern false float for
+    friend goto if inline int long mutable namespace new noexcept not not_eq nullptr operator
+    or or_eq private protected public register reinterpret_cast requires restrict return
+    short signed sizeof static static_assert static_cast struct switch template this
+    thread_local throw true try typedef typeid typename union unsigned using virtual void
+    volatile wchar_t while xor xor_eq _Bool _Complex _Imaginary
+    """.split())
+
+
+def component_symbol(key, collection):
+    """Return the C symbol fragment for a schema component key, as generate() does."""
+    if "|" not in key:
+        return ident(key)
+    uri, name = key.split("|", 1)
+    duplicates = sum(1 for candidate in collection if candidate.split("|", 1)[-1] == name)
+    return ident(name) if duplicates == 1 else ident(uri + "_" + name)
+
+
+def comment_text(value):
+    """Make arbitrary schema text safe inside a C block comment."""
+    return re.sub(r"\s+", " ", value).replace("*/", "*\\/")
+
+
+def normalize_enumeration(value, whitespace):
+    """Apply an XML Schema whiteSpace facet to an enumeration value."""
+    if whitespace == "MXSD_WS_PRESERVE":
+        return value
+    value = re.sub(r"[\t\n\r]", " ", value)
+    if whitespace == "MXSD_WS_REPLACE":
+        return value
+    return " ".join(part for part in value.split(" ") if part)
+
+
+def generate_bindings(stem, m, selected_roots=None):
+    """Render typed C structures and binding descriptors for complex global elements.
+
+    Every construct reachable from a bound root must have a faithful C
+    representation; anything else raises BindingError instead of being dropped.
+    """
+    sid = ident(stem)
+    guard = sid.upper() + "_BIND_H"
+    types = m["types"]
+    globals_ = m["globals"]
+    root_symbol = lambda key: component_symbol(key, m["order"])
+    type_symbol = lambda key: component_symbol(key, types)
+    heads = {tuple(e["substitution_head"]) for e in globals_.values() if e.get("substitution_head")}
+
+    roots = [key for key in m["order"] if globals_[key]["type"]["complex"]]
+    if selected_roots:
+        chosen = []
+        for wanted in selected_roots:
+            matches = [
+                key
+                for key in m["order"]
+                if wanted
+                in (
+                    globals_[key]["name"],
+                    "{%s}%s" % (globals_[key]["ns"] or "", globals_[key]["name"]),
+                )
+            ]
+            if not matches:
+                raise BindingError("bindings: unknown root element %r" % wanted)
+            for key in matches:
+                if not globals_[key]["type"]["complex"]:
+                    raise BindingError(
+                        "bindings: root element %r has a simple type; bindings require a "
+                        "complex root" % globals_[key]["name"]
+                    )
+                if key not in chosen:
+                    chosen.append(key)
+        roots = [key for key in m["order"] if key in chosen]
+    if not roots:
+        raise BindingError("bindings: the schema declares no global element with a complex type")
+
+    type_names = set()
+
+    def unique_type_name(base):
+        base = ident(base)
+        candidate = base
+        suffix = 2
+        while candidate in type_names:
+            candidate = "%s_%d" % (base, suffix)
+            suffix += 1
+        type_names.add(candidate)
+        return candidate
+
+    enums = {}
+    structs = {}
+
+    def is_qname_like(ref):
+        if ref is None:
+            return False
+        if ref.get("base") in ("MXSD_T_QNAME", "MXSD_T_NOTATION"):
+            return True
+        simple = ref.get("simple")
+        if simple:
+            definition = types[simple]
+            if definition.get("base") in ("MXSD_T_QNAME", "MXSD_T_NOTATION"):
+                return True
+            return is_qname_like(definition.get("item")) or any(
+                is_qname_like(member) for member in definition.get("members", [])
+            )
+        return False
+
+    def simple_value(ref, owner, item_name, context):
+        """Return (kind, C type, whitespace, enum) for a simple type reference."""
+        if is_qname_like(ref):
+            raise BindingError(
+                "bindings: %s has a QName or NOTATION value, which depends on namespace "
+                "declarations that bindings do not represent" % context
+            )
+        simple = ref.get("simple")
+        if simple:
+            definition = types[simple]
+            variety = definition.get("variety", "MXSD_SIMPLE_ATOMIC")
+            if variety == "MXSD_SIMPLE_LIST":
+                return "MXSD_BIND_STRING", "const char *", "MXSD_WS_COLLAPSE", None
+            if variety == "MXSD_SIMPLE_UNION":
+                return "MXSD_BIND_STRING", "const char *", "MXSD_WS_PRESERVE", None
+            base = definition["base"]
+            whitespace = definition.get("whitespace", "MXSD_WS_PRESERVE")
+            if definition.get("enums") and base in BIND_ENUMERABLE_TYPES:
+                if simple not in enums:
+                    name = unique_type_name(
+                        type_symbol(simple)
+                        if definition.get("type_name")
+                        else "%s_%s" % (owner, item_name)
+                    )
+                    values = []
+                    for value in definition["enums"]:
+                        value = normalize_enumeration(value, whitespace)
+                        if value not in values:
+                            values.append(value)
+                    enums[simple] = {
+                        "name": name,
+                        "values": values,
+                        "xsd": definition.get("type_name"),
+                    }
+                return (
+                    "MXSD_BIND_ENUM",
+                    "%s_%s_t" % (sid, enums[simple]["name"]),
+                    whitespace,
+                    enums[simple],
+                )
+            if base in BIND_NATIVE_TYPES:
+                kind, ctype = BIND_NATIVE_TYPES[base]
+                return kind, ctype, whitespace, None
+            return "MXSD_BIND_STRING", "const char *", whitespace, None
+        if ref.get("list_builtin"):
+            return "MXSD_BIND_STRING", "const char *", "MXSD_WS_COLLAPSE", None
+        base = ref.get("base", "MXSD_T_STRING")
+        builtin = ref.get("builtin") or "string"
+        if builtin in WHITESPACE_PRESERVE:
+            whitespace = "MXSD_WS_PRESERVE"
+        elif builtin in WHITESPACE_REPLACE:
+            whitespace = "MXSD_WS_REPLACE"
+        else:
+            whitespace = "MXSD_WS_COLLAPSE"
+        if base in BIND_NATIVE_TYPES:
+            kind, ctype = BIND_NATIVE_TYPES[base]
+            return kind, ctype, whitespace, None
+        return "MXSD_BIND_STRING", "const char *", whitespace, None
+
+    def flatten(particle, optional, out, context):
+        if particle["kind"] == "element":
+            if particle["max"] != 0:
+                out.append(
+                    (particle["element"], 0 if optional else particle["min"], particle["max"])
+                )
+            return
+        if particle["kind"] == "any":
+            raise BindingError("bindings: %s contains an element wildcard (xs:any)" % context)
+        if particle["max"] == 0:
+            return
+        if particle["max"] is None or particle["max"] > 1:
+            raise BindingError(
+                "bindings: %s contains a repeating xs:%s group; only its elements may repeat"
+                % (context, particle["kind"])
+            )
+        children = particle["children"]
+        child_optional = (
+            optional or particle["min"] == 0 or (particle["kind"] == "choice" and len(children) > 1)
+        )
+        for child in children:
+            flatten(child, child_optional, out, context)
+
+    def content_particle(definition):
+        if definition.get("particle") is not None or not definition["elements"]:
+            return definition.get("particle")
+        kind = {"MXSD_SEQUENCE": "sequence", "MXSD_CHOICE": "choice", "MXSD_ALL": "all"}[
+            definition["model"]
+        ]
+        return {
+            "kind": kind,
+            "min": definition["group_min"],
+            "max": definition["group_max"],
+            "children": [
+                {"kind": "element", "min": e["min"], "max": e["max"], "element": e, "children": []}
+                for e in definition["elements"]
+            ],
+        }
+
+    def struct_for(key, suggested):
+        if key in structs:
+            return structs[key]
+        definition = types[key]
+        display = (
+            "type %r" % definition["type_name"]
+            if definition.get("type_name")
+            else "the anonymous type of %r" % suggested
+        )
+        if definition.get("any_type"):
+            raise BindingError("bindings: %s is xs:anyType, which has no fixed structure" % display)
+        if definition.get("mixed"):
+            raise BindingError("bindings: %s has mixed content" % display)
+        if definition.get("any_attribute"):
+            raise BindingError("bindings: %s contains an attribute wildcard" % display)
+        if definition.get("abstract"):
+            raise BindingError(
+                "bindings: %s is abstract and is only usable through xsi:type" % display
+            )
+        name = unique_type_name(type_symbol(key) if definition.get("type_name") else suggested)
+        info = {"key": key, "name": name, "fields": [], "definition": definition}
+        structs[key] = info
+        fields = []
+        for attribute in definition["attributes"]:
+            if attribute.get("prohibited"):
+                continue
+            context = "attribute %r of %s" % (attribute["name"], display)
+            kind, ctype, whitespace, enum = simple_value(
+                attribute["type"], name, attribute["name"], context
+            )
+            fields.append(
+                {
+                    "role": "MXSD_BIND_ATTRIBUTE",
+                    "name": attribute["name"],
+                    "ns": attribute["ns"],
+                    "kind": kind,
+                    "ctype": ctype,
+                    "whitespace": whitespace,
+                    "enum": enum,
+                    "min": 1 if attribute["required"] else 0,
+                    "max": 1,
+                    "default": attribute.get("default"),
+                    "fixed": attribute.get("fixed"),
+                    "struct": None,
+                }
+            )
+        particle = content_particle(definition)
+        if particle is not None:
+            flattened = []
+            flatten(particle, False, flattened, display)
+            seen = set()
+            for element, minimum, maximum in flattened:
+                expanded = (element["ns"], element["name"])
+                context = "element %r of %s" % (element["name"], display)
+                if expanded in seen:
+                    raise BindingError(
+                        "bindings: %s occurs at several places of the content model" % context
+                    )
+                seen.add(expanded)
+                if element.get("nillable"):
+                    raise BindingError("bindings: %s is nillable" % context)
+                if element.get("abstract") or expanded[::-1] in heads:
+                    raise BindingError("bindings: %s is the head of a substitution group" % context)
+                field = {
+                    "role": "MXSD_BIND_ELEMENT",
+                    "name": element["name"],
+                    "ns": element["ns"],
+                    "min": minimum,
+                    "max": maximum,
+                    "default": element.get("default"),
+                    "fixed": element.get("fixed"),
+                    "enum": None,
+                    "struct": None,
+                }
+                reference = element["type"]
+                if reference["complex"]:
+                    child = struct_for(reference["complex"], "%s_%s" % (name, element["name"]))
+                    field.update(
+                        kind="MXSD_BIND_COMPLEX",
+                        ctype="%s_%s_t" % (sid, child["name"]),
+                        whitespace="MXSD_WS_PRESERVE",
+                        struct=child,
+                    )
+                else:
+                    kind, ctype, whitespace, enum = simple_value(
+                        reference, name, element["name"], context
+                    )
+                    field.update(kind=kind, ctype=ctype, whitespace=whitespace, enum=enum)
+                fields.append(field)
+        content = definition.get("simple_content")
+        if content:
+            context = "the character content of %s" % display
+            kind, ctype, whitespace, enum = simple_value(content, name, "value", context)
+            fields.append(
+                {
+                    "role": "MXSD_BIND_CONTENT",
+                    "name": "value",
+                    "ns": None,
+                    "kind": kind,
+                    "ctype": ctype,
+                    "whitespace": whitespace,
+                    "enum": enum,
+                    "min": 1,
+                    "max": 1,
+                    "default": None,
+                    "fixed": None,
+                    "struct": None,
+                }
+            )
+        info["fields"] = fields
+        return info
+
+    root_structs = []
+    for key in roots:
+        root = globals_[key]
+        if root.get("nillable"):
+            raise BindingError("bindings: root element %r is nillable" % root["name"])
+        if root.get("abstract") or (root["name"], root["ns"]) in heads:
+            raise BindingError(
+                "bindings: root element %r is abstract or heads a substitution group" % root["name"]
+            )
+        root_structs.append(struct_for(root["type"]["complex"], root_symbol(key)))
+
+    # A required single child is embedded by value unless its type can reach the
+    # enclosing type, in which case the recursion is broken with a pointer.
+    edges = {
+        key: [field["struct"]["key"] for field in info["fields"] if field["struct"]]
+        for key, info in structs.items()
+    }
+
+    def reaches(start, target):
+        stack, seen = [start], set()
+        while stack:
+            current = stack.pop()
+            if current == target:
+                return True
+            if current not in seen:
+                seen.add(current)
+                stack.extend(edges[current])
+        return False
+
+    for key, info in structs.items():
+        for field in info["fields"]:
+            if field["max"] is None or field["max"] > 1:
+                field["storage"] = "MXSD_BIND_ARRAY"
+            elif field["struct"] is not None and (
+                field["min"] == 0 or reaches(field["struct"]["key"], key)
+            ):
+                field["storage"] = "MXSD_BIND_POINTER"
+            else:
+                field["storage"] = "MXSD_BIND_INLINE"
+
+    # Assign collision-free member names, including presence and count helpers.
+    for info in structs.values():
+        used = set()
+
+        def claim(base, role):
+            base = ident(base)
+            if base.startswith("_"):
+                base = "x" + base
+            if base in C_RESERVED_WORDS:
+                base += "_"
+            alternatives = [base, base + ("_attr" if role == "MXSD_BIND_ATTRIBUTE" else "_elem")]
+            suffix = 2
+            while True:
+                for candidate in alternatives:
+                    helpers = {candidate, "has_" + candidate, candidate + "_count"}
+                    if not helpers & used:
+                        used.update(helpers)
+                        return candidate
+                alternatives = ["%s_%d" % (base, suffix)]
+                suffix += 1
+
+        ordered = sorted(
+            info["fields"], key=lambda field: 0 if field["role"] == "MXSD_BIND_CONTENT" else 1
+        )
+        for field in ordered:
+            field["member"] = claim(field["name"], field["role"])
+
+    # Structures embedded by value must be defined before their containers.
+    definition_order = []
+    visited = set()
+
+    def define(info):
+        if info["key"] in visited:
+            return
+        visited.add(info["key"])
+        for field in info["fields"]:
+            if field["struct"] is not None and field["storage"] == "MXSD_BIND_INLINE":
+                define(field["struct"])
+        definition_order.append(info)
+
+    for info in structs.values():
+        define(info)
+
+    def occurrence_text(field):
+        maximum = "unbounded" if field["max"] is None else str(field["max"])
+        return "%d to %s occurrences" % (field["min"], maximum)
+
+    def member_comment(field):
+        item = {
+            "MXSD_BIND_ATTRIBUTE": "Attribute",
+            "MXSD_BIND_ELEMENT": "Element",
+            "MXSD_BIND_CONTENT": "Character content",
+        }[field["role"]]
+        if field["role"] == "MXSD_BIND_CONTENT":
+            return item + "."
+        text = "%s @c %s" % (item, comment_text(field["name"]))
+        if field["storage"] == "MXSD_BIND_ARRAY":
+            return text + ", " + occurrence_text(field) + "."
+        if field["min"] == 0:
+            absent = (
+                "@c NULL when absent"
+                if field["kind"] in ("MXSD_BIND_STRING", "MXSD_BIND_COMPLEX")
+                else "valid when @c has_%s is true" % field["member"]
+            )
+            return "%s, optional; %s." % (text, absent)
+        return text + "."
+
+    license_header = (
+        "/*\n * Copyright (c) 2026 mxsd contributors\n *\n"
+        " * SPDX-License-Identifier: Apache-2.0\n */\n\n"
+    )
+    file_doc = license_header + (
+        "/**\n * @file\n * @brief Generated mxsd typed bindings for the " + stem + " schema.\n"
+        " *\n * @note Generated by mxsdc. Do not edit manually.\n */\n\n"
+    )
+    h = [
+        file_doc + f"#ifndef {guard}\n#define {guard}\n",
+        "#include <mxsd_bind.h>\n",
+        "#include <stdbool.h>\n#include <stddef.h>\n#include <stdint.h>\n",
+        '#ifdef __cplusplus\nextern "C" {\n#endif\n',
+    ]
+    enum_constants = set()
+    for enum in enums.values():
+        prefix = ("%s_%s" % (sid, enum["name"])).upper()
+        source = (
+            "the %s simple type" % comment_text(enum["xsd"])
+            if enum["xsd"]
+            else "an anonymous simple type"
+        )
+        lines = ["/** Enumeration values of %s. */" % source, "typedef enum {"]
+        for index, value in enumerate(enum["values"]):
+            base = "%s_%s" % (prefix, ident(value).upper() if value else "EMPTY")
+            constant = base
+            suffix = 2
+            while constant in enum_constants:
+                constant = "%s_%d" % (base, suffix)
+                suffix += 1
+            enum_constants.add(constant)
+            lines.append('\t%s = %d, /**< "%s" */' % (constant, index, comment_text(value)))
+        lines.append("} %s_%s_t;\n" % (sid, enum["name"]))
+        h.append("\n".join(lines))
+    for info in structs.values():
+        h.append("typedef struct %s_%s %s_%s_t;" % (sid, info["name"], sid, info["name"]))
+    h.append("")
+    for info in definition_order:
+        definition = info["definition"]
+        source = (
+            "complex type @c %s" % comment_text(definition["type_name"])
+            if definition.get("type_name")
+            else "an anonymous complex type"
+        )
+        lines = ["/** Typed binding of %s. */" % source, "struct %s_%s {" % (sid, info["name"])]
+        for field in info["fields"]:
+            member, ctype = field["member"], field["ctype"]
+            comment = member_comment(field)
+            if field["storage"] == "MXSD_BIND_ARRAY":
+                pointer = "const char *const *" if ctype == "const char *" else "const %s *" % ctype
+                lines.append("\t/** %s */\n\t%s%s;" % (comment, pointer, member))
+                lines.append(
+                    "\t/** Number of items in @c %s. */\n\tsize_t %s_count;" % (member, member)
+                )
+            elif field["storage"] == "MXSD_BIND_POINTER":
+                lines.append("\t/** %s */\n\tconst %s *%s;" % (comment, ctype, member))
+            else:
+                if field["min"] == 0 and field["kind"] not in (
+                    "MXSD_BIND_STRING",
+                    "MXSD_BIND_COMPLEX",
+                ):
+                    lines.append(
+                        "\t/** Whether @c %s is present. */\n\tbool has_%s;" % (member, member)
+                    )
+                separator = "" if ctype.endswith("*") else " "
+                lines.append("\t/** %s */\n\t%s%s%s;" % (comment, ctype, separator, member))
+        if not info["fields"]:
+            lines.append(
+                "\t/** Placeholder: C forbids empty structures. */\n\tunsigned char reserved;"
+            )
+        lines.append("};\n")
+        h.append("\n".join(lines))
+    for key, info in zip(roots, root_structs):
+        root = globals_[key]
+        prefix = "%s_%s" % (sid, root_symbol(key))
+        ctype = "%s_%s_t" % (sid, info["name"])
+        name = comment_text(root["name"])
+        h.append(
+            f"/**\n * @brief Validate a document and fill a {ctype} from its {name} root.\n"
+            " *\n * @param xml NUL-terminated XML document.\n"
+            " * @param object Structure to fill.\n"
+            " * @param arena Storage for strings, arrays and optional structures.\n"
+            " * @return A structured result; see mxsd_bind_read().\n */\n"
+            f"mxsd_result_t {prefix}_read(const char *xml, {ctype} *object, mxsd_bind_arena_t *arena);\n\n"
+            f"/**\n * @brief Write a {ctype} as an XML document with a {name} root.\n"
+            " *\n * @param object Structure to serialize.\n"
+            " * @param sink Output callback.\n"
+            " * @param context Context passed to @p sink.\n"
+            " * @param validator Optional initialized streaming validator, or @c NULL.\n"
+            " * @return A structured result; see mxsd_bind_write().\n */\n"
+            f"mxsd_result_t {prefix}_write(const {ctype} *object, mxsd_bind_sink_fn sink, void *context,\n"
+            "\t\t\tmxsd_stream_t *validator);\n\n"
+            f"/**\n * @brief Write a {ctype} with a {name} root into a buffer and validate it.\n"
+            " *\n * @param object Structure to serialize.\n"
+            " * @param buffer Destination buffer.\n"
+            " * @param capacity Size of @p buffer, including the terminating NUL.\n"
+            " * @param length Optional output receiving the document length.\n"
+            " * @return A structured result; see mxsd_bind_write_buffer().\n */\n"
+            f"mxsd_result_t {prefix}_write_buffer(const {ctype} *object, char *buffer, size_t capacity,\n"
+            "\t\t\t\tsize_t *length);\n\n"
+            f"/** Return the binding descriptor of the {name} root. */\n"
+            f"const mxsd_bind_root_t *{prefix}_binding(void);\n"
+        )
+    h.append("#ifdef __cplusplus\n}\n#endif\n#endif")
+
+    def c_string(value):
+        return "NULL" if value is None else cstr(value)
+
+    out = [
+        file_doc.rstrip(),
+        "",
+        f'#include "{stem}.bind.h"',
+        f'#include "{stem}.mxsd.h"',
+        "",
+        "#include <limits.h>",
+        "#include <stddef.h>",
+        "",
+    ]
+    for enum in enums.values():
+        out.append(
+            "static const char *const enum_values_%s[] = {%s};"
+            % (enum["name"], ", ".join(cstr(value) for value in enum["values"]))
+        )
+    for info in structs.values():
+        out.append("static const mxsd_bind_type_t binding_type_%s;" % info["name"])
+    out.append("")
+    for info in structs.values():
+        ctype = "%s_%s_t" % (sid, info["name"])
+        entries = []
+        for field in info["fields"]:
+            member = field["member"]
+            if field["storage"] == "MXSD_BIND_ARRAY":
+                value_size = "sizeof(%s)" % field["ctype"]
+                presence = "MXSD_BIND_NO_OFFSET"
+                count = "offsetof(%s, %s_count)" % (ctype, member)
+            else:
+                value_size = "sizeof(%s)" % field["ctype"]
+                count = "MXSD_BIND_NO_OFFSET"
+                presence = (
+                    "offsetof(%s, has_%s)" % (ctype, member)
+                    if field["storage"] == "MXSD_BIND_INLINE"
+                    and field["min"] == 0
+                    and field["kind"] not in ("MXSD_BIND_STRING", "MXSD_BIND_COMPLEX")
+                    else "MXSD_BIND_NO_OFFSET"
+                )
+            nested = "&binding_type_%s" % field["struct"]["name"] if field["struct"] else "NULL"
+            enum = field["enum"]
+            enumeration = (
+                "enum_values_%s, %du" % (enum["name"], len(enum["values"])) if enum else "NULL, 0u"
+            )
+            maximum = "ULONG_MAX" if field["max"] is None else "%dUL" % field["max"]
+            entries.append(
+                "\t{%s, %s, %s, %s, %s, %dUL, %s,\n\t offsetof(%s, %s), %s, %s, %s,\n\t %s, %s, %s, %s, %s}"
+                % (
+                    cstr(field["name"]),
+                    c_string(field["ns"]),
+                    field["role"],
+                    field["kind"],
+                    field["storage"],
+                    field["min"],
+                    maximum,
+                    ctype,
+                    member,
+                    presence,
+                    count,
+                    value_size,
+                    nested,
+                    enumeration,
+                    field["whitespace"],
+                    c_string(field["default"]),
+                    c_string(field["fixed"]),
+                )
+            )
+        if entries:
+            out.append(
+                "static const mxsd_bind_field_t binding_fields_%s[] = {\n%s,\n};"
+                % (info["name"], ",\n".join(entries))
+            )
+            fields_pointer, field_count = "binding_fields_%s" % info["name"], len(entries)
+        else:
+            fields_pointer, field_count = "NULL", 0
+        definition = info["definition"]
+        out.append(
+            "static const mxsd_bind_type_t binding_type_%s = {%s, %s, %s, sizeof(%s), %s, %du};\n"
+            % (
+                info["name"],
+                cstr(ctype),
+                c_string(definition.get("type_name")),
+                c_string(definition.get("type_ns")),
+                ctype,
+                fields_pointer,
+                field_count,
+            )
+        )
+    for key, info in zip(roots, root_structs):
+        root = globals_[key]
+        symbol = root_symbol(key)
+        prefix = "%s_%s" % (sid, symbol)
+        ctype = "%s_%s_t" % (sid, info["name"])
+        namespaces = []
+
+        def collect(item, seen):
+            if item["key"] in seen:
+                return
+            seen.add(item["key"])
+            for field in item["fields"]:
+                if field["ns"] and field["ns"] != XML_URI and field["ns"] not in namespaces:
+                    namespaces.append(field["ns"])
+                if field["struct"] is not None:
+                    collect(field["struct"], seen)
+
+        if root["ns"]:
+            namespaces.append(root["ns"])
+        collect(info, set())
+        if namespaces:
+            out.append(
+                "static const mxsd_bind_namespace_t binding_namespaces_%s[] = {%s};"
+                % (
+                    symbol,
+                    ", ".join(
+                        "{%s, %s}" % (cstr("ns%d" % (index + 1)), cstr(uri))
+                        for index, uri in enumerate(namespaces)
+                    ),
+                )
+            )
+            namespace_pointer = "binding_namespaces_%s" % symbol
+        else:
+            namespace_pointer = "NULL"
+        out.append(
+            "static const mxsd_bind_root_t binding_root_%s = {%s, %s, &binding_type_%s, %s_schema,\n\t%s, %du, %s, %s};\n"
+            % (
+                symbol,
+                cstr(root["name"]),
+                c_string(root["ns"]),
+                info["name"],
+                prefix,
+                namespace_pointer,
+                len(namespaces),
+                c_string(root.get("default")),
+                c_string(root.get("fixed")),
+            )
+        )
+        out.append(
+            f"mxsd_result_t {prefix}_read(const char *xml, {ctype} *object, mxsd_bind_arena_t *arena)\n"
+            f"{{\n\treturn mxsd_bind_read(&binding_root_{symbol}, xml, object, arena);\n}}\n\n"
+            f"mxsd_result_t {prefix}_write(const {ctype} *object, mxsd_bind_sink_fn sink, void *context,\n"
+            "\t\t\tmxsd_stream_t *validator)\n"
+            f"{{\n\treturn mxsd_bind_write(&binding_root_{symbol}, object, sink, context, validator);\n}}\n\n"
+            f"mxsd_result_t {prefix}_write_buffer(const {ctype} *object, char *buffer, size_t capacity,\n"
+            "\t\t\t\tsize_t *length)\n"
+            f"{{\n\treturn mxsd_bind_write_buffer(&binding_root_{symbol}, object, buffer, capacity, length);\n}}\n\n"
+            f"const mxsd_bind_root_t *{prefix}_binding(void)\n{{\n\treturn &binding_root_{symbol};\n}}\n"
+        )
+    return "\n".join(h) + "\n", "\n".join(out).rstrip("\n") + "\n"
+
+
 def main():
     """Parse command-line arguments and compile one root schema."""
     parser = argparse.ArgumentParser(prog="mxsdc")
@@ -5236,7 +5958,21 @@ def main():
         action="store_true",
         help="warn and continue when a schemaLocation hint cannot be retrieved",
     )
+    parser.add_argument(
+        "--bindings",
+        action="store_true",
+        help="also generate typed C structures with read/write functions (<stem>.bind.[ch])",
+    )
+    parser.add_argument(
+        "--bind-root",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="bind only this global element, by local name or {namespace}name (repeatable)",
+    )
     args = parser.parse_args()
+    if args.bind_root and not args.bindings:
+        parser.error("--bind-root requires --bindings")
     try:
         model = parse(
             args.schema[0],
@@ -5248,8 +5984,14 @@ def main():
         args.output.mkdir(parents=True, exist_ok=True)
         stem = ident(args.schema[0].stem)
         header, source = generate(stem, model)
-        (args.output / (stem + ".mxsd.h")).write_text(header, encoding="utf-8", newline="\n")
-        (args.output / (stem + ".mxsd.c")).write_text(source, encoding="utf-8", newline="\n")
+        outputs = {stem + ".mxsd.h": header, stem + ".mxsd.c": source}
+        if args.bindings:
+            bind_header, bind_source = generate_bindings(stem, model, args.bind_root)
+            outputs[stem + ".bind.h"] = bind_header
+            outputs[stem + ".bind.c"] = bind_source
+        # Nothing is written unless every requested output could be generated.
+        for name, text in outputs.items():
+            (args.output / name).write_text(text, encoding="utf-8", newline="\n")
     except (OSError, SchemaError) as error:
         category = "invalid schema: " if isinstance(error, InvalidSchemaError) else ""
         print("error: %s%s" % (category, error), file=sys.stderr)

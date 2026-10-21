@@ -107,22 +107,21 @@ int main(void)
 			       "xmlns:xs='http://www.w3.org/2001/XMLSchema' "
 			       "xsi:type='xs:decimal'>1.5</anything>"),
 		       MXSD_OK);
-	failures += expect(
-		mixed_any_simple_validate(
-			"<simple xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
-			"xsi:type='AnySimpleCarrier' kind='text'>value</simple>"),
-		MXSD_OK);
-	failures += expect(
-		mixed_any_anything_validate(
-			"<anything xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
-			"xmlns:xs='http://www.w3.org/2001/XMLSchema' "
-			"xsi:type='xs:anySimpleType'>value</anything>"),
-		MXSD_OK);
-	failures += expect(
-		mixed_any_anything_validate(
-			"<anything xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
-			"xmlns:xs='http://www.w3.org/2001/XMLSchema' "
-			"xsi:type='xs:anyType'>value</anything>"),
-		MXSD_OK);
+	failures += expect(mixed_any_simple_validate(
+				   "<simple xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
+				   "xsi:type='AnySimpleCarrier' kind='text'>value</simple>"),
+			   MXSD_OK);
+	failures +=
+		expect(mixed_any_anything_validate(
+			       "<anything xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
+			       "xmlns:xs='http://www.w3.org/2001/XMLSchema' "
+			       "xsi:type='xs:anySimpleType'>value</anything>"),
+		       MXSD_OK);
+	failures +=
+		expect(mixed_any_anything_validate(
+			       "<anything xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
+			       "xmlns:xs='http://www.w3.org/2001/XMLSchema' "
+			       "xsi:type='xs:anyType'>value</anything>"),
+		       MXSD_OK);
 	return failures ? 1 : 0;
 }

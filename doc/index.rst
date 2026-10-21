@@ -34,6 +34,12 @@ Why mxsd?
 
       :doc:`xsd-support`
 
+   .. grid-item-card:: Typed bindings
+
+      Read and write documents through generated C structures.
+
+      :doc:`bindings`
+
    .. grid-item-card:: Conformance
 
       Understand the internal gates and the official W3C test-suite harness.
@@ -42,7 +48,7 @@ Why mxsd?
 
    .. grid-item-card:: C API
 
-      Browse the public types, limits, functions, and Mini-XML adapter.
+      Browse the public types, limits, functions, bindings, and Mini-XML adapter.
 
       :doc:`api`
 
@@ -54,7 +60,9 @@ Why mxsd?
    overview
    getting-started
    xsd-support
+   bindings
    conformance
+   w3c-baseline
    zephyr
    kconfig
    resource-usage

@@ -122,7 +122,9 @@ typedef enum {
 	MXSD_ERR_TEXT_NOT_ALLOWED,     /**< Text occurred in element-only content. */
 	MXSD_ERR_IDENTITY_CONSTRAINT,  /**< A unique, key or keyref rule failed. */
 	MXSD_ERR_STREAM_LIMIT,         /**< A fixed streaming buffer was exceeded. */
-	MXSD_ERR_RESOURCE_LIMIT        /**< A configured resource limit was exceeded. */
+	MXSD_ERR_RESOURCE_LIMIT,       /**< A configured resource limit was exceeded. */
+	MXSD_ERR_OUTPUT,               /**< A binding output sink or buffer failed. */
+	MXSD_ERR_UNSUPPORTED           /**< A valid document cannot be represented by a binding. */
 } mxsd_error_t;
 
 /** Structured result returned by every generated validator. */

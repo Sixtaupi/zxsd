@@ -63,7 +63,16 @@ jobs:
             --suite .cache/w3c/xmlschema2006-11-06 \
             --work-dir build/w3c \
             --output build/w3c-xsd10-report.json \
+            --html build/w3c-xsd10-report.html \
             "${args[@]}"
+
+      - name: Analyze gaps
+        if: always()
+        run: |
+          python tests/w3c/summarize.py build/w3c-xsd10-report.json \
+            --json build/w3c-xsd10-summary.json \
+            --markdown build/w3c-xsd10-summary.md
+          cat build/w3c-xsd10-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish summary
         if: always()
@@ -80,5 +89,9 @@ jobs:
         if: always()
         with:
           name: w3c-xsd10-${{ github.event_name }}-report
-          path: build/w3c-xsd10-report.json
+          path: |
+            build/w3c-xsd10-report.json
+            build/w3c-xsd10-report.html
+            build/w3c-xsd10-summary.json
+            build/w3c-xsd10-summary.md
           if-no-files-found: error

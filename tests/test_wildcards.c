@@ -97,6 +97,16 @@ int main(void)
 				   "xmlns='urn:any'><?inside test?><deep>text</deep></anything>"
 				   "<!--after--></skip>"),
 			   MXSD_OK);
+	/* Skipped content may hold CDATA sections containing markup characters. */
+	failures += expect(wildcards_skip_validate(
+				   "<skip xmlns='urn:mxsd:wildcards'><anything xmlns='urn:any'>"
+				   "a<![CDATA[</anything><x>]]><deep><![CDATA[]]></deep></anything>"
+				   "</skip>"),
+			   MXSD_OK);
+	failures += expect(wildcards_skip_validate("<skip xmlns='urn:mxsd:wildcards'><anything "
+						   "xmlns='urn:any'><![CDATA[open</anything>"
+						   "</skip>"),
+			   MXSD_ERR_MALFORMED_XML);
 	failures += expect(wildcards_attributeStrict_validate(
 				   "<attributeStrict xmlns='urn:mxsd:wildcards' "
 				   "xmlns:w='urn:mxsd:wildcards' w:externalFlag='4'/>"),

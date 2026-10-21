@@ -275,6 +275,34 @@ for construct, declaration, reference, diagnostic in (
         assert p.returncode != 0
         assert diagnostic in p.stderr
 
+for filename, declaration, diagnostic in (
+    (
+        "missing-attribute-group.xsd",
+        '<xs:element name="root"><xs:complexType><xs:attributeGroup ref="missing"/>'
+        "</xs:complexType></xs:element>",
+        "invalid attributeGroup ref 'missing'",
+    ),
+    (
+        "circular-substitution-group.xsd",
+        '<xs:element name="first" substitutionGroup="second"/>'
+        '<xs:element name="second" substitutionGroup="first"/>',
+        "circular substitutionGroup declarations",
+    ),
+):
+    with tempfile.TemporaryDirectory(dir=build) as d:
+        bad = pathlib.Path(d) / filename
+        bad.write_text(
+            '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">' + declaration + "</xs:schema>"
+        )
+        p = subprocess.run(
+            [sys.executable, str(compiler), str(bad), "-o", str(pathlib.Path(d) / "out")],
+            capture_output=True,
+            text=True,
+        )
+        assert p.returncode != 0
+        assert diagnostic in p.stderr
+        assert "Traceback" not in p.stderr
+
 for name, redefinition, diagnostic in (
     (
         "unknown-group",
@@ -293,6 +321,12 @@ for name, redefinition, diagnostic in (
         '<xs:attributeGroup ref="properties"/></xs:attributeGroup>',
         "may reference itself at most once",
     ),
+    (
+        "reordered-all-group",
+        '<xs:group name="fields"><xs:all><xs:element name="b"/><xs:element name="a"/>'
+        "</xs:all></xs:group>",
+        "redefinition widens its original content model",
+    ),
 ):
     with tempfile.TemporaryDirectory(dir=build) as d:
         directory = pathlib.Path(d)
@@ -301,6 +335,8 @@ for name, redefinition, diagnostic in (
             '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">'
             '<xs:group name="items"><xs:sequence><xs:element name="item"/></xs:sequence>'
             "</xs:group>"
+            '<xs:group name="fields"><xs:all><xs:element name="a"/><xs:element name="b"/>'
+            "</xs:all></xs:group>"
             '<xs:attributeGroup name="properties"><xs:attribute name="code"/>'
             "</xs:attributeGroup></xs:schema>"
         )
@@ -393,6 +429,23 @@ for name, declarations, diagnostic in (
         '<xs:totalDigits value="5"/></xs:restriction></xs:simpleType>',
         "totalDigits widens",
     ),
+    (
+        "any-simple-type-content-facet",
+        '<xs:complexType name="Base"><xs:simpleContent>'
+        '<xs:extension base="xs:anySimpleType"/></xs:simpleContent></xs:complexType>'
+        '<xs:complexType name="Bad"><xs:simpleContent><xs:restriction base="Base">'
+        '<xs:minLength value="1"/></xs:restriction></xs:simpleContent></xs:complexType>',
+        "facets cannot restrict xs:anySimpleType content",
+    ),
+    (
+        "reordered-all-restriction",
+        '<xs:complexType name="Base"><xs:all><xs:element name="a"/>'
+        '<xs:element name="b"/></xs:all></xs:complexType>'
+        '<xs:complexType name="Bad"><xs:complexContent><xs:restriction base="Base">'
+        '<xs:all><xs:element name="b"/><xs:element name="a"/></xs:all>'
+        "</xs:restriction></xs:complexContent></xs:complexType>",
+        "widens the base content model",
+    ),
 ):
     with tempfile.TemporaryDirectory(dir=build) as d:
         bad = pathlib.Path(d) / (name + ".xsd")
@@ -408,6 +461,45 @@ for name, declarations, diagnostic in (
         )
         assert p.returncode != 0
         assert diagnostic in p.stderr
+
+for name, declarations in (
+    (
+        "any-simple-type-content-without-facets",
+        '<xs:complexType name="Base"><xs:simpleContent>'
+        '<xs:extension base="xs:anySimpleType"/></xs:simpleContent></xs:complexType>'
+        '<xs:complexType name="Good"><xs:simpleContent><xs:restriction base="Base">'
+        "</xs:restriction></xs:simpleContent></xs:complexType>",
+    ),
+    (
+        "ordered-all-restriction",
+        '<xs:complexType name="Base"><xs:all><xs:element name="a"/>'
+        '<xs:element name="b" minOccurs="0"/></xs:all></xs:complexType>'
+        '<xs:complexType name="Good"><xs:complexContent><xs:restriction base="Base">'
+        '<xs:all><xs:element name="a"/></xs:all>'
+        "</xs:restriction></xs:complexContent></xs:complexType>",
+    ),
+    (
+        "unordered-sequence-from-all",
+        '<xs:complexType name="Base"><xs:all><xs:element name="a"/>'
+        '<xs:element name="b"/></xs:all></xs:complexType>'
+        '<xs:complexType name="Good"><xs:complexContent><xs:restriction base="Base">'
+        '<xs:sequence><xs:element name="b"/><xs:element name="a"/></xs:sequence>'
+        "</xs:restriction></xs:complexContent></xs:complexType>",
+    ),
+):
+    with tempfile.TemporaryDirectory(dir=build) as d:
+        good = pathlib.Path(d) / (name + ".xsd")
+        good.write_text(
+            '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">'
+            + declarations
+            + "</xs:schema>"
+        )
+        p = subprocess.run(
+            [sys.executable, str(compiler), str(good), "-o", str(pathlib.Path(d) / "out")],
+            capture_output=True,
+            text=True,
+        )
+        assert p.returncode == 0, (name, p.stderr)
 
 for name, pattern in (
     ("unclosed-group", "(abc"),
@@ -566,3 +658,170 @@ for depth, succeeds in ((32, True), (33, False)):
         assert (p.returncode == 0) == succeeds, (depth, p.stderr)
         if not succeeds:
             assert "MXSD_MAX_REGEX_DEPTH" in p.stderr
+
+# Typed bindings: deterministic, golden, opt-in, and explicit about unsupported constructs.
+with tempfile.TemporaryDirectory(dir=build) as a, tempfile.TemporaryDirectory(dir=build) as b:
+    for out in (a, b):
+        subprocess.run(
+            [sys.executable, str(compiler), str(schema), "-o", out, "--bindings"], check=True
+        )
+    for name in ("device.mxsd.c", "device.mxsd.h", "device.bind.c", "device.bind.h"):
+        assert (pathlib.Path(a) / name).read_bytes() == (pathlib.Path(b) / name).read_bytes(), name
+        assert (pathlib.Path(a) / name).read_text(encoding="utf-8") == (expected / name).read_text(
+            encoding="utf-8"
+        ), ("golden " + name)
+
+with tempfile.TemporaryDirectory(dir=build) as d:
+    subprocess.run([sys.executable, str(compiler), str(schema), "-o", d], check=True)
+    assert not list(pathlib.Path(d).glob("*.bind.*")), "bindings must be opt-in"
+
+
+def compile_bindings(directory, body, *options):
+    """Compile an inline schema with --bindings and return the completed process."""
+    source = pathlib.Path(directory) / "bind.xsd"
+    source.write_text(
+        '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" '
+        'xmlns:t="urn:t" targetNamespace="urn:t">' + body + "</xs:schema>"
+    )
+    return subprocess.run(
+        [
+            sys.executable,
+            str(compiler),
+            str(source),
+            "-o",
+            str(pathlib.Path(directory) / "out"),
+            "--bindings",
+            *options,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+ITEM = '<xs:element name="item" type="xs:string"/>'
+for body, diagnostic in (
+    (
+        '<xs:element name="r"><xs:complexType><xs:sequence><xs:any/></xs:sequence>'
+        "</xs:complexType></xs:element>",
+        "element wildcard",
+    ),
+    (
+        '<xs:element name="r"><xs:complexType><xs:anyAttribute/></xs:complexType></xs:element>',
+        "attribute wildcard",
+    ),
+    (
+        '<xs:element name="r"><xs:complexType mixed="true"><xs:sequence>'
+        + ITEM
+        + "</xs:sequence></xs:complexType></xs:element>",
+        "mixed content",
+    ),
+    (
+        '<xs:element name="r"><xs:complexType><xs:sequence maxOccurs="2">'
+        + ITEM
+        + "</xs:sequence></xs:complexType></xs:element>",
+        "repeating xs:sequence group",
+    ),
+    (
+        '<xs:element name="r"><xs:complexType><xs:sequence>'
+        + ITEM
+        + '<xs:element name="other" type="xs:int"/>'
+        + ITEM
+        + "</xs:sequence></xs:complexType></xs:element>",
+        "occurs at several places",
+    ),
+    (
+        '<xs:element name="r"><xs:complexType><xs:sequence>'
+        '<xs:element name="item" type="xs:string" nillable="true"/>'
+        "</xs:sequence></xs:complexType></xs:element>",
+        "is nillable",
+    ),
+    (
+        '<xs:element name="head" type="xs:string"/>'
+        '<xs:element name="member" type="xs:string" substitutionGroup="t:head"/>'
+        '<xs:element name="r"><xs:complexType><xs:sequence><xs:element ref="t:head"/>'
+        "</xs:sequence></xs:complexType></xs:element>",
+        "head of a substitution group",
+    ),
+    (
+        '<xs:element name="r"><xs:complexType><xs:sequence>'
+        '<xs:element name="q" type="xs:QName"/></xs:sequence></xs:complexType></xs:element>',
+        "QName or NOTATION",
+    ),
+    (
+        '<xs:complexType name="A" abstract="true"><xs:sequence>'
+        + ITEM
+        + '</xs:sequence></xs:complexType><xs:element name="r" type="t:A"/>',
+        "is abstract",
+    ),
+    (
+        '<xs:element name="r"><xs:complexType><xs:sequence><xs:element name="x"/>'
+        "</xs:sequence></xs:complexType></xs:element>",
+        "xs:anyType",
+    ),
+    ('<xs:element name="r" type="xs:string"/>', "no global element with a complex type"),
+):
+    with tempfile.TemporaryDirectory(dir=build) as d:
+        p = compile_bindings(d, body)
+        assert p.returncode != 0, body
+        assert "error: bindings: " in p.stderr and diagnostic in p.stderr, (diagnostic, p.stderr)
+        # A failed binding generation leaves no partial output behind.
+        out = pathlib.Path(d) / "out"
+        assert not out.exists() or not list(out.iterdir()), body
+
+# Root selection, and the validator for the remaining roots is still generated.
+TWO_ROOTS = (
+    '<xs:element name="a"><xs:complexType><xs:sequence>' + ITEM + "</xs:sequence>"
+    '</xs:complexType></xs:element><xs:element name="b"><xs:complexType><xs:sequence>'
+    "<xs:any/></xs:sequence></xs:complexType></xs:element>"
+    '<xs:element name="s" type="xs:string"/>'
+)
+with tempfile.TemporaryDirectory(dir=build) as d:
+    assert compile_bindings(d, TWO_ROOTS).returncode != 0
+    p = compile_bindings(d, TWO_ROOTS, "--bind-root", "a")
+    assert p.returncode == 0, p.stderr
+    header = (pathlib.Path(d) / "out" / "bind.bind.h").read_text(encoding="utf-8")
+    assert "bind_a_read(" in header and "bind_b_read(" not in header
+    p = compile_bindings(d, TWO_ROOTS, "--bind-root", "{urn:t}a")
+    assert p.returncode == 0, p.stderr
+    for root, diagnostic in (("missing", "unknown root element"), ("s", "has a simple type")):
+        p = compile_bindings(d, TWO_ROOTS, "--bind-root", root)
+        assert p.returncode != 0 and diagnostic in p.stderr, p.stderr
+with tempfile.TemporaryDirectory(dir=build) as d:
+    p = subprocess.run(
+        [sys.executable, str(compiler), str(schema), "-o", d, "--bind-root", "device"],
+        capture_output=True,
+        text=True,
+    )
+    assert p.returncode != 0 and "--bind-root requires --bindings" in p.stderr
+
+# Generated names avoid C/C++ keywords and collisions between members and helpers.
+with tempfile.TemporaryDirectory(dir=build) as d:
+    p = compile_bindings(
+        d,
+        '<xs:simpleType name="E"><xs:restriction base="xs:token"><xs:enumeration value="a-b"/>'
+        '<xs:enumeration value="a_b"/><xs:enumeration value=""/><xs:enumeration value=" a-b "/>'
+        "</xs:restriction></xs:simpleType>"
+        '<xs:element name="r"><xs:complexType><xs:sequence>'
+        '<xs:element name="class" type="xs:int" minOccurs="0"/>'
+        '<xs:element name="has_class" type="xs:int"/>'
+        '<xs:element name="e" type="t:E" maxOccurs="2"/>'
+        '</xs:sequence><xs:attribute name="e" type="xs:int"/>'
+        '<xs:attribute name="_X" type="xs:int"/></xs:complexType></xs:element>',
+    )
+    assert p.returncode == 0, p.stderr
+    header = (pathlib.Path(d) / "out" / "bind.bind.h").read_text(encoding="utf-8")
+    for declaration in (
+        "int32_t class_;",
+        "bool has_class_;",
+        "int32_t has_class;",
+        "int32_t e;",
+        "const bind_E_t *e_elem;",
+        "size_t e_elem_count;",
+        "int32_t x_X;",
+        "BIND_E_A_B = 0,",
+        "BIND_E_A_B_2 = 1,",
+        "BIND_E_EMPTY = 2,",
+    ):
+        assert declaration in header, (declaration, header)
+    # Whitespace-equivalent enumeration values collapse to a single constant.
+    assert "BIND_E_A_B_3" not in header

@@ -36,15 +36,28 @@
 | `xs:group`, `xs:attributeGroup`, attribute `ref` | v0.15 | expansion, occurrence, namespace, fixed-value, and cycle tests |
 | mixed complex content and `xs:anyType` | v0.16 | interleaved text, lax wildcard, restriction, implicit type, and streaming tests |
 | recursive named complex types | v0.17 | direct/mutual recursion, invalid derivation cycles, depth-bound DOM and streaming tests |
-| complete XSD 1.0 regular expressions | v0.18 | groups, alternation, class subtraction, Unicode categories/blocks, escapes, repetition, and facet composition |
+| bounded XSD 1.0 regular-expression subset | v0.18 | groups, alternation, class subtraction, Unicode categories/blocks, standard escapes, repetition, and facet composition |
 | `xs:notation` and `xs:NOTATION` | v0.19 | declaration metadata, QName enumeration resolution, direct-use and undeclared-name rejection |
+| typed C bindings (`mxsdc --bindings`) | v0.20 | read/write round trips, native integer bounds, enumerations, arrays, recursion, defaults, escaping, arena and buffer boundaries, writer structural errors, `xsi:type` rejection, and compiler rejection tests |
+
+Typed bindings represent a subset of the validated constructs. Element and
+attribute wildcards, mixed content, `xs:anyType`, repeating model groups, an
+element name occurring at several places of one content model, nillable and
+abstract elements, substitution-group heads, abstract complex types, and
+`QName` or `NOTATION` values are rejected by `mxsdc --bindings` with a
+`bindings:` diagnostic. They remain supported for validation. A valid document
+using `xsi:type` substitution or `xsi:nil` cannot be read into a structure and
+returns `MXSD_ERR_UNSUPPORTED`. See [`doc/bindings.rst`](doc/bindings.rst).
 
 The generated public function is backend-independent. Mini-XML 4 is used when
 available; the allocation-free backend is used for Zephyr. Pattern facets use
-the complete XSD 1.0 grammar with Unicode categories and blocks. Expressions
-are implicitly anchored to the complete lexical value, as required by XSD 1.0,
-and are bounded by
+a bounded XSD 1.0 subset with grouping, alternation, class subtraction,
+Unicode categories and blocks, the standard multi-character escapes, and
+bounded repetition. Expressions are implicitly anchored to the complete
+lexical value, as required by XSD 1.0, and are bounded by
 `MXSD_MAX_PATTERN_LENGTH`, `MXSD_MAX_REGEX_NODES`, and `MXSD_MAX_REGEX_DEPTH`.
+The W3C baseline documents accepted-suite expressions that the compiler still
+rejects; mxsd therefore does not claim the complete XSD regex grammar.
 Whitespace normalization happens before value-space validation. List length
 facets count items, while binary length facets count decoded octets.
 

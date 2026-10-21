@@ -25,8 +25,8 @@ int main(void)
 	failures += expect(regex_choice_validate("<choice>dog-X</choice>"), MXSD_OK);
 	failures += expect(regex_choice_validate("<choice>cat-42</choice>"), MXSD_OK);
 	failures += expect(regex_choice_validate("<choice>cat-&#52;&#x32;</choice>"), MXSD_OK);
-	failures += expect(regex_choice_validate("<choice>xcat-42</choice>"),
-			   MXSD_ERR_INVALID_VALUE);
+	failures +=
+		expect(regex_choice_validate("<choice>xcat-42</choice>"), MXSD_ERR_INVALID_VALUE);
 	failures += expect(regex_choice_validate("<choice>dog-Y</choice>"), MXSD_ERR_INVALID_VALUE);
 	failures += expect(regex_consonants_validate("<consonants>rhythm</consonants>"), MXSD_OK);
 	failures += expect(regex_consonants_validate("<consonants>apple</consonants>"),
@@ -37,7 +37,12 @@ int main(void)
 	failures += expect(regex_greek_validate("<greek>Ωμέγα</greek>"), MXSD_OK);
 	failures += expect(regex_greek_validate("<greek>Greek</greek>"), MXSD_ERR_INVALID_VALUE);
 	failures += expect(regex_name_validate("<name>node-1</name>"), MXSD_OK);
+	failures += expect(regex_name_validate("<name>\xe3\x80\x87</name>"), MXSD_OK);
 	failures += expect(regex_name_validate("<name>1node</name>"), MXSD_ERR_INVALID_VALUE);
+	failures += expect(regex_name_validate("<name>A\xcd\x86</name>"), MXSD_ERR_INVALID_VALUE);
+	/* U+0370 is accepted by XML 1.0 Fifth Edition names, but is not a Unicode
+	 * letter and therefore is outside the XSD 1.0 \i/\c escapes. */
+	failures += expect(regex_name_validate("<name>\xcd\xb0</name>"), MXSD_ERR_INVALID_VALUE);
 	failures += expect(regex_not_digits_validate("<not-digits>letters</not-digits>"), MXSD_OK);
 	failures += expect(regex_not_digits_validate("<not-digits>a1</not-digits>"),
 			   MXSD_ERR_INVALID_VALUE);

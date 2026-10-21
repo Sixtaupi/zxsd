@@ -39,6 +39,19 @@ The runtime is compiled once per run, schema sets are processed in parallel
 in batches into shared runner executables. Batching matters on macOS, where the
 first launch of every new executable is scanned by the system.
 
+Two reviewed rules keep the categories honest:
+
+* An instance case whose `xsi:schemaLocation` hint names a local file that is
+  not a well-formed schema document is marked as requiring instance-driven
+  schema discovery. mxsd never loads schemas from instance hints, so a
+  mismatch on such a case is `unsupported` (for example `addB063.i`).
+* `DISPUTED_CASES` in `run.py` lists accepted cases whose published expectation
+  encodes one processor's implementation limit instead of an XSD 1.0 rule
+  (`particlesZ036_b1.i` and `particlesZ036_b2.i`). Each entry records the
+  result the Recommendation requires and the reason. Such a case is still
+  executed and becomes `skipped` with that reason only when mxsd produces the
+  recorded result; any other outcome remains `failed`.
+
 The W3C describes this suite as comprehensive rather than complete. Therefore
 the inventory can reach 100% of published cases, but it cannot prove that every
 possible behavior of the XSD 1.0 Recommendations has been exercised.

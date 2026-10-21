@@ -42,6 +42,7 @@ CATEGORIES = (
     "Cn",
 )
 
+
 def category_ranges(path):
     """Return category transitions from an official UnicodeData 4.0 file."""
     values = ["Cn"] * 0x110000

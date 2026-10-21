@@ -102,9 +102,29 @@ int mxsd_xml_name_start(uint32_t cp)
 
 int mxsd_xml_name_char(uint32_t cp)
 {
-	return mxsd_xml_name_start(cp) || cp == '-' || cp == '.' ||
-	       (cp >= '0' && cp <= '9') ||
+	return mxsd_xml_name_start(cp) || cp == '-' || cp == '.' || (cp >= '0' && cp <= '9') ||
 	       cp == 0xB7u || (cp >= 0x300u && cp <= 0x36Fu) || (cp >= 0x203Fu && cp <= 0x2040u);
+}
+
+/* XSD 1.0 defines the \i and \c escapes by Unicode categories rather than by
+ * the edition-dependent XML NameStartChar production used by the parser. */
+static int xsd_name_start(uint32_t cp)
+{
+	return cp == ':' || cp == '_' || cp == 0x212Eu || (cp >= 0x2180u && cp <= 0x2182u) ||
+	       cp == 0x3007u || (cp >= 0x3021u && cp <= 0x3029u) ||
+	       mxsd_unicode_property_matches(cp, "L", 1u);
+}
+
+static int xsd_name_char(uint32_t cp)
+{
+	if (cp == 0x346u) {
+		/* The XSD 1.0 escape is tied to the XML 1.0 Second Edition range,
+		 * which ends this combining-character interval at U+0345. */
+		return 0;
+	}
+	return xsd_name_start(cp) || cp == '-' || cp == '.' || cp == 0xB7u || cp == 0x387u ||
+	       cp == 0x6DDu || cp == 0x6DEu || mxsd_unicode_property_matches(cp, "N", 1u) ||
+	       mxsd_unicode_property_matches(cp, "M", 1u) || (cp >= 0x203Fu && cp <= 0x2040u);
 }
 
 static int escaped_character(char escape, uint32_t *cp)
@@ -141,11 +161,11 @@ static int escape_matches(const char *escape, size_t length, uint32_t cp)
 		break;
 	case 'i':
 	case 'I':
-		matched = mxsd_xml_name_start(cp);
+		matched = xsd_name_start(cp);
 		break;
 	case 'c':
 	case 'C':
-		matched = mxsd_xml_name_char(cp);
+		matched = xsd_name_char(cp);
 		break;
 	case 'd':
 	case 'D':
@@ -286,8 +306,7 @@ static int class_matches(const char *text, size_t length, uint32_t cp, size_t de
 			}
 			break;
 		}
-		if (item_count != 0u && text[position] == '-' &&
-		    position + 1u < length - 1u) {
+		if (item_count != 0u && text[position] == '-' && position + 1u < length - 1u) {
 			/* A dash between adjacent ranges is also a literal class member. */
 			matched = matched || cp == '-';
 			position++;
@@ -469,7 +488,7 @@ static uint16_t parse_piece(parser_t *parser)
 		if (parser->position < parser->length && parser->text[parser->position] == ',') {
 			parser->position++;
 			maximum = parser->position < parser->length &&
-					  parser->text[parser->position] == '}'
+						  parser->text[parser->position] == '}'
 					  ? UINT32_MAX
 					  : parse_count(parser);
 		}
@@ -581,8 +600,7 @@ static int set_contains(const position_set_t *set, size_t position)
 {
 	return (set->words[position / 64u] & (UINT64_C(1) << (position % 64u))) != 0u;
 }
-static void set_union(position_set_t *destination, const position_set_t *source,
-		      size_t word_count)
+static void set_union(position_set_t *destination, const position_set_t *source, size_t word_count)
 {
 	size_t index;
 	for (index = 0u; index < word_count; ++index) {
@@ -612,8 +630,7 @@ static void evaluate_repeat(const matcher_t *matcher, const node_t *node,
 {
 	position_set_t current;
 	uint32_t count = 0u;
-	memcpy(current.words, input->words,
-	       matcher->word_count * sizeof(current.words[0]));
+	memcpy(current.words, input->words, matcher->word_count * sizeof(current.words[0]));
 	set_clear(output, matcher->word_count);
 	if (node->minimum == 0u) {
 		set_union(output, &current, matcher->word_count);
@@ -657,7 +674,7 @@ static void evaluate(const matcher_t *matcher, uint16_t node_index, const positi
 				continue;
 			}
 			consumed = mxsd_utf8_decode(matcher->value.data + position,
-					       matcher->value.length - position, &cp);
+						    matcher->value.length - position, &cp);
 			if (consumed != 0u &&
 			    atom_matches(matcher->pattern + node->offset, node->length, cp)) {
 				set_add(output, position + consumed);

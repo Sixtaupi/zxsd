@@ -18,6 +18,7 @@
     "simple-types-list-union",
     "streaming-validation",
     "type-derivation",
+    "typed-bindings",
     "wildcards",
     "xsd-regular-expressions"
   ],
@@ -38,6 +39,7 @@
     "simple-types-list-union",
     "streaming-validation",
     "type-derivation",
+    "typed-bindings",
     "wildcards",
     "xsd-regular-expressions"
   ],

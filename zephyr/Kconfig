@@ -92,6 +92,13 @@ config MXSD_MAX_SCHEMA_COMPLEXITY
 	help
 	  Maximum aggregate count of runtime-visible schema descriptors.
 
+config MXSD_BINDINGS
+	bool "Typed data bindings"
+	help
+	  Build the reader and writer used by structures generated with
+	  mxsdc --bindings. Reading needs a caller-provided arena and never uses
+	  the heap; writing streams to a caller-provided sink.
+
 config MXSD_NO_HEAP
 	bool "Disable runtime heap allocation"
 	default y

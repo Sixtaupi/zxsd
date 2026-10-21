@@ -14,6 +14,7 @@ if(CONFIG_MXSD)
     ${MXSD_MODULE_ROOT}/src/mxsd_unicode.c
     ${MXSD_MODULE_ROOT}/src/mxsd_value.c
     ${MXSD_MODULE_ROOT}/src/mxsd_xml_builtin.c)
+  zephyr_library_sources_ifdef(CONFIG_MXSD_BINDINGS ${MXSD_MODULE_ROOT}/src/mxsd_bind.c)
   zephyr_library_include_directories(${MXSD_MODULE_ROOT}/src)
   zephyr_include_directories(${MXSD_MODULE_ROOT}/include)
   zephyr_library_compile_definitions(

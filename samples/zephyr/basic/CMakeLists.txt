@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-set(MXSD_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
+set(MXSD_ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
 # The standalone sample is outside a west workspace, so provide the module
 # list explicitly. Applications in a west workspace discover mxsd normally.
 list(APPEND ZEPHYR_MODULES ${MXSD_ROOT})

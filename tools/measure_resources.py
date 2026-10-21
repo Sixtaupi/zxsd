@@ -9,8 +9,19 @@ import subprocess
 
 def size(tool, path):
     output = subprocess.check_output([tool, str(path)], text=True).splitlines()
-    fields = output[-1].split()
-    return {"text": int(fields[0]), "data": int(fields[1]), "bss": int(fields[2])}
+    totals = {"text": 0, "data": 0, "bss": 0}
+    rows = 0
+    for line in output:
+        fields = line.split()
+        if len(fields) < 3 or not all(value.isdigit() for value in fields[:3]):
+            continue
+        totals["text"] += int(fields[0])
+        totals["data"] += int(fields[1])
+        totals["bss"] += int(fields[2])
+        rows += 1
+    if rows == 0:
+        raise SystemExit("size tool produced no measurement for %s" % path)
+    return totals
 
 
 def peak_frame(paths):

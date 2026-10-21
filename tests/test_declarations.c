@@ -14,8 +14,7 @@ static int expect(mxsd_result_t result, mxsd_error_t wanted)
 	if (result.code == wanted) {
 		return 0;
 	}
-	fprintf(stderr, "wanted %d, got %d (%s)\n", (int)wanted, (int)result.code,
-		result.message);
+	fprintf(stderr, "wanted %d, got %d (%s)\n", (int)wanted, (int)result.code, result.message);
 	return 1;
 }
 
@@ -50,10 +49,11 @@ int main(void)
 	static const char xsd[] = "http://www.w3.org/2001/XMLSchema";
 	int failures = 0;
 
-	failures += expect(declarations_validate(
-		"<i:item xmlns:i='urn:instance' "
-		"xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
-		"xsi:type='Code'>AB</i:item>"), MXSD_OK);
+	failures += expect(
+		declarations_validate("<i:item xmlns:i='urn:instance' "
+				      "xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
+				      "xsi:type='Code'>AB</i:item>"),
+		MXSD_OK);
 	failures += expect(stream_code("AB", NULL, "Code"), MXSD_OK);
 	failures += expect(stream_code("Ab", NULL, "Code"), MXSD_ERR_INVALID_VALUE);
 	failures += expect(stream_code("42", xsd, "int"), MXSD_OK);

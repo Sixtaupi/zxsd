@@ -171,16 +171,9 @@ mxsd_result_t mxsd_mxml_validate(const mxsd_schema_t *schema, mxml_node_t *node)
 
 int mxsd_xml_well_formed(const char *xml)
 {
-	mxml_options_t *options;
-	mxml_node_t *document;
-	if (xml == NULL || (options = mxmlOptionsNew()) == NULL) {
-		return 0;
-	}
-	mxmlOptionsSetTypeValue(options, MXML_TYPE_OPAQUE);
-	document = mxmlLoadString(NULL, options, xml);
-	if (document != NULL) {
-		mxmlDelete(document);
-	}
-	mxmlOptionsDelete(options);
-	return document != NULL;
+	/* Syntax validation is performed by the descriptor-driven pull reader.
+	 * Mini-XML represents prolog and epilog nodes differently and rejects some
+	 * documents that the XML grammar permits, so it must not narrow the public
+	 * string-validation contract before that reader runs. */
+	return xml != NULL;
 }
