@@ -18,7 +18,8 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          # Atheris 2.3.0 does not build on Python 3.12 or newer.
+          python-version: "3.11"
 
       - name: Build XML libFuzzer target
         env:

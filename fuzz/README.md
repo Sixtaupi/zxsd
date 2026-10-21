@@ -11,11 +11,11 @@ build-fuzz/bin/mxsd_xml_fuzzer fuzz/corpus/xml -max_len=4096
 ```
 
 The Python target instruments `mxsdc` with Atheris and exercises schema parsing
-plus descriptor generation:
+plus descriptor generation. Atheris 2.3.0 requires Python 3.11 or older:
 
 ```sh
-python3 -m pip install atheris==2.3.0
-python3 fuzz/fuzz_mxsdc.py fuzz/corpus/xsd -max_len=262144
+python3.11 -m pip install atheris==2.3.0
+python3.11 fuzz/fuzz_mxsdc.py fuzz/corpus/xsd -max_len=262144
 ```
 
 CI performs bounded smoke runs. Longer local or scheduled runs can reuse the
