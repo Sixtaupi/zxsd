@@ -7,7 +7,7 @@ under libFuzzer, AddressSanitizer, and UndefinedBehaviorSanitizer:
 CC=clang cmake -S . -B build-fuzz \
   -DMXSD_USE_MXML=OFF -DMXSD_BUILD_TESTS=OFF -DMXSD_BUILD_FUZZERS=ON
 cmake --build build-fuzz --parallel
-build-fuzz/fuzz/mxsd_xml_fuzzer fuzz/corpus/xml -max_len=4096
+build-fuzz/bin/mxsd_xml_fuzzer fuzz/corpus/xml -max_len=4096
 ```
 
 The Python target instruments `mxsdc` with Atheris and exercises schema parsing

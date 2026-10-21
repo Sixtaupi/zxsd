@@ -155,7 +155,7 @@ jobs:
           toolchains: x86_64-zephyr-elf
 
       - name: Build and run Zephyr sample
-        run: west twister -T mxsd/samples/zephyr -p qemu_x86 --inline-logs
+        run: west twister -T mxsd/samples/zephyr/basic -p qemu_x86 --inline-logs
 
       - name: Build native_sim resource image
         run: >-

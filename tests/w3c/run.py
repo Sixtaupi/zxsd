@@ -474,7 +474,9 @@ def run_documents(args, executable, index, members, pending):
                 "has_unresolved_schema_location"
             )
             result.update(
-                classification=("passed" if matches else "unsupported" if dynamic_schema else "failed"),
+                classification=(
+                    "passed" if matches else "unsupported" if dynamic_schema else "failed"
+                ),
                 actual="valid" if actual_valid else "invalid",
                 diagnostic=process.stdout.strip(),
             )

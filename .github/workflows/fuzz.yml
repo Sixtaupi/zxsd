@@ -35,7 +35,7 @@ jobs:
 
       - name: Fuzz portable XML validation
         run: >-
-          build-fuzz/fuzz/mxsd_xml_fuzzer fuzz/corpus/xml
+          build-fuzz/bin/mxsd_xml_fuzzer fuzz/corpus/xml
           -runs=10000 -max_len=4096 -timeout=10
 
       - name: Install Atheris
