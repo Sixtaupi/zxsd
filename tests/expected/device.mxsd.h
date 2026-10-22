@@ -19,7 +19,8 @@
 /**
  * @brief Validate XML against the default device root.
  *
- * @param xml NUL-terminated XML document.
+ * @param[in] xml NUL-terminated XML document.
+ *
  * @return A structured validation result.
  */
 mxsd_result_t device_validate(const char *xml);
@@ -30,7 +31,8 @@ mxsd_result_t device_validate(const char *xml);
  * This helper is intended for document collections where the selected global
  * element is not known by the caller.
  *
- * @param xml NUL-terminated XML document.
+ * @param[in] xml NUL-terminated XML document.
+ *
  * @return A structured validation result.
  */
 mxsd_result_t device_validate_document(const char *xml);
@@ -38,18 +40,24 @@ mxsd_result_t device_validate_document(const char *xml);
 /**
  * @brief Initialize streaming validation for the default device root.
  *
- * @param stream Caller-owned streaming context.
+ * @param[out] stream Caller-owned streaming context.
+ *
  * @return A structured validation result.
  */
 mxsd_result_t device_stream_init(mxsd_stream_t *stream);
 
-/** Return the default generated schema descriptor. */
+/**
+ * @brief Get the default generated schema descriptor.
+ *
+ * @return Generated immutable schema descriptor.
+ */
 const mxsd_schema_t *device_schema(void);
 
 /**
  * @brief Validate XML whose root element is device.
  *
- * @param xml NUL-terminated XML document.
+ * @param[in] xml NUL-terminated XML document.
+ *
  * @return A structured validation result.
  */
 mxsd_result_t device_device_validate(const char *xml);
@@ -57,12 +65,17 @@ mxsd_result_t device_device_validate(const char *xml);
 /**
  * @brief Initialize streaming validation for root device.
  *
- * @param stream Caller-owned streaming context.
+ * @param[out] stream Caller-owned streaming context.
+ *
  * @return A structured validation result.
  */
 mxsd_result_t device_device_stream_init(mxsd_stream_t *stream);
 
-/** Return the generated descriptor for root device. */
+/**
+ * @brief Get the generated descriptor for root device.
+ *
+ * @return Generated immutable schema descriptor.
+ */
 const mxsd_schema_t *device_device_schema(void);
 
 #endif

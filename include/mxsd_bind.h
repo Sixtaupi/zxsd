@@ -33,6 +33,7 @@ extern "C" {
 
 /**
  * @defgroup mxsd_bind_api mxsd typed bindings
+ * @brief Read and write generated typed XML structures.
  * @{
  */
 
@@ -114,7 +115,11 @@ typedef struct {
 	const char *namespace_uri; /**< Namespace URI bound to @ref prefix. */
 } mxsd_bind_namespace_t;
 
-/** Accessor returning a generated schema descriptor, such as a generated @c *_schema() function. */
+/**
+ * @brief Access a generated schema descriptor.
+ *
+ * @return Generated immutable schema descriptor.
+ */
 typedef const mxsd_schema_t *(*mxsd_bind_schema_fn)(void);
 
 /** Generated descriptor for a bound global element. */
@@ -145,9 +150,9 @@ typedef struct {
 /**
  * @brief Output callback used by @ref mxsd_bind_write.
  *
- * @param context Caller context passed to @ref mxsd_bind_write.
- * @param data UTF-8 bytes to append. They are not NUL-terminated.
- * @param length Number of bytes in @p data.
+ * @param[in] context Caller context passed to @ref mxsd_bind_write.
+ * @param[in] data UTF-8 bytes to append. They are not NUL-terminated.
+ * @param[in] length Number of bytes in @p data.
  *
  * @retval 0 The bytes were accepted.
  * @retval nonzero Output failed; writing stops with @ref MXSD_ERR_OUTPUT.
@@ -157,9 +162,9 @@ typedef int (*mxsd_bind_sink_fn)(void *context, const char *data, size_t length)
 /**
  * @brief Initialize a reading arena over caller-provided storage.
  *
- * @param arena Arena to initialize.
- * @param storage First byte of the storage, or @c NULL when @p capacity is zero.
- * @param capacity Number of usable bytes in @p storage.
+ * @param[out] arena Arena to initialize.
+ * @param[in] storage First byte of the storage, or @c NULL when @p capacity is zero.
+ * @param[in] capacity Number of usable bytes in @p storage.
  */
 void mxsd_bind_arena_init(mxsd_bind_arena_t *arena, void *storage, size_t capacity);
 
@@ -171,10 +176,10 @@ void mxsd_bind_arena_init(mxsd_bind_arena_t *arena, void *storage, size_t capaci
  * failure the structure is zeroed and the arena is restored to its previous
  * usage.
  *
- * @param root Generated root binding.
- * @param xml NUL-terminated XML document.
- * @param object Structure of type @c root->type to fill.
- * @param arena Arena receiving strings, arrays and optional structures.
+ * @param[in] root Generated root binding.
+ * @param[in] xml NUL-terminated XML document.
+ * @param[out] object Structure of type @c root->type to fill.
+ * @param[in,out] arena Arena receiving strings, arrays and optional structures.
  *
  * @retval MXSD_OK The structure was filled.
  * @retval MXSD_ERR_ARGUMENT An argument is invalid.
@@ -191,6 +196,14 @@ mxsd_result_t mxsd_bind_read(const mxsd_bind_root_t *root, const char *xml, void
  *
  * The allocator is used only by identity-constraint validation, exactly as in
  * @ref mxsd_validate_with_allocator. Pass @c NULL for zero-heap operation.
+ *
+ * @param[in] root Generated root binding.
+ * @param[in] xml NUL-terminated XML document.
+ * @param[out] object Structure of type @c root->type to fill.
+ * @param[in,out] arena Arena receiving strings, arrays and optional structures.
+ * @param[in] allocator Scratch allocator, or @c NULL.
+ *
+ * @return A structured binding or validation result.
  */
 mxsd_result_t mxsd_bind_read_with_allocator(const mxsd_bind_root_t *root, const char *xml,
 					    void *object, mxsd_bind_arena_t *arena,
@@ -204,11 +217,11 @@ mxsd_result_t mxsd_bind_read_with_allocator(const mxsd_bind_root_t *root, const 
  * counts must respect occurrence bounds. Facets, choices and identity
  * constraints are enforced by validation.
  *
- * @param root Generated root binding.
- * @param object Structure of type @c root->type to serialize.
- * @param sink Output callback.
- * @param context Opaque context passed to @p sink.
- * @param validator Optional streaming validator initialized for
+ * @param[in] root Generated root binding.
+ * @param[in] object Structure of type @c root->type to serialize.
+ * @param[in] sink Output callback.
+ * @param[in] context Opaque context passed to @p sink.
+ * @param[in,out] validator Optional streaming validator initialized for
  *        @c root->schema(), or @c NULL. When present, every written item is also
  *        validated and the first validation error stops writing.
  *
@@ -233,11 +246,11 @@ mxsd_result_t mxsd_bind_write(const mxsd_bind_root_t *root, const void *object,
  * The output is NUL-terminated whenever it fits. It is then validated with
  * @ref mxsd_validate, which also checks identity constraints.
  *
- * @param root Generated root binding.
- * @param object Structure of type @c root->type to serialize.
- * @param buffer Destination buffer.
- * @param capacity Size of @p buffer, including the terminating NUL.
- * @param length Optional output receiving the document length without NUL.
+ * @param[in] root Generated root binding.
+ * @param[in] object Structure of type @c root->type to serialize.
+ * @param[out] buffer Destination buffer.
+ * @param[in] capacity Size of @p buffer, including the terminating NUL.
+ * @param[out] length Optional output receiving the document length without NUL.
  *
  * @retval MXSD_OK The document was written and is valid.
  * @retval MXSD_ERR_OUTPUT @p buffer is too small.
@@ -251,6 +264,15 @@ mxsd_result_t mxsd_bind_write_buffer(const mxsd_bind_root_t *root, const void *o
  *
  * The allocator is used only by identity-constraint validation, exactly as in
  * @ref mxsd_validate_with_allocator. Pass @c NULL for zero-heap operation.
+ *
+ * @param[in] root Generated root binding.
+ * @param[in] object Structure of type @c root->type to serialize.
+ * @param[out] buffer Destination buffer.
+ * @param[in] capacity Size of @p buffer, including the terminating NUL.
+ * @param[out] length Optional output receiving the document length without NUL.
+ * @param[in] allocator Scratch allocator, or @c NULL.
+ *
+ * @return A structured binding or validation result.
  */
 mxsd_result_t mxsd_bind_write_buffer_with_allocator(const mxsd_bind_root_t *root,
 						    const void *object, char *buffer,

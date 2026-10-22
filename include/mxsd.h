@@ -20,6 +20,7 @@ extern "C" {
 
 /**
  * @defgroup mxsd_api mxsd validation API
+ * @brief Validate XML documents with generated XSD descriptors.
  * @{
  */
 
@@ -135,10 +136,23 @@ typedef struct {
 	const char *message; /**< Static, human-readable status text. */
 } mxsd_result_t;
 
-/** Allocate runtime scratch storage. */
+/**
+ * @brief Allocate runtime scratch storage.
+ *
+ * @param[in] context Opaque allocator context.
+ * @param[in] size Number of bytes to allocate.
+ *
+ * @return Pointer to the allocated storage on success.
+ * @retval NULL If the storage could not be allocated.
+ */
 typedef void *(*mxsd_allocate_fn)(void *context, size_t size);
 
-/** Release runtime scratch storage. */
+/**
+ * @brief Release runtime scratch storage.
+ *
+ * @param[in] context Opaque allocator context.
+ * @param[in] pointer Storage previously returned by @ref mxsd_allocate_fn.
+ */
 typedef void (*mxsd_deallocate_fn)(void *context, void *pointer);
 
 /** Optional allocator used by validation features requiring scratch storage. */
@@ -529,8 +543,8 @@ typedef struct {
 /**
  * @brief Validate an XML document against a generated schema descriptor.
  *
- * @param schema Generated schema descriptor.
- * @param xml NUL-terminated XML document.
+ * @param[in] schema Generated schema descriptor.
+ * @param[in] xml NUL-terminated XML document.
  *
  * @retval MXSD_OK The document is valid.
  * @retval MXSD_ERR_ARGUMENT An argument is invalid.
@@ -543,11 +557,29 @@ mxsd_result_t mxsd_validate(const mxsd_schema_t *schema, const char *xml);
  *
  * Pass @c NULL as @p allocator to select zero-heap operation. Schemas with
  * identity constraints then return @ref MXSD_ERR_RESOURCE_LIMIT.
+ *
+ * @param[in] schema Generated schema descriptor.
+ * @param[in] xml NUL-terminated XML document.
+ * @param[in] allocator Scratch allocator, or @c NULL.
+ *
+ * @retval MXSD_OK The document is valid.
+ * @retval MXSD_ERR_ARGUMENT An argument is invalid.
+ * @retval MXSD_ERR_RESOURCE_LIMIT Scratch storage is required but unavailable.
+ * @return A structured validation result for all other outcomes.
  */
 mxsd_result_t mxsd_validate_with_allocator(const mxsd_schema_t *schema, const char *xml,
 					   const mxsd_allocator_t *allocator);
 
-/** Initialize an event-driven validation context. */
+/**
+ * @brief Initialize an event-driven validation context.
+ *
+ * @param[out] stream Validation context to initialize.
+ * @param[in] schema Generated schema descriptor.
+ *
+ * @retval MXSD_OK The context was initialized.
+ * @retval MXSD_ERR_ARGUMENT An argument is invalid.
+ * @retval MXSD_ERR_RESOURCE_LIMIT The schema requires explicit scratch storage.
+ */
 mxsd_result_t mxsd_stream_init(mxsd_stream_t *stream, const mxsd_schema_t *schema);
 
 /**
@@ -556,48 +588,123 @@ mxsd_result_t mxsd_stream_init(mxsd_stream_t *stream, const mxsd_schema_t *schem
  * The allocator is used only when the schema contains identity constraints. Passing
  * @c NULL is valid for schemas without them and otherwise returns
  * @ref MXSD_ERR_RESOURCE_LIMIT.
+ *
+ * @param[out] stream Validation context to initialize.
+ * @param[in] schema Generated schema descriptor.
+ * @param[in] allocator Scratch allocator, or @c NULL.
+ *
+ * @retval MXSD_OK The context was initialized.
+ * @retval MXSD_ERR_ARGUMENT An argument is invalid.
+ * @retval MXSD_ERR_RESOURCE_LIMIT Scratch storage could not be allocated.
  */
 mxsd_result_t mxsd_stream_init_with_allocator(mxsd_stream_t *stream, const mxsd_schema_t *schema,
 					      const mxsd_allocator_t *allocator);
 
-/** Release optional streaming scratch after an application aborts an event sequence. */
+/**
+ * @brief Release optional streaming scratch storage.
+ *
+ * Call this after an application aborts an event sequence. Calling it on an
+ * initialized context that owns no scratch storage is safe.
+ *
+ * @param[in,out] stream Validation context to dispose.
+ */
 void mxsd_stream_dispose(mxsd_stream_t *stream);
 
-/** Begin an element identified by its expanded name. */
+/**
+ * @brief Begin an element identified by its expanded name.
+ *
+ * @param[in,out] stream Initialized validation context.
+ * @param[in] namespace_uri Namespace URI, or @c NULL for no namespace.
+ * @param[in] local_name Element local name.
+ *
+ * @return The sticky validation result.
+ */
 mxsd_result_t mxsd_start_element(mxsd_stream_t *stream, const char *namespace_uri,
 				 const char *local_name);
 
 /**
- * Add an in-scope namespace declaration to the current streamed start tag.
+ * @brief Add an in-scope namespace declaration to the current start tag.
+ *
  * Call this for bindings used by QName- or NOTATION-valued attributes/text.
+ *
+ * @param[in,out] stream Initialized validation context.
+ * @param[in] prefix Namespace prefix, or an empty string for the default namespace.
+ * @param[in] namespace_uri Namespace URI bound to @p prefix.
+ *
+ * @return The sticky validation result.
  */
 mxsd_result_t mxsd_namespace(mxsd_stream_t *stream, const char *prefix, const char *namespace_uri);
 
-/** Add an attribute to the current start tag using its expanded name. */
+/**
+ * @brief Add an attribute to the current start tag using its expanded name.
+ *
+ * @param[in,out] stream Initialized validation context.
+ * @param[in] namespace_uri Namespace URI, or @c NULL for no namespace.
+ * @param[in] local_name Attribute local name.
+ * @param[in] value Decoded attribute value.
+ *
+ * @return The sticky validation result.
+ */
 mxsd_result_t mxsd_attribute(mxsd_stream_t *stream, const char *namespace_uri,
 			     const char *local_name, const char *value);
 
-/** Apply an already namespace-resolved xsi:type to the current element. */
+/**
+ * @brief Apply a namespace-resolved @c xsi:type to the current element.
+ *
+ * @param[in,out] stream Initialized validation context.
+ * @param[in] type_namespace_uri Type namespace URI, or @c NULL for no namespace.
+ * @param[in] type_local_name Type local name.
+ *
+ * @return The sticky validation result.
+ */
 mxsd_result_t mxsd_xsi_type(mxsd_stream_t *stream, const char *type_namespace_uri,
 			    const char *type_local_name);
 
-/** Close the attribute phase of the current start tag. */
+/**
+ * @brief Close the attribute phase of the current start tag.
+ *
+ * @param[in,out] stream Initialized validation context.
+ *
+ * @return The sticky validation result.
+ */
 mxsd_result_t mxsd_start_content(mxsd_stream_t *stream);
 
-/** Supply decoded character data for the current element. */
+/**
+ * @brief Supply decoded character data for the current element.
+ *
+ * @param[in,out] stream Initialized validation context.
+ * @param[in] text Decoded character data; it need not be NUL-terminated.
+ * @param[in] length Number of bytes in @p text.
+ *
+ * @return The sticky validation result.
+ */
 mxsd_result_t mxsd_text(mxsd_stream_t *stream, const char *text, size_t length);
 
-/** End the current element, checking its expanded name and content. */
+/**
+ * @brief End the current element and check its expanded name and content.
+ *
+ * @param[in,out] stream Initialized validation context.
+ * @param[in] namespace_uri Namespace URI, or @c NULL for no namespace.
+ * @param[in] local_name Element local name.
+ *
+ * @return The sticky validation result.
+ */
 mxsd_result_t mxsd_end_element(mxsd_stream_t *stream, const char *namespace_uri,
 			       const char *local_name);
 
-/** Verify that exactly one complete root element was supplied. */
+/**
+ * @brief Verify that exactly one complete root element was supplied.
+ *
+ * @param[in,out] stream Initialized validation context.
+ *
+ * @return The final sticky validation result.
+ */
 mxsd_result_t mxsd_stream_finish(mxsd_stream_t *stream);
 
 /**
  * @brief Get a stable human-readable description of an error code.
  *
- * @param error Error code to describe.
+ * @param[in] error Error code to describe.
  *
  * @return A pointer to a static NUL-terminated string.
  */

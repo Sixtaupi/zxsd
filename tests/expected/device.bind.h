@@ -45,9 +45,10 @@ struct device_Device {
 /**
  * @brief Validate a document and fill a device_Device_t from its device root.
  *
- * @param xml NUL-terminated XML document.
- * @param object Structure to fill.
- * @param arena Storage for strings, arrays and optional structures.
+ * @param[in] xml NUL-terminated XML document.
+ * @param[out] object Structure to fill.
+ * @param[in,out] arena Storage for strings, arrays and optional structures.
+ *
  * @return A structured result; see mxsd_bind_read().
  */
 mxsd_result_t device_device_read(const char *xml, device_Device_t *object, mxsd_bind_arena_t *arena);
@@ -55,10 +56,11 @@ mxsd_result_t device_device_read(const char *xml, device_Device_t *object, mxsd_
 /**
  * @brief Write a device_Device_t as an XML document with a device root.
  *
- * @param object Structure to serialize.
- * @param sink Output callback.
- * @param context Context passed to @p sink.
- * @param validator Optional initialized streaming validator, or @c NULL.
+ * @param[in] object Structure to serialize.
+ * @param[in] sink Output callback.
+ * @param[in] context Context passed to @p sink.
+ * @param[in,out] validator Optional initialized streaming validator, or @c NULL.
+ *
  * @return A structured result; see mxsd_bind_write().
  */
 mxsd_result_t device_device_write(const device_Device_t *object, mxsd_bind_sink_fn sink, void *context,
@@ -67,16 +69,21 @@ mxsd_result_t device_device_write(const device_Device_t *object, mxsd_bind_sink_
 /**
  * @brief Write a device_Device_t with a device root into a buffer and validate it.
  *
- * @param object Structure to serialize.
- * @param buffer Destination buffer.
- * @param capacity Size of @p buffer, including the terminating NUL.
- * @param length Optional output receiving the document length.
+ * @param[in] object Structure to serialize.
+ * @param[out] buffer Destination buffer.
+ * @param[in] capacity Size of @p buffer, including the terminating NUL.
+ * @param[out] length Optional output receiving the document length.
+ *
  * @return A structured result; see mxsd_bind_write_buffer().
  */
 mxsd_result_t device_device_write_buffer(const device_Device_t *object, char *buffer, size_t capacity,
 				size_t *length);
 
-/** Return the binding descriptor of the device root. */
+/**
+ * @brief Get the binding descriptor of the device root.
+ *
+ * @return Generated immutable binding descriptor.
+ */
 const mxsd_bind_root_t *device_device_binding(void);
 
 #ifdef __cplusplus
