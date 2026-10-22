@@ -3,7 +3,11 @@ sample:
   description: Exchange validated XML with a REST API using generated typed bindings
 tests:
   mxsd.rest.build:
-    tags: xml bindings net http
+    tags: 
+      - xml
+      - bindings
+      - net
+      - http
     build_only: true
     platform_allow:
       - qemu_x86
