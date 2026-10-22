@@ -8,8 +8,9 @@ Overview
 
 This sample handles device settings exchanged as XML without touching XML text
 in the application. ``settings.xsd`` is compiled on the host with
-``mxsdc --bindings``, which generates a validator and C structures. On the
-target, the sample:
+the ``mxsd_generate(... BINDINGS)`` CMake helper, which runs ``mxsdc`` on the
+build host and generates a validator and C structures. On the target, the
+sample:
 
 #. validates a received document and reads it into ``settings_settings_t``,
    with strings and arrays stored in a static arena;

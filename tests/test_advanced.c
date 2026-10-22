@@ -23,7 +23,7 @@ static int check(mxsd_result_t r, mxsd_error_t e)
 }
 
 /** Run the advanced host validation test cases. */
-int main(void)
+int mxsd_test_advanced(void)
 {
 	int n = 0;
 	n += check(advanced_root_validate("<t:root xmlns:t='urn:mxsd:test' "
@@ -49,3 +49,10 @@ int main(void)
 		   MXSD_ERR_MISSING_ELEMENT);
 	return n ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_advanced();
+}
+#endif

@@ -11,10 +11,11 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject-rtos
-      revision: v4.4.0
+      revision: main
       import:
         name-allowlist:
           - cmsis_6
+          - hal_nxp
     - name: mxml
       remote: michaelrsweet
       revision: v4.0.6

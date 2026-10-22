@@ -103,7 +103,7 @@ static int stream_expect(const char *second_alias, const char *order_product, mx
 }
 
 /** Exercise tuple uniqueness, mandatory keys and key references. */
-int main(void)
+int mxsd_test_identity(void)
 {
 	int failures = 0;
 	static const char valid[] =
@@ -154,3 +154,10 @@ int main(void)
 	failures += stream_expect(NULL, "missing", MXSD_ERR_IDENTITY_CONSTRAINT);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_identity();
+}
+#endif

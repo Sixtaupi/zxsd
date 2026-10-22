@@ -19,7 +19,7 @@
 	} while (0)
 
 /** Run the complete-simple-type conformance cases. */
-int main(void)
+int mxsd_test_simple_types(void)
 {
 	int failures = 0;
 	CHECK(simple_types_list_validate("<list> 1\t -2 </list>"), MXSD_OK);
@@ -102,3 +102,10 @@ int main(void)
 	CHECK(simple_types_unsignedByte_validate("<unsignedByte>255</unsignedByte>"), MXSD_OK);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_simple_types();
+}
+#endif

@@ -28,6 +28,24 @@ Zephyr environment this is normally sufficient:
    $ west build -b qemu_x86 samples/zephyr/basic
    $ west build -t run
 
+Run the tests
+*************
+
+The automated Zephyr validation suite lives under ``tests/zephyr`` rather than
+in the sample applications. Twister builds and runs it on ``qemu_x86``:
+
+.. code-block:: console
+
+   $ west twister -T tests/zephyr -p qemu_x86 --inline-logs
+
+The suite compiles the portable ``tests/test_*.c`` files directly and calls
+their shared entry points from ztest wrappers. It exercises validation,
+streaming, schema composition, identity constraints, and typed bindings in an
+explicit ``CONFIG_MXSD_NO_HEAP=y`` runtime configuration. ``test_mxml.c`` is
+the sole exception because Zephyr uses the built-in XML backend rather than
+the optional Mini-XML adapter. Files under ``samples/zephyr`` remain example
+applications and are built separately.
+
 Configure the runtime
 *********************
 
@@ -46,32 +64,28 @@ memory, but documents exceeding them fail deterministically.
 Generate and link a schema
 **************************
 
-Generate validators as a CMake build step in a production application. The
-sample performs generation at configure time for clarity:
+Generate validators as a CMake build step in a production application with
+the same helper used by the host example:
 
 .. code-block:: cmake
 
-   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-   set(MXSD_GEN ${CMAKE_CURRENT_BINARY_DIR}/generated)
-   file(MAKE_DIRECTORY ${MXSD_GEN})
-   execute_process(
-     COMMAND ${Python3_EXECUTABLE} ${MXSD_ROOT}/mxsdc
-             ${CMAKE_CURRENT_SOURCE_DIR}/device.xsd -o ${MXSD_GEN}
-     COMMAND_ERROR_IS_FATAL ANY)
-   target_sources(app PRIVATE src/main.c ${MXSD_GEN}/device.mxsd.c)
-   target_include_directories(app PRIVATE ${MXSD_GEN})
+   include(${MXSD_ROOT}/cmake/mxsdGenerate.cmake)
 
-For reproducible releases, generated files may instead be committed or
-produced in a dedicated host-generation stage. The target never needs Python
-or the XSD file.
+   target_sources(app PRIVATE src/main.c)
+   mxsd_generate(TARGET app SCHEMA device.xsd)
+
+``mxsdc`` and Python run on the build host, while Zephyr's target toolchain
+compiles the generated C. Add ``BINDINGS`` for typed bindings and list
+secondary schema files with ``DEPENDS``. The target device never needs Python
+or the XSD files.
 
 
 Typed bindings
 **************
 
-To read and write documents through generated C structures, add
-``--bindings`` to the ``mxsdc`` command, compile ``<schema>.bind.c`` with the
-application, and enable the runtime support:
+To read and write documents through generated C structures, add ``BINDINGS``
+to ``mxsd_generate()``; the helper compiles ``<schema>.bind.c`` with the
+application. Also enable the runtime support:
 
 .. code-block:: kconfig
 
@@ -86,3 +100,14 @@ console output is checked by Twister:
    $ west twister -T samples/zephyr/bindings -p qemu_x86 --inline-logs
 
 See :doc:`bindings` for the C representation and memory use.
+
+REST XML client
+***************
+
+``samples/zephyr/rest`` is a networked application using Zephyr's HTTP client.
+It retrieves an XML resource from httpbin, validates and deserializes it through
+generated bindings, modifies the typed C structure, then serializes and
+validates an XML request body before posting it back. See the sample README for
+network setup and transport-security notes. The application keeps
+``CONFIG_HEAP_MEM_POOL_SIZE=0`` and uses Zephyr's fixed-pool asynchronous DNS
+API instead of the allocating ``getaddrinfo()`` convenience function.

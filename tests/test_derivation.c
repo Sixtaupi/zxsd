@@ -18,7 +18,7 @@ static int expect(mxsd_result_t result, mxsd_error_t wanted)
 }
 
 /** Exercise restriction, extension, inheritance, abstract and anonymous types. */
-int main(void)
+int mxsd_test_derivation(void)
 {
 	int failures = 0;
 	failures +=
@@ -58,3 +58,10 @@ int main(void)
 			   MXSD_ERR_INVALID_VALUE);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_derivation();
+}
+#endif

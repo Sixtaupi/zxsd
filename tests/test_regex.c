@@ -18,7 +18,7 @@ static int expect(mxsd_result_t result, mxsd_error_t expected)
 	return result.code == expected ? 0 : 1;
 }
 
-int main(void)
+int mxsd_test_regex(void)
 {
 	int failures = 0;
 
@@ -92,3 +92,10 @@ int main(void)
 		       MXSD_OK);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_regex();
+}
+#endif

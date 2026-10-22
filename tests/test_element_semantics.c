@@ -44,7 +44,7 @@ static mxsd_result_t stream_substitution(void)
 }
 
 /** Exercise substitution, xsi semantics, defaults, fixed and form. */
-int main(void)
+int mxsd_test_element_semantics(void)
 {
 	const char *ns =
 		"xmlns:e='urn:mxsd:elements' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'";
@@ -122,3 +122,10 @@ int main(void)
 		       MXSD_OK);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_element_semantics();
+}
+#endif

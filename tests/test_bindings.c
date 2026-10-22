@@ -660,8 +660,9 @@ static void test_descriptor(void)
 	CHECK_STRING(mxsd_error_string(MXSD_ERR_UNSUPPORTED), "unsupported by binding");
 }
 
-int main(void)
+int mxsd_test_bindings(void)
 {
+	failures = 0;
 	test_read_values();
 	test_round_trip();
 	test_stream_write();
@@ -678,3 +679,10 @@ int main(void)
 	}
 	return 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_bindings();
+}
+#endif

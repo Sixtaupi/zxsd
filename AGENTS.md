@@ -45,7 +45,7 @@ documentation together. Do not let these descriptions drift apart.
 - `src/mxsd_xml_builtin.c`: portable allocation-free XML backend.
 - `src/mxsd_xml_mxml.c`: optional Mini-XML 4 adapter.
 - `src/mxsd_internal.h` and `src/mxsd_xml.h`: private runtime contracts.
-- `tests/`: compiler, runtime, conformance, and optional W3C tests.
+- `tests/`: compiler, runtime, conformance, Zephyr Twister, and optional W3C tests.
 - `fuzz/`: libFuzzer and Atheris targets with bounded seed corpora.
 - `samples/host/`: cross-platform CMake example.
 - `samples/zephyr/`: Zephyr examples: `basic` ztest suite and `bindings` application.
@@ -90,10 +90,11 @@ ctest --test-dir build-sample --output-on-failure
 On multi-configuration generators, add `--config Release` to build commands
 and `-C Release` to CTest commands.
 
-For Zephyr, use the repository sample from an initialized Zephyr environment:
+For Zephyr, run the dedicated validation tests from an initialized Zephyr
+environment:
 
 ```sh
-west twister -T samples/zephyr -p qemu_x86 --inline-logs
+west twister -T tests/zephyr -p qemu_x86 --inline-logs
 ```
 
 Do not require the W3C suite for ordinary offline builds. It is downloaded and

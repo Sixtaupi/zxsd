@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(mxsd VERSION 0.20.0 LANGUAGES C)
 
 include(GNUInstallDirs)
+include(cmake/mxsdGenerate.cmake)
 
 option(MXSD_USE_MXML "Use Mini-XML 4 and build its mxsd streaming adapter" ON)
 option(MXSD_REQUIRE_MXML "Fail configuration when Mini-XML 4 is unavailable" OFF)
@@ -85,3 +86,4 @@ if(MXSD_HAS_MXML)
   install(FILES include/mxsd_mxml.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 install(PROGRAMS mxsdc DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES cmake/mxsdGenerate.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mxsd)

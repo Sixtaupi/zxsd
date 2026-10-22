@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 set(MXSD_ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
-# The standalone sample is outside a west workspace, so provide the module
-# list explicitly. Applications in a west workspace discover mxsd normally.
-list(APPEND ZEPHYR_MODULES ${MXSD_ROOT})
+# Preserve modules discovered by west (including board HALs) while also
+# allowing this sample to be built from a standalone mxsd checkout.
+list(APPEND EXTRA_ZEPHYR_MODULES ${MXSD_ROOT})
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(mxsd_zephyr_test)

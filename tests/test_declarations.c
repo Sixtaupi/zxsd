@@ -44,7 +44,7 @@ static mxsd_result_t stream_code(const char *value, const char *type_namespace,
 }
 
 /** Exercise DOM and streaming unbound-root assessment. */
-int main(void)
+int mxsd_test_declarations(void)
 {
 	static const char xsd[] = "http://www.w3.org/2001/XMLSchema";
 	int failures = 0;
@@ -61,3 +61,10 @@ int main(void)
 	failures += expect(stream_code("AB", NULL, NULL), MXSD_ERR_INVALID_VALUE);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_declarations();
+}
+#endif

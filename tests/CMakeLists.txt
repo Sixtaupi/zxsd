@@ -1,44 +1,30 @@
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(GEN ${CMAKE_CURRENT_BINARY_DIR}/generated)
-add_custom_command(
-  OUTPUT ${GEN}/device.mxsd.c ${GEN}/device.mxsd.h
-  COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/mxsdc ${CMAKE_CURRENT_SOURCE_DIR}/device.xsd -o ${GEN}
-  DEPENDS ${PROJECT_SOURCE_DIR}/mxsdc ${CMAKE_CURRENT_SOURCE_DIR}/device.xsd
-  VERBATIM)
-add_executable(mxsd_test test_runtime.c ${GEN}/device.mxsd.c)
-target_include_directories(mxsd_test PRIVATE ${GEN})
+add_executable(mxsd_test test_runtime.c)
+mxsd_generate(TARGET mxsd_test SCHEMA device.xsd)
 target_link_libraries(mxsd_test PRIVATE mxsd)
 add_test(NAME runtime COMMAND mxsd_test)
 if(MXSD_HAS_MXML)
-  add_executable(mxsd_mxml_test test_mxml.c ${GEN}/device.mxsd.c)
-  target_include_directories(mxsd_mxml_test PRIVATE ${GEN} ${MXML_INCLUDE_DIR})
+  add_executable(mxsd_mxml_test test_mxml.c)
+  mxsd_generate(TARGET mxsd_mxml_test SCHEMA device.xsd)
+  target_include_directories(mxsd_mxml_test PRIVATE ${MXML_INCLUDE_DIR})
   target_link_libraries(mxsd_mxml_test PRIVATE mxsd)
   add_test(NAME mxsd_mxml_test COMMAND mxsd_mxml_test)
 endif()
-add_test(NAME compiler COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_compiler.py ${PROJECT_SOURCE_DIR}/mxsdc ${CMAKE_CURRENT_SOURCE_DIR}/device.xsd ${CMAKE_CURRENT_SOURCE_DIR}/expected ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME compiler
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_compiler.py
+          ${PROJECT_SOURCE_DIR}/mxsdc
+          ${CMAKE_CURRENT_SOURCE_DIR}/device.xsd
+          ${CMAKE_CURRENT_SOURCE_DIR}/expected
+          ${CMAKE_CURRENT_BINARY_DIR})
 
-set(ADV ${CMAKE_CURRENT_BINARY_DIR}/advanced-generated)
-add_custom_command(
-  OUTPUT ${ADV}/advanced.mxsd.c ${ADV}/advanced.mxsd.h
-  COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/mxsdc ${CMAKE_CURRENT_SOURCE_DIR}/advanced.xsd -o ${ADV}
-  DEPENDS ${PROJECT_SOURCE_DIR}/mxsdc ${CMAKE_CURRENT_SOURCE_DIR}/advanced.xsd
-  VERBATIM)
-add_executable(mxsd_advanced_test test_advanced.c ${ADV}/advanced.mxsd.c)
-target_include_directories(mxsd_advanced_test PRIVATE ${ADV})
+add_executable(mxsd_advanced_test test_advanced.c)
+mxsd_generate(TARGET mxsd_advanced_test SCHEMA advanced.xsd)
 target_link_libraries(mxsd_advanced_test PRIVATE mxsd)
 add_test(NAME advanced-runtime COMMAND mxsd_advanced_test)
 
 function(mxsd_add_schema_test name schema source)
-  set(output_dir ${CMAKE_CURRENT_BINARY_DIR}/${name}-generated)
-  add_custom_command(
-    OUTPUT ${output_dir}/${schema}.mxsd.c ${output_dir}/${schema}.mxsd.h
-    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/mxsdc
-            ${CMAKE_CURRENT_SOURCE_DIR}/${schema}.xsd -o ${output_dir}
-    DEPENDS ${PROJECT_SOURCE_DIR}/mxsdc
-            ${CMAKE_CURRENT_SOURCE_DIR}/${schema}.xsd ${ARGN}
-    VERBATIM)
-  add_executable(${name} ${source} ${output_dir}/${schema}.mxsd.c)
-  target_include_directories(${name} PRIVATE ${output_dir})
+  add_executable(${name} ${source})
+  mxsd_generate(TARGET ${name} SCHEMA ${schema}.xsd DEPENDS ${ARGN})
   target_link_libraries(${name} PRIVATE mxsd)
   add_test(NAME ${name} COMMAND ${name})
 endfunction()
@@ -60,17 +46,8 @@ mxsd_add_schema_test(mxsd_notation_test notation test_notation.c
   ${CMAKE_CURRENT_SOURCE_DIR}/notation_formats.xsd)
 mxsd_add_schema_test(mxsd_declarations_test declarations test_declarations.c)
 
-set(BIND_GEN ${CMAKE_CURRENT_BINARY_DIR}/bindings-generated)
-add_custom_command(
-  OUTPUT ${BIND_GEN}/bindings.mxsd.c ${BIND_GEN}/bindings.mxsd.h
-         ${BIND_GEN}/bindings.bind.c ${BIND_GEN}/bindings.bind.h
-  COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/mxsdc
-          ${CMAKE_CURRENT_SOURCE_DIR}/bindings.xsd -o ${BIND_GEN} --bindings
-  DEPENDS ${PROJECT_SOURCE_DIR}/mxsdc ${CMAKE_CURRENT_SOURCE_DIR}/bindings.xsd
-  VERBATIM)
-add_executable(mxsd_bindings_test test_bindings.c
-  ${BIND_GEN}/bindings.mxsd.c ${BIND_GEN}/bindings.bind.c)
-target_include_directories(mxsd_bindings_test PRIVATE ${BIND_GEN})
+add_executable(mxsd_bindings_test test_bindings.c)
+mxsd_generate(TARGET mxsd_bindings_test SCHEMA bindings.xsd BINDINGS)
 target_link_libraries(mxsd_bindings_test PRIVATE mxsd)
 if(NOT MSVC)
   # Generated bindings must compile cleanly under strict warnings.
@@ -86,8 +63,14 @@ add_test(NAME mxsd_conformance_report
           --build-config $<CONFIG>
           --ctest ${CMAKE_CTEST_COMMAND}
           --output ${CMAKE_BINARY_DIR}/conformance-report.json)
+set(conformance_dependencies
+  runtime compiler advanced-runtime mxsd_derivation_test
+  mxsd_simple_types_test mxsd_wildcards_test mxsd_identity_test
+  mxsd_composition_test mxsd_element_semantics_test mxsd_groups_test
+  mxsd_mixed_any_test mxsd_recursive_test mxsd_regex_test
+  mxsd_notation_test mxsd_declarations_test mxsd_bindings_test)
 set_tests_properties(mxsd_conformance_report PROPERTIES
-  DEPENDS "runtime;compiler;advanced-runtime;mxsd_derivation_test;mxsd_simple_types_test;mxsd_wildcards_test;mxsd_identity_test;mxsd_composition_test;mxsd_element_semantics_test;mxsd_groups_test;mxsd_mixed_any_test;mxsd_recursive_test;mxsd_regex_test;mxsd_notation_test;mxsd_declarations_test;mxsd_bindings_test")
+  DEPENDS "${conformance_dependencies}")
 
 set(MXSD_W3C_SUITE_DIR "" CACHE PATH "Extracted W3C XSD 1.0 test-suite directory")
 if(MXSD_W3C_SUITE_DIR)

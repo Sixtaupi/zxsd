@@ -1,10 +1,91 @@
 # mxsd - Mini-XSD class generator / validator
 
-# Draft / Experimental: not production ready
+[![Build and test][build-badge]][build-workflow]
+[![Documentation][docs-badge]][documentation]
+[![PyPI](https://img.shields.io/pypi/v/mxsdc.svg)](https://pypi.org/project/mxsdc/)
+[![License](https://img.shields.io/github/license/Sixtaupi/mxsd.svg)](LICENSE)
 
-`mxsd` compiles a small, deliberately strict subset of XML Schema into
-deterministic C validation code for embedded applications. XSD is processed on
-the host only; the target links `libmxsd` and the generated files.
+[build-badge]: https://github.com/Sixtaupi/mxsd/actions/workflows/build.yml/badge.svg
+[build-workflow]: https://github.com/Sixtaupi/mxsd/actions/workflows/build.yml
+[docs-badge]: https://github.com/Sixtaupi/mxsd/actions/workflows/documentation.yml/badge.svg
+[documentation]: https://sixtaupi.github.io/mxsd/
+
+`mxsd` is a strict, bounded, zero-heap-capable XML Schema validator and typed C
+binding generator for embedded systems. `mxsdc` processes XSD on the host; the
+target links only the portable C99 runtime and immutable generated descriptors.
+
+> **Project status:** draft/experimental. The supported subset is tested and
+> unsupported constructs fail explicitly, but the public compatibility policy
+> is not yet finalized. Do not assume complete XSD 1.0 support.
+
+[Documentation](https://sixtaupi.github.io/mxsd/) ·
+[XSD support matrix](SUPPORT.md) ·
+[Typed bindings](doc/bindings.rst) ·
+[Zephyr integration](doc/zephyr.rst) ·
+[Roadmap](TODO.md)
+
+## Quick start
+
+Build and test with the allocation-free portable XML backend:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMXSD_USE_MXML=OFF
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+```
+
+Generate a validator, then call its schema-specific entry point:
+
+```sh
+./mxsdc tests/device.xsd -o generated
+```
+
+```c
+#include "device.mxsd.h"
+
+mxsd_result_t result = device_validate(xml);
+if (result.code != MXSD_OK) {
+    /* result.message, result.offset and result.path describe the error. */
+}
+```
+
+The host compiler can also be installed independently with
+`python -m pip install mxsdc`. Python is never required on the target.
+
+For CMake consumers, `cmake/mxsdGenerate.cmake` provides build-time schema
+generation similar to nanopb:
+
+```cmake
+include(path/to/mxsd/cmake/mxsdGenerate.cmake)
+
+add_executable(application main.c)
+mxsd_generate(
+  TARGET application
+  SCHEMA device.xsd
+  BINDINGS)
+target_link_libraries(application PRIVATE mxsd::mxsd)
+```
+
+The generated validator and optional typed bindings are compiled into the
+target automatically. Generation runs on the build host and is repeated when
+the schema or `mxsdc` changes. List schemas reached through `xs:include`,
+`xs:import`, or `xs:redefine` with the `DEPENDS` argument so their changes also
+trigger regeneration.
+
+## Scope
+
+mxsd aims for rigorous conformance within its documented subset, not complete
+coverage of the W3C XSD 1.0 specification.
+
+| Included | Deliberately bounded or excluded |
+|---|---|
+| Deterministic generated C descriptors | Runtime schema parsing or schema downloads |
+| Document and event-stream validation | Unbounded storage based on input or `maxOccurs` |
+| Typed C bindings with caller-owned arenas | Silent acceptance of unsupported schema constructs |
+| Configurable limits and zero-heap builds | Complete XSD 1.0 feature coverage |
+
+See [SUPPORT.md](SUPPORT.md) for the exact feature contract and
+[doc/xsd-support.rst](doc/xsd-support.rst) for detailed limitations.
 
 ## Supported platforms
 
@@ -18,15 +99,15 @@ the host only; the target links `libmxsd` and the generated files.
 A C99 compiler and CMake 3.16 or newer are required. Python 3 is required to
 run `mxsdc` and the tests, but not by the target runtime. A complete portable
 example is available in [`samples/host`](samples/host), and the Zephyr module
-examples are in [`samples/zephyr`](samples/zephyr): a validation test suite in
-[`basic`](samples/zephyr/basic) and typed bindings in
-[`bindings`](samples/zephyr/bindings).
+examples are in [`samples/zephyr`](samples/zephyr): basic validation in
+[`basic`](samples/zephyr/basic), typed bindings in
+[`bindings`](samples/zephyr/bindings), and a validated XML REST client in
+[`rest`](samples/zephyr/rest).
 
-```sh
-cmake -S . -B build -DMXSD_USE_MXML=OFF
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
-```
+Automated Zephyr validation tests are kept separately under
+[`tests/zephyr`](tests/zephyr) and run with Twister. They reuse the portable
+`tests/test_*.c` entry points; only the optional Mini-XML adapter test remains
+host-specific.
 
 On Windows, invoke the extensionless compiler script through Python:
 
@@ -43,20 +124,6 @@ The detailed support matrix and its exact limitations are maintained in the
 [XSD 1.0 support documentation](doc/xsd-support.rst). Test methodology,
 result classifications, and W3C suite integration are documented in
 [Conformance and test coverage](doc/conformance.rst).
-
-```sh
-./mxsdc device.xsd -o generated
-cc -Iinclude -Isrc -Igenerated \
-  src/mxsd.c src/mxsd_dom.c src/mxsd_value.c src/mxsd_identity.c \
-  src/mxsd_regex.c src/mxsd_unicode.c src/mxsd_stream.c \
-  src/mxsd_xml_builtin.c generated/device.mxsd.c app.c
-```
-
-```c
-#include "device.mxsd.h"
-mxsd_result_t r = device_validate(xml);
-if (r.code != MXSD_OK) { /* r.message, r.offset and r.path */ }
-```
 
 The compiler implements the supported portions of the v0.1-v0.20 milestones
 in `SPEC.md`: type
@@ -176,27 +243,3 @@ does not affect generated APIs.
 When enabled, `<mxsd_mxml.h>` provides `mxsd_mxml_validate()` for an existing
 Mini-XML document or element tree; pass the generated `<schema>_schema()`
 descriptor accessor.
-
-## Continuous integration
-
-GitHub Actions runs seven independent workflows:
-
-- `Code format` checks the Zephyr C style with clang-format and Python with Black;
-- `Build and test` builds static and shared libraries on Linux, macOS, and Windows,
-  exercises the host sample, checks the no-heap configuration, runs ASan and
-  UBSan, requires and tests the Mini-XML 4 adapter, and runs the Zephyr samples
-  on `qemu_x86`;
-- `Conformance` gates the internal positive/negative suite and archives W3C XSD
-  1.0 reports. Pull requests run a 500-case smoke test; scheduled and manual
-  runs execute every accepted W3C case;
-- `CodeQL` analyzes both C/C++ and Python on pushes, pull requests, and a weekly
-  schedule;
-- `Fuzz smoke tests` exercises the portable XML validator with libFuzzer plus
-  ASan/UBSan and instruments `mxsdc` with Atheris;
-- `Documentation` builds Doxygen and Sphinx in strict mode;
-- `Python package` builds and verifies the wheel and source distribution before
-  trusted publishing to PyPI.
-
-W3C discrepancies are currently reported and archived without failing the
-workflow because the documented XSD subset is not yet fully W3C-conformant.
-The internal conformance suite remains a required failing gate.

@@ -55,7 +55,7 @@ static mxsd_result_t stream_nested(int valid_order)
 }
 
 /** Exercise nested occurrence models and wildcard processing modes. */
-int main(void)
+int mxsd_test_wildcards(void)
 {
 	int failures = 0;
 	failures += expect(
@@ -132,3 +132,10 @@ int main(void)
 			   MXSD_ERR_UNEXPECTED_ATTRIBUTE);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_wildcards();
+}
+#endif

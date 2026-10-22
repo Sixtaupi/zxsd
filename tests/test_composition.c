@@ -17,7 +17,7 @@ static int expect(const char *xml, mxsd_error_t wanted)
 }
 
 /** Exercise include, import and redefine in one registry. */
-int main(void)
+int mxsd_test_composition(void)
 {
 	int failures = 0;
 	failures +=
@@ -56,3 +56,10 @@ int main(void)
 		MXSD_ERR_MISSING_ATTRIBUTE);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_composition();
+}
+#endif

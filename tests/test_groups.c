@@ -20,7 +20,7 @@ static int expect(const char *xml, mxsd_error_t expected)
 }
 
 /** Run model-group and attribute-group validation cases. */
-int main(void)
+int mxsd_test_groups(void)
 {
 	int failures = 0;
 
@@ -48,3 +48,10 @@ int main(void)
 	}
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_groups();
+}
+#endif

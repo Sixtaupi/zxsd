@@ -54,7 +54,7 @@ static int test_streaming(void)
 }
 
 /** Run mixed-content and anyType validation cases. */
-int main(void)
+int mxsd_test_mixed_any(void)
 {
 	int failures = test_streaming();
 
@@ -125,3 +125,10 @@ int main(void)
 		       MXSD_OK);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_mixed_any();
+}
+#endif

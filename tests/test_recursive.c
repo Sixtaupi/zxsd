@@ -103,7 +103,7 @@ static mxsd_result_t stream_nodes(size_t node_count)
 }
 
 /** Run direct, mutual, bounded-depth, and streaming recursion cases. */
-int main(void)
+int mxsd_test_recursive(void)
 {
 	char xml[RECURSIVE_XML_CAPACITY];
 	int failures = 0;
@@ -135,3 +135,10 @@ int main(void)
 	failures += expect(stream_nodes(MXSD_MAX_DEPTH), MXSD_ERR_EXCESSIVE_NESTING);
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_recursive();
+}
+#endif

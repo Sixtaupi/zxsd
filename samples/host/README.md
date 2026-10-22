@@ -1,8 +1,8 @@
 # Host example
 
-This example uses one source tree on Linux, macOS, and Windows. CMake runs
-`mxsdc` with Python, compiles the generated validator, and links it with
-`libmxsd`.
+This example uses one source tree on Linux, macOS, and Windows. The
+`mxsd_generate()` CMake helper runs `mxsdc` with the host Python interpreter,
+compiles the generated validator, and links it with `libmxsd`.
 
 ## Linux and macOS
 

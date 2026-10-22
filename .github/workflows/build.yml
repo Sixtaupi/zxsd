@@ -154,8 +154,11 @@ jobs:
           app-path: mxsd
           toolchains: x86_64-zephyr-elf
 
-      - name: Build and run Zephyr sample
-        run: west twister -T mxsd/samples/zephyr/basic -p qemu_x86 --inline-logs
+      - name: Run Zephyr validation tests
+        run: west twister -T mxsd/tests/zephyr -p qemu_x86 --inline-logs
+
+      - name: Build Zephyr REST sample
+        run: west twister -T mxsd/samples/zephyr/rest -p qemu_x86 --build-only --inline-logs
 
       - name: Build native_sim resource image
         run: >-

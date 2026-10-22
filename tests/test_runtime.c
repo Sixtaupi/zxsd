@@ -74,7 +74,7 @@ static int test_stream(void)
 	return 0;
 }
 /** Run the core host validation test cases. */
-int main(void)
+int mxsd_test_runtime(void)
 {
 	int n = 0;
 	n += test_stream();
@@ -106,3 +106,10 @@ int main(void)
 	n += expect("<other/>", MXSD_ERR_WRONG_ROOT);
 	return n ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_runtime();
+}
+#endif

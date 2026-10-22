@@ -20,7 +20,7 @@ static int expect(mxsd_result_t result, mxsd_error_t expected)
 	return 0;
 }
 
-int main(void)
+int mxsd_test_notation(void)
 {
 	const mxsd_schema_t *schema = notation_format_schema();
 	int failures = 0;
@@ -51,3 +51,10 @@ int main(void)
 	}
 	return failures ? 1 : 0;
 }
+
+#ifndef MXSD_TEST_NO_MAIN
+int main(void)
+{
+	return mxsd_test_notation();
+}
+#endif

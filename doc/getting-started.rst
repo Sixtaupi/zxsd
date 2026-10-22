@@ -69,9 +69,24 @@ Validate a complete document
            return 0;
    }
 
-Compile the generated source together with the runtime, or let CMake link the
-``mxsd::mxsd`` target. The complete cross-platform example in
-``samples/host`` automates generation:
+Compile the generated source together with the runtime, or use the supplied
+CMake helper to generate and compile it during the build:
+
+.. code-block:: cmake
+
+   include(path/to/mxsd/cmake/mxsdGenerate.cmake)
+
+   add_executable(application main.c)
+   mxsd_generate(TARGET application SCHEMA device.xsd)
+   target_link_libraries(application PRIVATE mxsd::mxsd)
+
+Add ``BINDINGS`` to generate typed bindings. For composed schemas, pass files
+reached through ``xs:include``, ``xs:import``, or ``xs:redefine`` to
+``DEPENDS`` so CMake regenerates the output when they change. Repeated
+``BIND_ROOT`` and ``SCHEMA_PATH`` arguments map to repeated compiler options;
+``MAX_SCHEMA_COMPLEXITY`` sets the compiler limit.
+
+The complete cross-platform example in ``samples/host`` uses this helper:
 
 .. code-block:: console
 

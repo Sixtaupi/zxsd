@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema for the XML REST resource returned by the httpbin test service. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="Text">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+      <xs:maxLength value="80"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Slide">
+    <xs:sequence>
+      <xs:element name="title" type="Text"/>
+      <xs:element name="item" type="Text" minOccurs="0" maxOccurs="4"/>
+    </xs:sequence>
+    <xs:attribute name="type" type="Text" use="required"/>
+  </xs:complexType>
+
+  <xs:element name="slideshow">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="slide" type="Slide" minOccurs="1" maxOccurs="4"/>
+      </xs:sequence>
+      <xs:attribute name="title" type="Text" use="required"/>
+      <xs:attribute name="date" type="Text" use="required"/>
+      <xs:attribute name="author" type="Text" use="required"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

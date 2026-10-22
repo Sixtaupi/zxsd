@@ -17,7 +17,9 @@ if(CONFIG_MXSD)
   zephyr_library_sources_ifdef(CONFIG_MXSD_BINDINGS ${MXSD_MODULE_ROOT}/src/mxsd_bind.c)
   zephyr_library_include_directories(${MXSD_MODULE_ROOT}/src)
   zephyr_include_directories(${MXSD_MODULE_ROOT}/include)
-  zephyr_library_compile_definitions(
+  # These limits are part of public structure layouts such as mxsd_stream_t.
+  # Keep the runtime, generated sources, and application code on the same ABI.
+  zephyr_compile_definitions(
     MXSD_MAX_INPUT=${CONFIG_MXSD_MAX_INPUT}
     MXSD_MAX_DEPTH=${CONFIG_MXSD_MAX_DEPTH}
     MXSD_MAX_PARTICLES=${CONFIG_MXSD_MAX_PARTICLES}
@@ -31,6 +33,6 @@ if(CONFIG_MXSD)
     MXSD_STREAM_TEXT_CAPACITY=${CONFIG_MXSD_MAX_TEXT_LENGTH}
     MXSD_MAX_SCHEMA_COMPLEXITY=${CONFIG_MXSD_MAX_SCHEMA_COMPLEXITY})
   if(CONFIG_MXSD_NO_HEAP)
-    zephyr_library_compile_definitions(MXSD_NO_HEAP=1)
+    zephyr_compile_definitions(MXSD_NO_HEAP=1)
   endif()
 endif()
