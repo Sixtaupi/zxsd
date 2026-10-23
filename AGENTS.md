@@ -112,6 +112,11 @@ ctest --test-dir build-sample --output-on-failure
 On multi-configuration generators, add `--config Release` to build commands
 and `-C Release` to CTest commands.
 
+The host `mxsd_model_limits_test` compiles its own `mxsd_model.c` with the private
+force-included `tests/model_limits_config.h` (eight pool slots). Keep that override
+on both test translation units, independent of global flags and the normal runtime;
+do not replace it with an order-sensitive MSVC `/U`/`/D` pair.
+
 For Zephyr, run the dedicated validation tests from an initialized Zephyr
 environment:
 

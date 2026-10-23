@@ -40,7 +40,7 @@ extern "C" {
  */
 
 /** Offset value marking an absent presence or count member. */
-#define MXSD_BIND_NO_OFFSET ((size_t)-1)
+#define MXSD_BIND_NO_OFFSET ((size_t)(-1))
 
 /** C representation of one bound value. */
 typedef enum {

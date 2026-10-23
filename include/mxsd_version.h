@@ -24,7 +24,8 @@
 /** @cond INTERNAL */
 #define MXSD_ABI_JOIN_IMPL(prefix, epoch) prefix##epoch
 #define MXSD_ABI_JOIN(prefix, epoch)      MXSD_ABI_JOIN_IMPL(prefix, epoch)
-#define MXSD_RUNTIME_ABI_GUARD            MXSD_ABI_JOIN(mxsd_runtime_abi_, MXSD_RUNTIME_ABI_VERSION)
+
+#define MXSD_RUNTIME_ABI_GUARD    MXSD_ABI_JOIN(mxsd_runtime_abi_, MXSD_RUNTIME_ABI_VERSION)
 #define MXSD_DESCRIPTOR_ABI_GUARD MXSD_ABI_JOIN(mxsd_descriptor_abi_, MXSD_DESCRIPTOR_ABI_VERSION)
 #define MXSD_BINDING_ABI_GUARD    MXSD_ABI_JOIN(mxsd_binding_abi_, MXSD_BINDING_ABI_VERSION)
 /** @endcond */

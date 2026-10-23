@@ -54,13 +54,15 @@ mxsd_add_schema_test(mxsd_stream_models_test stream_models test_stream_models.c)
 add_executable(mxsd_model_limits_test test_model_limits.c ${PROJECT_SOURCE_DIR}/src/mxsd_model.c)
 target_include_directories(mxsd_model_limits_test PRIVATE
   ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src)
-# Override a globally supplied capacity only for this independent test ABI.
+# Force the private test configuration into both translation units. Visual Studio
+# may reorder /D and /U flags into separate MSBuild properties, so command-line
+# undefine/redefine pairs cannot reliably override the public default there.
 if(MSVC)
   target_compile_options(mxsd_model_limits_test PRIVATE
-    /UMXSD_STREAM_MODEL_CAPACITY /DMXSD_STREAM_MODEL_CAPACITY=8)
+    "/FI${CMAKE_CURRENT_SOURCE_DIR}/model_limits_config.h")
 else()
   target_compile_options(mxsd_model_limits_test PRIVATE
-    -UMXSD_STREAM_MODEL_CAPACITY -DMXSD_STREAM_MODEL_CAPACITY=8)
+    -include "${CMAKE_CURRENT_SOURCE_DIR}/model_limits_config.h")
 endif()
 target_compile_features(mxsd_model_limits_test PRIVATE c_std_99)
 set_target_properties(mxsd_model_limits_test PROPERTIES C_EXTENSIONS OFF)

@@ -459,7 +459,7 @@ static int validate_date_value(text_span_t value, size_t *end)
 	size_t position = 0;
 	size_t year_start;
 	long year = 0;
-	unsigned month, day;
+	unsigned month, day, maximum_day;
 	static const unsigned char month_days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 	int negative = 0;
 	if (position < value.length && value.data[position] == '-') {
@@ -482,7 +482,11 @@ static int validate_date_value(text_span_t value, size_t *end)
 	if (negative) {
 		year = -year;
 	}
-	if (day < 1u || day > month_days[month - 1u] + (month == 2u && leap_year(year))) {
+	maximum_day = month_days[month - 1u];
+	if (month == 2u && leap_year(year)) {
+		maximum_day++;
+	}
+	if (day < 1u || day > maximum_day) {
 		return 0;
 	}
 	*end = position + 6u;
@@ -1572,7 +1576,6 @@ int mxsd_simple_values_equal(const xml_parser_t *parser, mxsd_type_t type,
 
 		for (index = 0u; index < simple->member_type_count; index++) {
 			const mxsd_simple_ref_t *member = &simple->member_types[index];
-			text_span_t right = {right_text, strlen(right_text)};
 
 			if (left_member == NULL &&
 			    mxsd_validate_simple_value(parser, member->type, member->simple,

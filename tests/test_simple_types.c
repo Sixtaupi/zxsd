@@ -72,6 +72,11 @@ int mxsd_test_simple_types(void)
 	CHECK(simple_types_duration_validate("<duration>P1Y2M3DT4H5M6.5S</duration>"), MXSD_OK);
 	CHECK(simple_types_date_validate("<date>2024-02-29Z</date>"), MXSD_OK);
 	CHECK(simple_types_date_validate("<date>2023-02-29</date>"), MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_date_validate("<date>2000-02-29</date>"), MXSD_OK);
+	CHECK(simple_types_date_validate("<date>1900-02-29</date>"), MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_date_validate("<date>2024-04-30</date>"), MXSD_OK);
+	CHECK(simple_types_date_validate("<date>2024-04-31</date>"), MXSD_ERR_INVALID_VALUE);
+	CHECK(simple_types_date_validate("<date>2024-01-00</date>"), MXSD_ERR_INVALID_VALUE);
 	CHECK(simple_types_dateTime_validate("<dateTime>2024-01-02T03:04:05+02:00</dateTime>"),
 	      MXSD_OK);
 	CHECK(simple_types_time_validate("<time>23:59:59Z</time>"), MXSD_OK);
