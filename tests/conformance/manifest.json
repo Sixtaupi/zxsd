@@ -2,6 +2,8 @@
   "license": "Apache-2.0",
   "suite": "mxsd-xsd10",
   "features": [
+    {"name": "runtime-configuration-compatibility", "classification": "supported", "test": "mxsd_compatibility_test", "positive_and_negative": true},
+    {"name": "generated-abi-compatibility", "classification": "supported", "test": "generated-compatibility", "positive_and_negative": true},
     {"name": "elements-sequences-attributes", "classification": "supported", "test": "runtime", "positive_and_negative": true},
     {"name": "facets-choice-all-namespaces", "classification": "supported", "test": "advanced-runtime", "positive_and_negative": true},
     {"name": "type-derivation", "classification": "supported", "test": "mxsd_derivation_test", "positive_and_negative": true},
@@ -15,10 +17,15 @@
     {"name": "recursive-complex-types", "classification": "supported", "test": "mxsd_recursive_test", "positive_and_negative": true},
     {"name": "xsd-regular-expressions", "classification": "supported", "test": "mxsd_regex_test", "positive_and_negative": true},
     {"name": "annotations-and-strict-rejection", "classification": "supported", "test": "compiler", "positive_and_negative": true},
+    {"name": "zephyr-resource-recommendations", "classification": "supported", "test": "compiler", "positive_and_negative": true},
     {"name": "streaming-validation", "classification": "supported", "test": "runtime", "positive_and_negative": true},
+    {"name": "incremental-content-models", "classification": "supported", "test": "mxsd_stream_models_test", "positive_and_negative": true},
+    {"name": "shared-content-model-pool-limits", "classification": "supported", "test": "mxsd_model_limits_test", "positive_and_negative": true},
     {"name": "resource-limits", "classification": "supported", "test": "runtime", "positive_and_negative": true},
     {"name": "custom-allocator", "classification": "supported", "test": "mxsd_identity_test", "positive_and_negative": true},
     {"name": "notation-declarations", "classification": "supported", "test": "mxsd_notation_test", "positive_and_negative": true},
-    {"name": "typed-bindings", "classification": "supported", "test": "mxsd_bindings_test", "positive_and_negative": true}
+    {"name": "typed-bindings", "classification": "supported", "test": "mxsd_bindings_test", "positive_and_negative": true},
+    {"name": "typed-streaming-bindings", "classification": "supported", "test": "mxsd_stream_bindings_test", "positive_and_negative": true},
+    {"name": "weather-streaming-binding", "classification": "supported", "test": "mxsd_weather_binding_test", "positive_and_negative": true}
   ]
 }

@@ -16,3 +16,32 @@ publishes the complete JSON measurement as `native-sim-resource-report`, and
 copies it into the workflow summary. Static stack-frame measurement does not include the
 multiplication caused by recursive XML/schema depth; configure
 `MXSD_MAX_DEPTH` according to the application stack budget.
+
+## Incremental streaming baseline
+
+The opt-in benchmark under `tests/benchmark` also records current AArch64 QEMU
+results. The recorded flat-cursor baseline used Zephyr v4.5.0-rc3, SDK 1.0.0,
+GCC `-Os`, depth 8, text capacity 64, 32 particle counters, and child-history
+capacity 1. Its `mxsd_stream_t` used 12280 bytes, unchanged from 128 to 2048
+repeated samples because
+the schema's flat content models use incremental counters.
+
+For 1024 samples, validation takes 54962391 QEMU timer cycles and validated
+binding serialization takes 39821017. The complete benchmark image uses
+764 KiB of linked RAM, down from 796 KiB with the previous 1024-token history
+configuration. This total includes Zephyr, embedded XML, application arrays,
+and two validator contexts; it is not the runtime's minimum RAM requirement.
+QEMU's instruction-count virtual timer does not measure physical CPU latency.
+
+See `tests/benchmark/README.md` for reproduction commands and
+`tests/benchmark/results/qemu_cortex_a53-incremental.json` for raw measurements.
+These are historical measurements, before the shared nested-model pool was
+added. Current nested sequences/choices use `MXSD_STREAM_MODEL_CAPACITY`
+continuation/frontier slots shared by all open elements. The default 128 slots
+add `128 * sizeof(mxsd_stream_model_node_t)` bytes per stream, plus pool
+metadata, independent of XML depth and repetition count. Profiles generated
+with `--zephyr-config` disable this pool for flat-only schemas, including the
+weather and original benchmark schemas. With the pool enabled, nested models
+also work with child-history capacity 1. Pool exhaustion or excessive epsilon
+work reports a limit error; tune and test that budget instead of allocating
+history proportional to the response size.

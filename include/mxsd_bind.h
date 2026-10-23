@@ -17,7 +17,9 @@
  *   streaming validator;
  * - reading validates a document with the generated schema, then fills a
  *   structure. Strings, repeated items and optional nested structures are
- *   stored in a caller-supplied arena.
+ *   stored in a caller-supplied arena;
+ * - streaming reading validates raw fragments once and delivers selected
+ *   typed subtrees through callbacks, reusing that arena after each delivery.
  */
 
 #ifndef MXSD_BIND_H
@@ -38,7 +40,7 @@ extern "C" {
  */
 
 /** Offset value marking an absent presence or count member. */
-#define MXSD_BIND_NO_OFFSET ((size_t) - 1)
+#define MXSD_BIND_NO_OFFSET ((size_t)-1)
 
 /** C representation of one bound value. */
 typedef enum {
@@ -167,6 +169,144 @@ typedef int (*mxsd_bind_sink_fn)(void *context, const char *data, size_t length)
  * @param[in] capacity Number of usable bytes in @p storage.
  */
 void mxsd_bind_arena_init(mxsd_bind_arena_t *arena, void *storage, size_t capacity);
+
+/** Next action after one locally validated, typed subtree has been delivered. */
+typedef enum {
+	MXSD_BIND_CONTINUE = 0,  /**< Materialize the next occurrence with the same arena. */
+	MXSD_BIND_VALIDATE_ONLY, /**< Stop materializing, but validate the remaining document. */
+	MXSD_BIND_CALLBACK_ERROR /**< Reject delivery with @ref MXSD_ERR_OUTPUT. */
+} mxsd_bind_action_t;
+
+/** One generation-time-resolved element step; prefixes are not identities. */
+typedef struct {
+	const char *name;          /**< Element local name. */
+	const char *namespace_uri; /**< Namespace URI, or @c NULL. */
+} mxsd_bind_path_step_t;
+
+/** Immutable selection emitted by @c mxsdc @c --stream-bind. */
+typedef struct {
+	mxsd_bind_schema_fn schema; /**< Full document schema, including unselected content. */
+	const mxsd_bind_path_step_t *steps; /**< Absolute element path, including the root. */
+	size_t step_count;                  /**< Number of path steps. */
+	const mxsd_bind_type_t
+		*type; /**< Selected structure; simple selections have a value member. */
+	const char *default_value; /**< Selected element default, or @c NULL. */
+	const char *fixed_value;   /**< Selected element fixed value, or @c NULL. */
+} mxsd_bind_selection_t;
+
+/**
+ * @brief Receive one complete, locally validated selected subtree.
+ *
+ * The object and all arena pointers are valid only during the callback. Copy
+ * needed values into application storage. Delivery is provisional: later XML
+ * or document-wide identity validation can still fail at finish. Do not feed,
+ * finish, dispose, or reset the reader/arena from this callback.
+ *
+ * @param[in] user_data Application context.
+ * @param[in] object Value of the selected generated type.
+ * @return Whether to continue, validate only, or report a callback error.
+ */
+typedef mxsd_bind_action_t (*mxsd_bind_item_fn)(void *user_data, const void *object);
+
+/** Internal binding frame, exposed only for static allocation. */
+typedef struct {
+	const mxsd_bind_type_t *type;   /**< Complex or simpleContent structure, if any. */
+	const mxsd_bind_field_t *field; /**< Scalar element descriptor, if any. */
+	void *object;                   /**< Caller/arena storage receiving this element. */
+	unsigned char path_match; /**< Absolute selection prefix matches through this depth. */
+	unsigned char seen_attributes[MXSD_MAX_ATTRIBUTES]; /**< Explicit attributes seen. */
+} mxsd_bind_stream_frame_t;
+
+/** Single-pass validating typed reader with caller-owned, reusable storage. */
+typedef struct {
+	mxsd_xml_reader_t xml;                  /**< Raw parser and full-document validator. */
+	const mxsd_bind_selection_t *selection; /**< Generated selection. */
+	mxsd_bind_arena_t *arena;               /**< Arena borrowed until dispose. */
+	void *object;                           /**< Caller-owned selected structure. */
+	mxsd_bind_item_fn callback;             /**< Typed delivery adapter. */
+	void *user_data;                        /**< Application context. */
+	size_t arena_mark;   /**< Arena usage restored after delivery/error/dispose. */
+	size_t active_depth; /**< Selected element depth, or zero. */
+	int validate_only;   /**< Whether further materialization is disabled. */
+	int finished;        /**< Whether finish completed successfully. */
+	mxsd_bind_stream_frame_t frames[MXSD_MAX_DEPTH]; /**< Bounded binding stack. */
+} mxsd_bind_stream_t;
+
+/** Binding-specific layout stamp; initialize with @ref MXSD_BIND_RUNTIME_CONFIG_INIT. */
+typedef struct {
+	mxsd_runtime_config_t runtime; /**< Core epochs, limits, and layouts. */
+	unsigned int binding_abi;      /**< Typed binding epoch. */
+	size_t layouts[6];             /**< Binding descriptor and caller storage sizes. */
+} mxsd_bind_runtime_config_t;
+
+/** Initialize a binding stamp using the application's headers and compile definitions. */
+#define MXSD_BIND_RUNTIME_CONFIG_INIT                                                              \
+	{                                                                                          \
+		MXSD_RUNTIME_CONFIG_INIT, MXSD_BINDING_ABI_VERSION,                                \
+		{                                                                                  \
+			sizeof(mxsd_bind_field_t), sizeof(mxsd_bind_type_t),                       \
+				sizeof(mxsd_bind_root_t), sizeof(mxsd_bind_arena_t),               \
+				sizeof(mxsd_bind_stream_t), sizeof(mxsd_bind_stream_frame_t)       \
+		}                                                                                  \
+	}
+
+/** @brief Link-time binding ABI guard used by generated code; no side effects. */
+void MXSD_BINDING_ABI_GUARD(void);
+
+/**
+ * @brief Check core configuration and binding layout sizes before using bindings.
+ * @param[in] expected Application stamp using @ref MXSD_BIND_RUNTIME_CONFIG_INIT.
+ * @retval MXSD_OK All recorded epochs, limits, and sizes match.
+ * @retval MXSD_ERR_ARGUMENT The stamp is @c NULL.
+ * @retval MXSD_ERR_INCOMPATIBLE_ABI Core or binding configuration differs.
+ * @return A structured result. The toolchain requirements of @ref mxsd_check_runtime apply.
+ */
+mxsd_result_t mxsd_bind_check_runtime(const mxsd_bind_runtime_config_t *expected);
+
+/**
+ * @brief Initialize a single-pass selected-subtree binding reader.
+ *
+ * The complete document is validated once. Unselected content consumes no
+ * binding arena. Arrays grow in the explicit arena; exhaustion is an error,
+ * never truncation. The arena returns to its initial mark after every callback.
+ * All storage and descriptors must remain alive through dispose. Generated
+ * wrappers provide a typed object and callback interface to this function.
+ *
+ * @param[out] reader Reader to initialize.
+ * @param[in] selection Generated absolute-path selection.
+ * @param[out] object Structure of type @c selection->type, reused for each delivery.
+ * @param[in,out] arena Storage for strings, arrays, and optional structures.
+ * @param[in] callback Delivery callback.
+ * @param[in] user_data Application context.
+ * @param[in] allocator Identity scratch allocator, or @c NULL for zero-heap validation.
+ * @return A structured initialization result.
+ */
+mxsd_result_t mxsd_bind_stream_init(mxsd_bind_stream_t *reader,
+				    const mxsd_bind_selection_t *selection, void *object,
+				    mxsd_bind_arena_t *arena, mxsd_bind_item_fn callback,
+				    void *user_data, const mxsd_allocator_t *allocator);
+
+/**
+ * @brief Consume arbitrary raw XML bytes without retaining the fragment.
+ * @param[in,out] reader Initialized reader.
+ * @param[in] data Bytes to consume, or @c NULL for zero length.
+ * @param[in] length Byte count.
+ * @return The first sticky parser, validation, conversion, or capacity error, or success.
+ */
+mxsd_result_t mxsd_bind_stream_feed(mxsd_bind_stream_t *reader, const void *data, size_t length);
+
+/**
+ * @brief Finish parsing and validate document-wide constraints.
+ * @param[in,out] reader Initialized reader.
+ * @return The final document result; earlier callbacks alone do not imply success.
+ */
+mxsd_result_t mxsd_bind_stream_finish(mxsd_bind_stream_t *reader);
+
+/**
+ * @brief Release identity scratch, clear output, and restore the borrowed arena.
+ * @param[in,out] reader Initialized reader, or @c NULL.
+ */
+void mxsd_bind_stream_dispose(mxsd_bind_stream_t *reader);
 
 /**
  * @brief Validate a document and fill a bound structure from it.

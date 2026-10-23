@@ -22,7 +22,9 @@ Generate and compile an mxsd validator as part of an existing CMake target::
     TARGET application
     SCHEMA device.xsd
     [BINDINGS]
+    [ZEPHYR_CONFIG]
     [BIND_ROOT name ...]
+    [STREAM_BIND element/path ...]
     [SCHEMA_PATH directory ...]
     [DEPENDS schema-file ...]
     [MAX_SCHEMA_COMPLEXITY count]
@@ -33,11 +35,21 @@ The schema compiler always runs on the build host. Generated sources and the
 generated include directory are added privately to ``TARGET``. ``DEPENDS``
 must list locally included, imported, or redefined schemas whose modification
 must trigger regeneration.
+
+``STREAM_BIND`` resolves each finite absolute element path on the host and
+generates typed fragment readers in ``<stem>.bind.[ch]``. It does not require
+``BINDINGS``; that option separately enables full-document object readers and
+writers. Repeated paths generate independent reader types.
+
+``ZEPHYR_CONFIG`` additionally generates a ``<stem>.conf`` recommendation file
+and ``<stem>.limits.h`` checks. Generate and review the fragment on the host
+before Zephyr configuration; this build-time helper does not merge it into
+Kconfig, whose evaluation has already taken place.
 #]=======================================================================]
 function(mxsd_generate)
-  set(options BINDINGS ALLOW_UNRESOLVED_SCHEMA_LOCATIONS)
+  set(options BINDINGS ZEPHYR_CONFIG ALLOW_UNRESOLVED_SCHEMA_LOCATIONS)
   set(one_value_args TARGET SCHEMA OUTPUT_DIR MAX_SCHEMA_COMPLEXITY)
-  set(multi_value_args BIND_ROOT SCHEMA_PATH DEPENDS)
+  set(multi_value_args BIND_ROOT STREAM_BIND SCHEMA_PATH DEPENDS)
   cmake_parse_arguments(MXSD "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
   if(MXSD_UNPARSED_ARGUMENTS)
@@ -92,7 +104,7 @@ function(mxsd_generate)
     "${output_dir}/${stem}.mxsd.c"
     "${output_dir}/${stem}.mxsd.h")
   set(generated_sources "${output_dir}/${stem}.mxsd.c")
-  if(MXSD_BINDINGS)
+  if(MXSD_BINDINGS OR MXSD_STREAM_BIND)
     list(APPEND outputs
       "${output_dir}/${stem}.bind.c"
       "${output_dir}/${stem}.bind.h")
@@ -100,6 +112,10 @@ function(mxsd_generate)
   endif()
 
   set(command_args "${schema}" -o "${output_dir}")
+  if(MXSD_ZEPHYR_CONFIG)
+    list(APPEND outputs "${output_dir}/${stem}.conf" "${output_dir}/${stem}.limits.h")
+    list(APPEND command_args --zephyr-config)
+  endif()
   foreach(path IN LISTS MXSD_SCHEMA_PATH)
     if(NOT IS_ABSOLUTE "${path}")
       get_filename_component(path "${path}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -115,6 +131,9 @@ function(mxsd_generate)
   if(MXSD_BINDINGS)
     list(APPEND command_args --bindings)
   endif()
+  foreach(path IN LISTS MXSD_STREAM_BIND)
+    list(APPEND command_args --stream-bind "${path}")
+  endforeach()
   foreach(root IN LISTS MXSD_BIND_ROOT)
     list(APPEND command_args --bind-root "${root}")
   endforeach()

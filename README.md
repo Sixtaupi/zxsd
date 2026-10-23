@@ -15,13 +15,16 @@ binding generator for embedded systems. `mxsdc` processes XSD on the host; the
 target links only the portable C99 runtime and immutable generated descriptors.
 
 > **Project status:** draft/experimental. The supported subset is tested and
-> unsupported constructs fail explicitly, but the public compatibility policy
-> is not yet finalized. Do not assume complete XSD 1.0 support.
+> unsupported constructs fail explicitly. The [API/ABI contract](doc/compatibility.rst)
+> defines compatibility epochs and migration rules; 0.x upgrades require rebuilding
+> the runtime and application. Do not assume complete XSD 1.0 support.
 
 [Documentation](https://sixtaupi.github.io/mxsd/) ·
 [XSD support matrix](SUPPORT.md) ·
 [Typed bindings](doc/bindings.rst) ·
 [Zephyr integration](doc/zephyr.rst) ·
+[API/ABI and migration](doc/compatibility.rst) ·
+[Benchmark methodology](doc/benchmarks.rst) ·
 [Roadmap](TODO.md)
 
 ## Quick start
@@ -52,11 +55,17 @@ if (result.code != MXSD_OK) {
 The host compiler can also be installed independently with
 `python -m pip install mxsdc`. Python is never required on the target.
 
-For CMake consumers, `cmake/mxsdGenerate.cmake` provides build-time schema
-generation similar to nanopb:
+For Zephyr, `python3 mxsdc device.xsd -o generated --zephyr-config` also emits
+`device.conf` recommendations and `device.limits.h` compile-time checks. Review
+the suggested document budgets, then merge the fragment before configuring
+Zephyr with `-DEXTRA_CONF_FILE=/absolute/path/generated/device.conf`.
+See [the Kconfig guide](doc/kconfig.rst) for multiple schemas and application policies.
+
+The installed CMake package provides build-time schema generation similar to
+nanopb:
 
 ```cmake
-include(path/to/mxsd/cmake/mxsdGenerate.cmake)
+find_package(mxsd CONFIG REQUIRED)
 
 add_executable(application main.c)
 mxsd_generate(
@@ -71,6 +80,19 @@ target automatically. Generation runs on the build host and is repeated when
 the schema or `mxsdc` changes. List schemas reached through `xs:include`,
 `xs:import`, or `xs:redefine` with the `DEPENDS` argument so their changes also
 trigger regeneration.
+
+Install mxsd into a prefix and point the consuming project at it when the
+prefix is not already searched by CMake:
+
+```sh
+cmake -S . -B build -DMXSD_USE_MXML=OFF -DCMAKE_INSTALL_PREFIX=/opt/mxsd
+cmake --build build --parallel
+cmake --install build
+cmake -S application -B application/build -DCMAKE_PREFIX_PATH=/opt/mxsd
+```
+
+Non-CMake builds can obtain the installed compiler and linker flags with
+`pkg-config --cflags --libs mxsd`.
 
 ## Scope
 
@@ -102,12 +124,17 @@ example is available in [`samples/host`](samples/host), and the Zephyr module
 examples are in [`samples/zephyr`](samples/zephyr): basic validation in
 [`basic`](samples/zephyr/basic), typed bindings in
 [`bindings`](samples/zephyr/bindings), and a validated XML REST client in
-[`rest`](samples/zephyr/rest).
+[`rest`](samples/zephyr/rest). The interactive [`weather`](samples/zephyr/weather)
+example validates live Nominatim and MET Norway XML responses over HTTPS.
 
 Automated Zephyr validation tests are kept separately under
 [`tests/zephyr`](tests/zephyr) and run with Twister. They reuse the portable
 `tests/test_*.c` entry points; only the optional Mini-XML adapter test remains
 host-specific.
+
+The opt-in [mxsd versus CodeSynthesis XSD/e benchmark](tests/benchmark/README.md)
+compares validating streaming parsers on the same generated XML fixture. XSD/e
+is obtained and licensed separately and is never downloaded by the build.
 
 On Windows, invoke the extensionless compiler script through Python:
 
@@ -153,7 +180,10 @@ The runtime is split into focused implementation units:
 | `src/mxsd_unicode.c` | Generated Unicode 16 category and block tables |
 | `src/mxsd_identity.c` | Bounded `unique`, `key`, `keyref`, and restricted XPath processing |
 | `src/mxsd_stream.c` | Fixed-memory event-driven validation |
+| `src/mxsd_model.c` | Shared bounded continuation pool for nested content models |
+| `src/mxsd_xml_stream.c` | Incremental raw-XML parsing into validation events |
 | `src/mxsd_bind.c` | Typed binding reader and writer for `mxsdc --bindings` output |
+| `src/mxsd_bind_stream.c` | Single-pass typed delivery for generated element-path selections |
 | `src/mxsd_internal.h` | Private contracts shared by runtime modules |
 
 The same generated descriptor can validate a complete string or an event
@@ -176,6 +206,30 @@ local name, and decoded text/attribute values. Resolve `xsi:type` QName values
 in the XML frontend and call `mxsd_xsi_type()`. Streaming state is fixed-size;
 text for one simple element is bounded by `MXSD_STREAM_TEXT_CAPACITY` and names
 by `MXSD_STREAM_NAME_CAPACITY`.
+
+When the producer supplies raw bytes, `mxsd_xml_reader_t` performs the XML
+tokenization too. Feed each HTTP or socket fragment directly; fragments may
+end anywhere, including inside a tag, entity, or UTF-8 sequence:
+
+```c
+mxsd_xml_reader_t reader;
+mxsd_result_t result = mxsd_xml_reader_init(&reader, sensor_schema());
+
+while (result.code == MXSD_OK && receive_fragment(buffer, sizeof(buffer), &length)) {
+	result = mxsd_xml_reader_feed(&reader, buffer, length);
+}
+if (result.code == MXSD_OK) {
+	result = mxsd_xml_reader_finish(&reader);
+}
+mxsd_xml_reader_dispose(&reader);
+```
+
+The reader never retains pointers into a supplied fragment. Its incomplete XML
+token and decoded text storage are bounded by `MXSD_XML_TOKEN_CAPACITY` and
+`MXSD_MAX_TEXT_LENGTH`; exceeding either limit fails explicitly.
+`mxsd_xml_reader_set_event_callback()` optionally exposes the accepted decoded
+start, attribute, text, and end events so an application can copy a small
+summary without constructing a document tree or retaining the response.
 
 ## Typed bindings
 

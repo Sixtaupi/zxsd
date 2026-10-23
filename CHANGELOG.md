@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Audited opt-in Zephyr benchmark comparing identical typed streaming values
+  against XSD/e C++/Parser, with common fragments/value consumption and matched
+  application/external-runtime optimization and ABI options.
+- XML-only throughput and first-result timing, linked ROM/RAM sections, observed
+  worker stack/libc heap peaks, and raw reproducible QEMU reports. HTTP/TLS is
+  explicitly excluded and marked unmeasured, not attributed to the validator.
+- Offline benchmark correctness/fairness tests in ordinary CTest, without an
+  XSD/e dependency or noisy performance thresholds.
+
+- Public API/ABI and migration contract in `doc/compatibility.rst`: patch-level
+  source/format stability during 0.x, explicit minor-release migrations, and
+  consistent runtime/compiler/configuration rebuild requirements.
+- Independent runtime, schema descriptor, and typed binding ABI epochs, initially
+  `1`, in the installed `mxsd_version.h` header. Generated headers and sources
+  check epochs; generated entry points reference versioned link guards.
+- `mxsdc --version` and `--abi-info`, plus `mxsd_version()` runtime diagnostics.
+- Allocation-free `mxsd_check_runtime()` and `mxsd_bind_check_runtime()` startup
+  checks for exact public limits, heap mode, epochs, and recorded storage sizes;
+  mismatch returns `MXSD_ERR_INCOMPATIBLE_ABI`.
+- Host and shared Twister compatibility tests, including compiler/linker
+  rejection tests for mismatched generated formats and precompiled objects.
+
+### Changed
+
+- Before 1.0, installed CMake version selection requires the same minor line,
+  and the shared-library ABI identifier includes the minor version (`0.20`).
+
+### Migration
+
+- Regenerate all legacy `.mxsd.[ch]` and `.bind.[ch]` once: artifacts generated
+  before ABI stamping cannot be checked retroactively. Keep XSD dependencies and
+  binding/stream options, review regenerated output/configuration, and rebuild
+  the runtime and every consumer. Do not mix old objects with the new runtime.
+- A separately built runtime requires matching limits and toolchain ABI options;
+  use the explicit startup configuration check before initializing any context.
+  Matching epochs/sizes do not guarantee arbitrary cross-toolchain binary ABI.
+
 ## [0.20.0] - 2026-10-21
 
 ### Added

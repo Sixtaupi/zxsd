@@ -8,6 +8,8 @@
 
 #include <zephyr/ztest.h>
 
+extern int mxsd_test_compatibility(void);
+
 extern int mxsd_test_runtime(void);
 extern int mxsd_test_advanced(void);
 extern int mxsd_test_derivation(void);
@@ -17,14 +19,22 @@ extern int mxsd_test_identity(void);
 extern int mxsd_test_composition(void);
 extern int mxsd_test_element_semantics(void);
 extern int mxsd_test_groups(void);
+extern int mxsd_test_stream_models(void);
 extern int mxsd_test_mixed_any(void);
 extern int mxsd_test_recursive(void);
 extern int mxsd_test_regex(void);
 extern int mxsd_test_notation(void);
 extern int mxsd_test_declarations(void);
 extern int mxsd_test_bindings(void);
+extern int mxsd_test_stream_bindings(void);
+extern int mxsd_test_weather_binding(void);
 
 #define MXSD_RUN(entry) zassert_equal(entry(), 0, #entry " failed")
+
+ZTEST(mxsd_validation, test_compatibility)
+{
+	MXSD_RUN(mxsd_test_compatibility);
+}
 
 ZTEST(mxsd_validation, test_runtime)
 {
@@ -71,6 +81,11 @@ ZTEST(mxsd_validation, test_groups)
 	MXSD_RUN(mxsd_test_groups);
 }
 
+ZTEST(mxsd_validation, test_stream_models)
+{
+	MXSD_RUN(mxsd_test_stream_models);
+}
+
 ZTEST(mxsd_validation, test_mixed_any)
 {
 	MXSD_RUN(mxsd_test_mixed_any);
@@ -99,6 +114,16 @@ ZTEST(mxsd_validation, test_declarations)
 ZTEST(mxsd_validation, test_bindings)
 {
 	MXSD_RUN(mxsd_test_bindings);
+}
+
+ZTEST(mxsd_validation, test_stream_bindings)
+{
+	MXSD_RUN(mxsd_test_stream_bindings);
+}
+
+ZTEST(mxsd_validation, test_weather_binding)
+{
+	MXSD_RUN(mxsd_test_weather_binding);
 }
 
 ZTEST_SUITE(mxsd_validation, NULL, NULL, NULL, NULL, NULL);

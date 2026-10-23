@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:s="urn:stream"
+           targetNamespace="urn:stream" elementFormDefault="qualified">
+  <xs:simpleType name="Kind"><xs:restriction base="xs:token">
+    <xs:enumeration value="live"/><xs:enumeration value="archived"/>
+  </xs:restriction></xs:simpleType>
+  <xs:attribute name="origin" type="xs:token"/>
+  <xs:complexType name="Measure"><xs:simpleContent><xs:extension base="xs:long">
+    <xs:attribute name="unit" type="xs:token" default="m"/>
+  </xs:extension></xs:simpleContent></xs:complexType>
+  <xs:complexType name="Row"><xs:sequence>
+    <xs:element name="label" type="xs:token" default="unknown"/>
+    <xs:element name="number" type="xs:int" minOccurs="0" maxOccurs="10"/>
+    <xs:element name="measure" type="s:Measure" minOccurs="0"/>
+    <xs:element name="child" type="s:Row" minOccurs="0" maxOccurs="unbounded"/>
+  </xs:sequence>
+    <xs:attribute name="id" type="xs:unsignedInt" use="required"/>
+    <xs:attribute name="enabled" type="xs:boolean" default="true"/>
+    <xs:attribute name="kind" type="s:Kind" fixed="live"/>
+    <xs:attribute name="rank" type="xs:byte"/>
+    <xs:attribute ref="s:origin"/>
+  </xs:complexType>
+  <xs:complexType name="Derived"><xs:complexContent><xs:extension base="s:Row">
+    <xs:sequence><xs:element name="extra" type="xs:string" minOccurs="0"/></xs:sequence>
+  </xs:extension></xs:complexContent></xs:complexType>
+  <xs:complexType name="Doc"><xs:sequence>
+    <xs:element name="meta" minOccurs="0"><xs:complexType mixed="true">
+      <xs:sequence><xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/></xs:sequence>
+      <xs:attribute name="valid" use="required"><xs:simpleType><xs:restriction base="xs:token">
+        <xs:enumeration value="yes"/>
+      </xs:restriction></xs:simpleType></xs:attribute>
+    </xs:complexType></xs:element>
+    <xs:element name="row" type="s:Row" minOccurs="0" maxOccurs="unbounded"/>
+    <xs:element name="check" type="xs:unsignedByte"/>
+  </xs:sequence></xs:complexType>
+  <xs:element name="doc" type="s:Doc"/>
+  <xs:element name="row" type="s:Row"/>
+  <xs:element name="uniqueDoc" type="s:Doc"><xs:key name="ids">
+    <xs:selector xpath="s:row"/><xs:field xpath="@id"/>
+  </xs:key></xs:element>
+</xs:schema>

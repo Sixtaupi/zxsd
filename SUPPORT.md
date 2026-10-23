@@ -1,5 +1,11 @@
 # Support matrix
 
+The [API/ABI and migration contract](doc/compatibility.rst) covers the runtime,
+generated validators, and typed/streaming bindings. Epoch checks reject
+incompatible generated formats at compile/link time; explicit startup checks
+compare limits and public storage sizes. These are integration guarantees, not
+additional XSD coverage or a promise of drop-in binary compatibility during 0.x.
+
 | Construct | Status | Validation coverage |
 |---|---:|---|
 | `xs:schema` | v0.1 | compiler |
@@ -28,7 +34,7 @@
 | nillable, `xsi:nil`, `xsi:type` | v0.10 | derived, blocked and nil-content tests |
 | default/fixed/form/block/final | v0.10 | compiler and runtime positive/negative tests |
 | annotation/documentation/appinfo | v0.11 | nested annotation and foreign metadata compiler test |
-| event-driven validation API | v0.12 | namespace/start/attribute/text/end events, recursive particles, dynamic types, and streamed identity constraints |
+| event-driven validation API | v0.12 | namespace/start/attribute/text/end events, raw XML fragments, recursive particles, dynamic types, and streamed identity constraints |
 | Mini-XML tree adapter | v0.12 | optional host adapter, expanded namespace events |
 | configurable runtime/schema limits | v0.13 | compiler limit and streaming overflow tests |
 | custom allocator and zero-heap mode | v0.13 | allocator accounting and no-heap builds |
@@ -40,9 +46,11 @@
 | `xs:notation` and `xs:NOTATION` | v0.19 | declaration metadata, QName enumeration resolution, direct-use and undeclared-name rejection |
 | typed C bindings (`mxsdc --bindings`) | v0.20 | read/write round trips, native integer bounds, enumerations, arrays, recursion, defaults, escaping, arena and buffer boundaries, writer structural errors, `xsi:type` rejection, and compiler rejection tests |
 
-Typed bindings represent a subset of the validated constructs. Element and
-attribute wildcards, mixed content, `xs:anyType`, repeating model groups, an
-element name occurring at several places of one content model, nillable and
+Typed bindings represent a subset of the validated constructs. An unbounded
+`xs:sequence` is bindable when its members are optional and uniquely named;
+each member becomes a typed array. Element and attribute wildcards, mixed
+content, `xs:anyType`, other repeating model groups, an element name occurring
+at several places of one content model, nillable and
 abstract elements, substitution-group heads, abstract complex types, and
 `QName` or `NOTATION` values are rejected by `mxsdc --bindings` with a
 `bindings:` diagnostic. They remain supported for validation. A valid document
@@ -78,22 +86,70 @@ memory without a bound.
 
 ## Streaming memory
 
+`mxsdc --stream-bind element/path` generates an opt-in typed fragment reader.
+The path is resolved on the host; no runtime XPath is added. One selected
+subtree is materialized in a reusable caller arena while the full document is
+validated once. Root and simple-element selections are supported. Callbacks
+are provisional until finish, and may request validation-only processing for
+later occurrences. The selected subtree follows the ordinary binding subset;
+unselected content is not silently skipped by the validator. Arena exhaustion
+and unsupported dynamic/nil materialization fail explicitly. See
+[typed streaming bindings](doc/bindings.rst) for lifetimes, growth overhead,
+identity scratch, and the independent-reader semantics of multiple selections.
+
 The event API retains one fixed frame per open XML element. Schemas without
 identity constraints are allocation-free and use `sizeof(mxsd_stream_t)`,
 primarily `MXSD_MAX_DEPTH * MXSD_STREAM_TEXT_CAPACITY`; occurrence, namespace,
 and attribute state are bounded by `MXSD_MAX_PARTICLES`, `MXSD_MAX_NAMESPACES`,
-and `MXSD_MAX_ATTRIBUTES`. For a schema with identity constraints, the stream
-allocator retains a bounded canonical XML copy of at most `MXSD_MAX_INPUT`
+and `MXSD_MAX_ATTRIBUTES`.
+
+Flat sequences and `all` groups with at most one iteration, flat sequences
+with at most one mandatory iteration (including unbounded repetition), and
+single leaf particles use incremental counters. Flat choices use a branch
+cursor for one iteration, or a repetition counter when every branch consumes
+exactly one child. These models do not retain child tokens and can process
+more than `MXSD_STREAM_CHILD_CAPACITY` children. Invalid order or excess
+occurrences fail on the offending start-element event; missing children fail
+when the parent closes. Nested sequences/choices and complex repetitions use
+`MXSD_STREAM_MODEL_CAPACITY` shared continuation/frontier slots (default 128),
+including alternative occurrence partitions and nullable groups. This pool is
+shared across XML depths and does not grow with the document. Slot exhaustion
+or the per-event epsilon-work budget (capacity squared) returns
+`MXSD_ERR_STREAM_LIMIT`; it never silently drops a viable partition.
+
+Setting the pool capacity to zero selects the old bounded-history matcher for
+non-flat models. Hand-built non-XSD trees with nested `all` groups also use
+that fallback. It retains 16-bit particle tokens up to
+`MXSD_STREAM_CHILD_CAPACITY`, plus a bounded pointer table. The history arrays
+remain reserved per frame; capacity 1 is sufficient for compiler-generated
+models when the continuation pool is enabled and adequately sized. Rebuild
+the library and application together when changing public workspace limits.
+
+For a schema with identity constraints, the stream allocator retains a
+bounded canonical XML copy of at most `MXSD_MAX_INPUT`
 bytes and releases it at finish or on the first error. This lets the same
 restricted-XPath and typed tuple implementation serve both APIs. Exceeding a
 configured name, text, child, namespace, or input capacity returns
 `MXSD_ERR_STREAM_LIMIT`.
+
+`mxsd_xml_reader_t` adds a raw-XML frontend around that event API. It retains
+at most `MXSD_XML_TOKEN_CAPACITY + 1` bytes for a token split across fragments
+and `MXSD_MAX_TEXT_LENGTH + 1` bytes for decoded text, in addition to its
+embedded `mxsd_stream_t`; it does not retain the supplied fragment buffers.
 
 The DOM-style reader also limits every lexical value with
 `MXSD_MAX_TEXT_LENGTH`. `MXSD_MAX_SCHEMA_COMPLEXITY` rejects oversized runtime
 descriptors, while `mxsdc --max-schema-complexity` bounds the host-side schema
 graph. Identity tuple capacity is configured with
 `MXSD_MAX_IDENTITY_VALUES`.
+
+`mxsdc --zephyr-config` can emit an optional Kconfig sizing fragment and a
+compile-time limits header. Descriptor counts, finite depth envelopes, regex
+storage, and bounded fallback history are inferred from the compiled schema
+graph. Recursion, wildcard subtrees, lexical text/input sizes, namespace
+declarations, and identity row counts remain explicit application policies.
+These recommendations do not extend the supported XSD subset or guarantee
+acceptance of every valid XML spelling. See `doc/kconfig.rst` for the workflow.
 
 With `MXSD_NO_HEAP`, schemas without identity constraints perform no runtime
 allocation. Identity constraints can still be validated explicitly through

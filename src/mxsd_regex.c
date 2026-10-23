@@ -701,6 +701,28 @@ static void evaluate(const matcher_t *matcher, uint16_t node_index, const positi
 	}
 }
 
+/** Match the common single-atom and repeated-single-atom forms in one pass. */
+static int match_repeated_atom(const matcher_t *matcher, const node_t *atom, uint32_t minimum,
+			       uint32_t maximum)
+{
+	size_t position = 0u;
+	uint32_t count = 0u;
+
+	while (position < matcher->value.length && count < maximum) {
+		uint32_t cp;
+		size_t consumed = mxsd_utf8_decode(matcher->value.data + position,
+						   matcher->value.length - position, &cp);
+
+		if (consumed == 0u ||
+		    !atom_matches(matcher->pattern + atom->offset, atom->length, cp)) {
+			return 0;
+		}
+		position += consumed;
+		count++;
+	}
+	return position == matcher->value.length && count >= minimum;
+}
+
 int mxsd_pattern_matches(const char *pattern, text_span_t value)
 {
 	parser_t parser;
@@ -725,6 +747,16 @@ int mxsd_pattern_matches(const char *pattern, text_span_t value)
 	matcher.nodes = parser.nodes;
 	matcher.value = value;
 	matcher.word_count = (value.length + 64u) / 64u;
+	if (parser.nodes[root].kind == RX_ATOM) {
+		return match_repeated_atom(&matcher, &parser.nodes[root], 1u, 1u);
+	}
+	if (parser.nodes[root].kind == RX_REPEAT &&
+	    parser.nodes[parser.nodes[root].left].kind == RX_ATOM) {
+		const node_t *repeat = &parser.nodes[root];
+
+		return match_repeated_atom(&matcher, &parser.nodes[repeat->left], repeat->minimum,
+					   repeat->maximum);
+	}
 	set_clear(&input, matcher.word_count);
 	set_add(&input, 0u);
 	evaluate(&matcher, root, &input, &output, 0u);

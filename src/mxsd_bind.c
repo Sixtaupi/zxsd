@@ -10,6 +10,7 @@
  */
 
 #include "mxsd_bind.h"
+#include "mxsd_bind_internal.h"
 #include "mxsd_internal.h"
 #include "mxsd_regex.h"
 
@@ -17,6 +18,34 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+
+void MXSD_BINDING_ABI_GUARD(void)
+{
+}
+
+mxsd_result_t mxsd_bind_check_runtime(const mxsd_bind_runtime_config_t *expected)
+{
+	static const mxsd_bind_runtime_config_t actual = MXSD_BIND_RUNTIME_CONFIG_INIT;
+	mxsd_result_t result;
+	size_t index;
+
+	if (expected == NULL) {
+		return make_result(MXSD_ERR_ARGUMENT, 0u, NULL);
+	}
+	result = mxsd_check_runtime(&expected->runtime);
+	if (result.code != MXSD_OK) {
+		return result;
+	}
+	if (expected->binding_abi != actual.binding_abi) {
+		return make_result(MXSD_ERR_INCOMPATIBLE_ABI, 0u, NULL);
+	}
+	for (index = 0u; index < sizeof(actual.layouts) / sizeof(actual.layouts[0]); ++index) {
+		if (expected->layouts[index] != actual.layouts[index]) {
+			return make_result(MXSD_ERR_INCOMPATIBLE_ABI, 0u, "binding layouts");
+		}
+	}
+	return result;
+}
 
 /** Namespace of the xsi:type, xsi:nil and schema-location attributes. */
 static const char xsi_namespace[] = "http://www.w3.org/2001/XMLSchema-instance";
@@ -970,7 +999,12 @@ void mxsd_bind_arena_init(mxsd_bind_arena_t *arena, void *storage, size_t capaci
 static void *arena_allocate(mxsd_bind_arena_t *arena, size_t size, size_t alignment)
 {
 	size_t start = arena->used;
-	size_t misalignment = (size_t)((uintptr_t)(arena->data + start) % alignment);
+	size_t misalignment;
+
+	if (arena->data == NULL || start > arena->capacity) {
+		return NULL;
+	}
+	misalignment = (size_t)((uintptr_t)(arena->data + start) % alignment);
 
 	if (misalignment != 0u) {
 		size_t padding = alignment - misalignment;
@@ -986,6 +1020,11 @@ static void *arena_allocate(mxsd_bind_arena_t *arena, size_t size, size_t alignm
 	arena->used = start + size;
 	memset(arena->data + start, 0, size);
 	return arena->data + start;
+}
+
+void *mxsd_bind_arena_allocate(mxsd_bind_arena_t *arena, size_t size)
+{
+	return arena_allocate(arena, size, BIND_ALIGNMENT);
 }
 
 /** Apply the XML Schema whiteSpace facet in place, returning the new length. */
@@ -1204,7 +1243,7 @@ static int store_simple(const mxsd_bind_field_t *field, unsigned char *address, 
  * Arena storage holding the text is released again for non-string values,
  * whose converted representation does not reference it.
  */
-static mxsd_result_t finish_simple(reader_t *reader, const mxsd_bind_field_t *field,
+static mxsd_result_t finish_simple(mxsd_bind_arena_t *arena, const mxsd_bind_field_t *field,
 				   unsigned char *address, char *text, size_t length, size_t mark,
 				   size_t offset)
 {
@@ -1215,12 +1254,29 @@ static mxsd_result_t finish_simple(reader_t *reader, const mxsd_bind_field_t *fi
 		return make_result(MXSD_ERR_INVALID_VALUE, offset, field->name);
 	}
 	if (field->kind != MXSD_BIND_STRING) {
-		reader->arena->used = mark;
+		arena->used = mark;
 	} else {
-		reader->arena->used =
-			(size_t)((unsigned char *)text - reader->arena->data) + length + 1u;
+		arena->used = (size_t)((unsigned char *)text - arena->data) + length + 1u;
 	}
 	return make_result(MXSD_OK, offset, NULL);
+}
+
+mxsd_result_t mxsd_bind_store_decoded(mxsd_bind_arena_t *arena, const mxsd_bind_field_t *field,
+				      void *address, const char *value, size_t length,
+				      size_t offset)
+{
+	size_t mark = arena->used;
+	char *text;
+
+	if (length == (size_t)-1) {
+		return make_result(MXSD_ERR_RESOURCE_LIMIT, offset, field->name);
+	}
+	text = arena_allocate(arena, length + 1u, 1u);
+	if (text == NULL) {
+		return make_result(MXSD_ERR_RESOURCE_LIMIT, offset, field->name);
+	}
+	memcpy(text, value, length);
+	return finish_simple(arena, field, address, text, length, mark, offset);
 }
 
 /** Copy a schema-provided lexical value into the arena and store it. */
@@ -1235,7 +1291,7 @@ static mxsd_result_t store_lexical(reader_t *reader, const mxsd_bind_field_t *fi
 		return make_result(MXSD_ERR_RESOURCE_LIMIT, offset, field->name);
 	}
 	memcpy(text, value, length);
-	return finish_simple(reader, field, address, text, length, mark, offset);
+	return finish_simple(reader->arena, field, address, text, length, mark, offset);
 }
 
 /**
@@ -1268,7 +1324,7 @@ static mxsd_result_t store_attribute(reader_t *reader, const mxsd_bind_field_t *
 		reader->arena->used = mark;
 		return make_result(MXSD_ERR_INVALID_VALUE, offset, field->name);
 	}
-	return finish_simple(reader, field, address, text, decoded.length, mark, offset);
+	return finish_simple(reader->arena, field, address, text, decoded.length, mark, offset);
 }
 
 /**
@@ -1580,7 +1636,7 @@ static mxsd_result_t read_simple_content(reader_t *reader, const start_tag_t *ta
 			return result;
 		}
 		if (length != 0u || fallback == NULL) {
-			return finish_simple(reader, field, address, text, length, mark,
+			return finish_simple(reader->arena, field, address, text, length, mark,
 					     tag->content_offset);
 		}
 		reader->arena->used = mark;

@@ -98,6 +98,18 @@ int mxsd_validate_boolean(text_span_t value);
 int mxsd_decode_xml_references(text_span_t input, text_span_t *output, char *storage);
 int mxsd_validate_simple_value(const xml_parser_t *parser, mxsd_type_t type,
 			       const mxsd_simple_t *simple, text_span_t value);
+
+/** Check whether the shared-pool interpreter supports a particle tree. */
+int mxsd_model_supported(const mxsd_particle_t *particle);
+/** Initialize a nested model after effective-type resolution. */
+mxsd_error_t mxsd_model_init(mxsd_stream_t *stream, mxsd_stream_frame_t *frame);
+/** Advance all viable repetition partitions by one leaf token. */
+mxsd_error_t mxsd_model_consume(mxsd_stream_t *stream, mxsd_stream_frame_t *frame,
+				const mxsd_particle_t *leaf);
+/** Check whether a nested model accepts the current end of content. */
+mxsd_error_t mxsd_model_finish(mxsd_stream_t *stream, mxsd_stream_frame_t *frame);
+/** Release a frame's shared-pool frontier after its closing event. */
+void mxsd_model_release(mxsd_stream_t *stream, mxsd_stream_frame_t *frame);
 int mxsd_simple_values_equal(const xml_parser_t *parser, mxsd_type_t type,
 			     const mxsd_simple_t *simple, text_span_t left, const char *right_text);
 int mxsd_complex_derives_from(const mxsd_complex_t *candidate, const mxsd_complex_t *base,

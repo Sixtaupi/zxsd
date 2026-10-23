@@ -9,12 +9,16 @@ if(CONFIG_MXSD)
     ${MXSD_MODULE_ROOT}/src/mxsd.c
     ${MXSD_MODULE_ROOT}/src/mxsd_dom.c
     ${MXSD_MODULE_ROOT}/src/mxsd_identity.c
+    ${MXSD_MODULE_ROOT}/src/mxsd_model.c
     ${MXSD_MODULE_ROOT}/src/mxsd_regex.c
     ${MXSD_MODULE_ROOT}/src/mxsd_stream.c
     ${MXSD_MODULE_ROOT}/src/mxsd_unicode.c
     ${MXSD_MODULE_ROOT}/src/mxsd_value.c
+    ${MXSD_MODULE_ROOT}/src/mxsd_version.c
+    ${MXSD_MODULE_ROOT}/src/mxsd_xml_stream.c
     ${MXSD_MODULE_ROOT}/src/mxsd_xml_builtin.c)
   zephyr_library_sources_ifdef(CONFIG_MXSD_BINDINGS ${MXSD_MODULE_ROOT}/src/mxsd_bind.c)
+  zephyr_library_sources_ifdef(CONFIG_MXSD_BINDINGS ${MXSD_MODULE_ROOT}/src/mxsd_bind_stream.c)
   zephyr_library_include_directories(${MXSD_MODULE_ROOT}/src)
   zephyr_include_directories(${MXSD_MODULE_ROOT}/include)
   # These limits are part of public structure layouts such as mxsd_stream_t.
@@ -27,10 +31,14 @@ if(CONFIG_MXSD)
     MXSD_MAX_NAMESPACES=${CONFIG_MXSD_MAX_NAMESPACES}
     MXSD_MAX_IDENTITY_VALUES=${CONFIG_MXSD_MAX_IDENTITY_VALUES}
     MXSD_MAX_TEXT_LENGTH=${CONFIG_MXSD_MAX_TEXT_LENGTH}
+    MXSD_STREAM_CHILD_CAPACITY=${CONFIG_MXSD_STREAM_CHILD_CAPACITY}
+    MXSD_STREAM_MODEL_CAPACITY=${CONFIG_MXSD_STREAM_MODEL_CAPACITY}
+    MXSD_STREAM_NAME_CAPACITY=${CONFIG_MXSD_STREAM_NAME_CAPACITY}
     MXSD_MAX_PATTERN_LENGTH=${CONFIG_MXSD_MAX_PATTERN_LENGTH}
     MXSD_MAX_REGEX_NODES=${CONFIG_MXSD_MAX_REGEX_NODES}
     MXSD_MAX_REGEX_DEPTH=${CONFIG_MXSD_MAX_REGEX_DEPTH}
     MXSD_STREAM_TEXT_CAPACITY=${CONFIG_MXSD_MAX_TEXT_LENGTH}
+    MXSD_XML_TOKEN_CAPACITY=${CONFIG_MXSD_XML_TOKEN_CAPACITY}
     MXSD_MAX_SCHEMA_COMPLEXITY=${CONFIG_MXSD_MAX_SCHEMA_COMPLEXITY})
   if(CONFIG_MXSD_NO_HEAP)
     zephyr_compile_definitions(MXSD_NO_HEAP=1)

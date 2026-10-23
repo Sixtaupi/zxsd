@@ -13,6 +13,9 @@
 #define MXSD_H
 
 #include <stddef.h>
+#include <stdint.h>
+
+#include "mxsd_version.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +38,9 @@ extern "C" {
 #ifndef MXSD_MAX_PARTICLES
 /** Maximum number of child particles in one complex type. */
 #define MXSD_MAX_PARTICLES 32u
+#endif
+#if MXSD_MAX_PARTICLES > 65536u
+#error "MXSD_MAX_PARTICLES exceeds the 16-bit streaming particle-token space"
 #endif
 #ifndef MXSD_MAX_ATTRIBUTES
 /** Maximum number of attributes in one element. */
@@ -101,8 +107,22 @@ extern "C" {
 #define MXSD_STREAM_NAME_CAPACITY 128u
 #endif
 #ifndef MXSD_STREAM_CHILD_CAPACITY
-/** Maximum child events retained for one streamed complex element. */
+/** Maximum child tokens retained for a streamed model requiring history.
+ * Incremental models use counters and do not consume this capacity.
+ */
 #define MXSD_STREAM_CHILD_CAPACITY 64u
+#endif
+#ifndef MXSD_STREAM_MODEL_CAPACITY
+/** Shared continuation/state slots for nested streaming content models.
+ * Storage is shared by all open elements, not multiplied by XML depth.
+ * Exhaustion returns @ref MXSD_ERR_STREAM_LIMIT. Zero selects child history
+ * instead; flat models always retain their allocation-free fast path.
+ */
+#define MXSD_STREAM_MODEL_CAPACITY 128u
+#endif
+#ifndef MXSD_XML_TOKEN_CAPACITY
+/** Maximum bytes retained for one incomplete XML tag, comment, PI, or CDATA section. */
+#define MXSD_XML_TOKEN_CAPACITY 4096u
 #endif
 
 /** Validation status and error codes. */
@@ -125,7 +145,8 @@ typedef enum {
 	MXSD_ERR_STREAM_LIMIT,         /**< A fixed streaming buffer was exceeded. */
 	MXSD_ERR_RESOURCE_LIMIT,       /**< A configured resource limit was exceeded. */
 	MXSD_ERR_OUTPUT,               /**< A binding output sink or buffer failed. */
-	MXSD_ERR_UNSUPPORTED           /**< A valid document cannot be represented by a binding. */
+	MXSD_ERR_UNSUPPORTED,          /**< A valid document cannot be represented by a binding. */
+	MXSD_ERR_INCOMPATIBLE_ABI      /**< Runtime epochs, limits, or public layouts differ. */
 } mxsd_error_t;
 
 /** Structured result returned by every generated validator. */
@@ -486,6 +507,18 @@ typedef struct {
 	size_t notation_count;            /**< Number of notation declarations. */
 } mxsd_schema_t;
 
+/** Internal immutable continuation or frontier entry, for static allocation only. */
+typedef struct {
+	const struct mxsd_particle *particle; /**< Particle interpreted by this continuation. */
+	unsigned long count;                  /**< Completed non-empty occurrences. */
+	size_t index;                         /**< Next sequence term. */
+	uint32_t references;                  /**< Owning references to this shared entry. */
+	uint16_t parent;                      /**< Continuation after this particle, or zero. */
+	uint16_t next;                        /**< Frontier/free-list link, or zero. */
+	unsigned char phase;                  /**< Internal interpreter instruction. */
+	unsigned char started;                /**< Current group iteration consumed a token. */
+} mxsd_stream_model_node_t;
+
 /** Internal per-element state exposed only to permit static allocation. */
 typedef struct {
 	const char *expected_name;          /**< Schema-owned expected local name. */
@@ -498,8 +531,15 @@ typedef struct {
 	unsigned char seen_attributes[MXSD_MAX_ATTRIBUTES]; /**< Seen attributes. */
 	unsigned long child_counts[MXSD_MAX_PARTICLES];     /**< Consumed child counts. */
 	size_t sequence_index;                              /**< Current sequence position. */
-	/** Matched leaf particle for each child, used by recursive content models. */
-	const struct mxsd_particle *child_particles[MXSD_STREAM_CHILD_CAPACITY];
+	int incremental_model; /**< Internal content-model cursor mode, or zero for history. */
+	uint16_t model_states; /**< Head of the nested-model frontier in the shared pool. */
+	unsigned long
+		model_occurrences; /**< Non-empty sequence iterations consumed by the cursor. */
+	/** Distinct leaf particles referenced by the compact child-token history. */
+	const struct mxsd_particle *child_particle_table[MXSD_MAX_PARTICLES];
+	size_t child_particle_table_count; /**< Number of entries in the particle table. */
+	/** 16-bit particle-table index for each child in recursive content models. */
+	uint16_t child_particle_ids[MXSD_STREAM_CHILD_CAPACITY];
 	size_t text_length;                         /**< Bytes currently in @ref text. */
 	size_t child_count;                         /**< Number of child events received. */
 	int nillable;                               /**< Whether xsi:nil is permitted. */
@@ -524,6 +564,9 @@ typedef struct {
  * Initialize this object with @ref mxsd_stream_init before sending events.
  * Its storage is bounded by compile-time configuration constants. Identity
  * constraints additionally use the configured allocator.
+ * Flat content models use counters. Nested sequences and choices use a shared,
+ * bounded continuation pool, including alternative repetition partitions.
+ * Zero @ref MXSD_STREAM_MODEL_CAPACITY selects the bounded history fallback.
  */
 typedef struct {
 	const mxsd_schema_t *schema;         /**< Generated schema being validated. */
@@ -537,8 +580,137 @@ typedef struct {
 	size_t identity_xml_capacity;        /**< Allocated reconstructed XML bytes. */
 	mxsd_stream_namespace_t namespaces[MXSD_MAX_NAMESPACES]; /**< Active QName bindings. */
 	size_t namespace_count; /**< Number of active entries in @ref namespaces. */
+#if MXSD_STREAM_MODEL_CAPACITY > 0
+	/** Shared continuation/frontier storage; independent of document length. */
+	mxsd_stream_model_node_t model_nodes[MXSD_STREAM_MODEL_CAPACITY];
+	uint16_t model_free;        /**< First free pool slot, or zero. */
+	uint16_t model_high_water;  /**< Highest slot ever allocated; bounds interning scans. */
+	int model_pool_initialized; /**< Whether the lazy free list has been initialized. */
+#endif
 	mxsd_stream_frame_t frames[MXSD_MAX_DEPTH]; /**< Fixed element stack. */
 } mxsd_stream_t;
+
+/** Decoded XML events exposed by the incremental raw-XML reader. */
+typedef enum {
+	MXSD_XML_EVENT_START_ELEMENT, /**< Start element with expanded name. */
+	MXSD_XML_EVENT_ATTRIBUTE,     /**< Attribute on the current element. */
+	MXSD_XML_EVENT_TEXT,          /**< Decoded character data. */
+	MXSD_XML_EVENT_END_ELEMENT    /**< End element with expanded name. */
+} mxsd_xml_event_t;
+
+/**
+ * @brief Observe one decoded event accepted by the incremental validator.
+ *
+ * All strings are transient and valid only for the duration of the callback.
+ * @p value is set only for attribute and text events. Text can contain embedded
+ * NUL bytes and must be consumed using @p value_length.
+ *
+ * @param[in] user_data Opaque value supplied by the application.
+ * @param[in] event Event category.
+ * @param[in] namespace_uri Namespace URI, or an empty string.
+ * @param[in] local_name Local element or attribute name, or @c NULL for text.
+ * @param[in] value Attribute value or character data, otherwise @c NULL.
+ * @param[in] value_length Number of bytes in @p value.
+ */
+typedef void (*mxsd_xml_event_fn)(void *user_data, mxsd_xml_event_t event,
+				  const char *namespace_uri, const char *local_name,
+				  const char *value, size_t value_length);
+
+/**
+ * @brief Bounded raw-XML reader feeding an event-driven validator.
+ *
+ * The object accepts arbitrary byte fragments and retains only an incomplete
+ * lexical token between calls. Initialize it with @ref mxsd_xml_reader_init,
+ * then call @ref mxsd_xml_reader_feed and @ref mxsd_xml_reader_finish.
+ */
+typedef struct {
+	mxsd_stream_t validator; /**< Event-driven validator receiving decoded XML events. */
+	mxsd_result_t result;    /**< Sticky result of the first parser or validator error. */
+	size_t offset;           /**< Total number of input bytes accepted. */
+	size_t token_offset;     /**< Absolute offset of the retained token. */
+	size_t token_length;     /**< Bytes currently retained in @ref token. */
+	unsigned char markup;    /**< Non-zero while retaining markup beginning with @c <. */
+	unsigned char quote;     /**< Active attribute quote, or zero. */
+	mxsd_xml_event_fn event_callback;         /**< Optional decoded-event observer. */
+	void *event_user_data;                    /**< Opaque observer context. */
+	char token[MXSD_XML_TOKEN_CAPACITY + 1u]; /**< Incomplete text or markup token. */
+	char decoded[MXSD_MAX_TEXT_LENGTH + 1u];  /**< Decoded text or attribute scratch. */
+} mxsd_xml_reader_t;
+
+/** @cond INTERNAL */
+#ifdef MXSD_NO_HEAP
+#define MXSD_CONFIG_NO_HEAP 1u
+#else
+#define MXSD_CONFIG_NO_HEAP 0u
+#endif
+/** @endcond */
+
+/**
+ * @brief Caller configuration stamp for a same-toolchain runtime boundary.
+ *
+ * Initialize with @ref MXSD_RUNTIME_CONFIG_INIT in application code. The fixed
+ * array order is part of @ref MXSD_RUNTIME_ABI_VERSION. This stamp is not a
+ * portable wire format and does not replace matching architecture/ABI flags.
+ */
+typedef struct {
+	unsigned int runtime_abi;    /**< Public API/layout epoch. */
+	unsigned int descriptor_abi; /**< Descriptor interpretation epoch. */
+	unsigned int no_heap;        /**< Whether @c MXSD_NO_HEAP was defined. */
+	size_t limits[22];           /**< Exact public resource limits, in declaration order. */
+	size_t layouts[12];          /**< Public storage and fundamental type sizes. */
+} mxsd_runtime_config_t;
+
+/** Initialize a runtime stamp using the including translation unit's configuration. */
+#define MXSD_RUNTIME_CONFIG_INIT                                                                   \
+	{                                                                                          \
+		MXSD_RUNTIME_ABI_VERSION, MXSD_DESCRIPTOR_ABI_VERSION, MXSD_CONFIG_NO_HEAP,        \
+			{MXSD_MAX_INPUT,                                                           \
+			 MXSD_MAX_DEPTH,                                                           \
+			 MXSD_MAX_PARTICLES,                                                       \
+			 MXSD_MAX_ATTRIBUTES,                                                      \
+			 MXSD_MAX_NAMESPACES,                                                      \
+			 MXSD_MAX_IDENTITY_ROWS,                                                   \
+			 MXSD_MAX_IDENTITY_VALUES,                                                 \
+			 MXSD_MAX_IDENTITY_TEXT,                                                   \
+			 MXSD_MAX_IDENTITY_CONSTRAINTS,                                            \
+			 MXSD_MAX_IDENTITY_FIELDS,                                                 \
+			 MXSD_MAX_XPATH_DEPTH,                                                     \
+			 MXSD_MAX_XPATH_ALTERNATIVES,                                              \
+			 MXSD_STREAM_TEXT_CAPACITY,                                                \
+			 MXSD_MAX_TEXT_LENGTH,                                                     \
+			 MXSD_MAX_PATTERN_LENGTH,                                                  \
+			 MXSD_MAX_REGEX_NODES,                                                     \
+			 MXSD_MAX_REGEX_DEPTH,                                                     \
+			 MXSD_MAX_SCHEMA_COMPLEXITY,                                               \
+			 MXSD_STREAM_NAME_CAPACITY,                                                \
+			 MXSD_STREAM_CHILD_CAPACITY,                                               \
+			 MXSD_STREAM_MODEL_CAPACITY,                                               \
+			 MXSD_XML_TOKEN_CAPACITY},                                                 \
+		{                                                                                  \
+			sizeof(mxsd_stream_t), sizeof(mxsd_stream_frame_t),                        \
+				sizeof(mxsd_xml_reader_t), sizeof(mxsd_schema_t),                  \
+				sizeof(mxsd_particle_t), sizeof(mxsd_complex_t),                   \
+				sizeof(mxsd_simple_t), sizeof(mxsd_result_t),                      \
+				sizeof(mxsd_allocator_t), sizeof(void *), sizeof(size_t),          \
+				sizeof(unsigned long)                                              \
+		}                                                                                  \
+	}
+
+/**
+ * @brief Check application limits and layouts before using runtime-owned code.
+ *
+ * Call once before validation or initializing caller-owned contexts when linking
+ * a separately built runtime. No context or descriptor is accessed. Matching
+ * stamps are necessary, not sufficient, for binary compatibility: architecture,
+ * calling convention, packing, and compiler ABI options must also match.
+ *
+ * @param[in] expected Application stamp initialized with @ref MXSD_RUNTIME_CONFIG_INIT.
+ * @retval MXSD_OK Epochs, resource limits, and recorded layout sizes match.
+ * @retval MXSD_ERR_ARGUMENT The stamp is @c NULL.
+ * @retval MXSD_ERR_INCOMPATIBLE_ABI The runtime configuration differs.
+ * @return A structured result.
+ */
+mxsd_result_t mxsd_check_runtime(const mxsd_runtime_config_t *expected);
 
 /**
  * @brief Validate an XML document against a generated schema descriptor.
@@ -700,6 +872,75 @@ mxsd_result_t mxsd_end_element(mxsd_stream_t *stream, const char *namespace_uri,
  * @return The final sticky validation result.
  */
 mxsd_result_t mxsd_stream_finish(mxsd_stream_t *stream);
+
+/**
+ * @brief Initialize a raw, incrementally fed XML validator.
+ *
+ * @param[out] reader Reader context to initialize.
+ * @param[in] schema Generated schema descriptor.
+ *
+ * @return A structured initialization result.
+ */
+mxsd_result_t mxsd_xml_reader_init(mxsd_xml_reader_t *reader, const mxsd_schema_t *schema);
+
+/**
+ * @brief Initialize a raw XML reader with identity-constraint scratch allocation.
+ *
+ * @param[out] reader Reader context to initialize.
+ * @param[in] schema Generated schema descriptor.
+ * @param[in] allocator Scratch allocator, or @c NULL.
+ *
+ * @return A structured initialization result.
+ */
+mxsd_result_t mxsd_xml_reader_init_with_allocator(mxsd_xml_reader_t *reader,
+						  const mxsd_schema_t *schema,
+						  const mxsd_allocator_t *allocator);
+
+/**
+ * @brief Install an optional decoded-event observer.
+ *
+ * The observer runs synchronously after the validator accepts each event. It
+ * may copy selected values but must not retain the supplied string pointers.
+ *
+ * @param[in,out] reader Initialized reader.
+ * @param[in] callback Observer callback, or @c NULL to disable observation.
+ * @param[in] user_data Opaque value passed to @p callback.
+ */
+void mxsd_xml_reader_set_event_callback(mxsd_xml_reader_t *reader, mxsd_xml_event_fn callback,
+					void *user_data);
+
+/**
+ * @brief Feed one arbitrary fragment of an XML document.
+ *
+ * Fragments need not be NUL-terminated and may end inside UTF-8 sequences,
+ * entity references, tags, attributes, comments, processing instructions, or
+ * CDATA sections. Input storage may be reused as soon as this function returns.
+ *
+ * @param[in,out] reader Initialized reader.
+ * @param[in] data Input bytes; may be @c NULL only when @p length is zero.
+ * @param[in] length Number of bytes in @p data.
+ *
+ * @return The sticky parsing or validation result.
+ */
+mxsd_result_t mxsd_xml_reader_feed(mxsd_xml_reader_t *reader, const void *data, size_t length);
+
+/**
+ * @brief Finish an incrementally supplied XML document.
+ *
+ * @param[in,out] reader Initialized reader.
+ *
+ * @retval MXSD_OK The complete document is well formed and schema-valid.
+ * @retval MXSD_ERR_MALFORMED_XML The document ends in an incomplete token.
+ * @return The sticky parsing or validation result.
+ */
+mxsd_result_t mxsd_xml_reader_finish(mxsd_xml_reader_t *reader);
+
+/**
+ * @brief Release optional scratch storage owned by a raw XML reader.
+ *
+ * @param[in,out] reader Initialized reader to dispose.
+ */
+void mxsd_xml_reader_dispose(mxsd_xml_reader_t *reader);
 
 /**
  * @brief Get a stable human-readable description of an error code.

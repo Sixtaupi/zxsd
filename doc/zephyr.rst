@@ -61,6 +61,12 @@ Enable mxsd in ``prj.conf`` and choose limits for the application:
 Every option is described in :doc:`kconfig`. Lower limits reduce worst-case
 memory, but documents exceeding them fail deterministically.
 
+``python3 mxsdc device.xsd -o generated --zephyr-config`` emits a schema-specific
+``device.conf`` and compile-time limit checks. Review its commented application
+budgets and pass the fragment with ``-DEXTRA_CONF_FILE`` before Zephyr's
+configuration phase. The :doc:`kconfig` guide explains combining several schemas
+and distinguishing finite schema requirements from input policies.
+
 Generate and link a schema
 **************************
 
@@ -111,3 +117,21 @@ validates an XML request body before posting it back. See the sample README for
 network setup and transport-security notes. The application keeps
 ``CONFIG_HEAP_MEM_POOL_SIZE=0`` and uses Zephyr's fixed-pool asynchronous DNS
 API instead of the allocating ``getaddrinfo()`` convenience function.
+
+Interactive weather client
+**************************
+
+``samples/zephyr/weather`` prompts for a city, resolves it through Nominatim,
+then requests MET Norway's XML forecast for the resulting coordinates. Both
+HTTPS responses are validated before the application displays the place,
+temperature, humidity, wind, pressure, and cloud cover. The sample keeps the
+Zephyr system heap disabled; its TLS implementation uses a separate fixed
+mbedTLS arena. HTTP body fragments feed a generated typed reader selecting
+``weatherdata/product/time``. Its callback copies a compact summary from typed
+forecasts using a reusable 4096-byte arena, then requests validation-only
+processing. Display waits for successful full-document finish.
+The much smaller Nominatim response demonstrates the basic typed-binding API.
+
+.. code-block:: console
+
+   $ west twister -T samples/zephyr/weather -p qemu_x86 --inline-logs

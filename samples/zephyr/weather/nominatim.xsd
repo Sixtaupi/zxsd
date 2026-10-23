@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="searchresults">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="place" minOccurs="0" maxOccurs="1">
+          <xs:complexType>
+            <xs:attribute name="lat" type="xs:decimal" use="required"/>
+            <xs:attribute name="lon" type="xs:decimal" use="required"/>
+            <xs:attribute name="display_name" type="xs:string" use="required"/>
+            <xs:attribute name="place_id" type="xs:string"/>
+            <xs:attribute name="osm_type" type="xs:string"/>
+            <xs:attribute name="osm_id" type="xs:string"/>
+            <xs:attribute name="ref" type="xs:string"/>
+            <xs:attribute name="boundingbox" type="xs:string"/>
+            <xs:attribute name="place_rank" type="xs:string"/>
+            <xs:attribute name="address_rank" type="xs:string"/>
+            <xs:attribute name="class" type="xs:string"/>
+            <xs:attribute name="type" type="xs:string"/>
+            <xs:attribute name="importance" type="xs:string"/>
+            <xs:attribute name="icon" type="xs:string"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="timestamp" type="xs:string"/>
+      <xs:attribute name="attribution" type="xs:string"/>
+      <xs:attribute name="querystring" type="xs:string"/>
+      <xs:attribute name="more_url" type="xs:string"/>
+      <xs:attribute name="exclude_place_ids" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+

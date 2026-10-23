@@ -66,6 +66,7 @@ Why mxsd?
    zephyr
    kconfig
    resource-usage
+   benchmarks
 
 .. toctree::
    :maxdepth: 2
@@ -73,6 +74,7 @@ Why mxsd?
    :hidden:
 
    api
+   compatibility
    building-docs
 
 Indices

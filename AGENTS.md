@@ -24,8 +24,16 @@ conformance.
 - `SUPPORT.md` and `doc/xsd-support.rst`: supported, partial, and unsupported
   XSD features.
 - `include/mxsd.h`: stable public runtime API and resource-limit definitions.
+- `include/mxsd_version.h` and `doc/compatibility.rst`: compatibility epochs,
+  release guarantees, and migration rules.
 - `tests/conformance/manifest.json`: feature-to-test conformance mapping.
 - `zephyr/Kconfig`: Zephyr configuration contract.
+
+`mxsdc --zephyr-config` derives sizing recommendations from the compiler model.
+Keep its Kconfig ranges and incremental-model classification synchronized with
+`zephyr/Kconfig`, `stream_incremental_model()`, and `mxsd_model_supported()` when
+any changes. Input
+budgets must remain explicitly distinct from schema-derived requirements.
 
 When changing behavior, update the implementation, tests, support matrix, and
 documentation together. Do not let these descriptions drift apart.
@@ -35,26 +43,40 @@ documentation together. Do not let these descriptions drift apart.
 - `mxsdc`: Python host compiler and C code generator.
 - `include/`: public, installed C headers.
 - `src/mxsd.c`: public validation facade and resource checks.
+- `src/mxsd_version.c`: runtime version, configuration checks, and ABI link guards.
 - `src/mxsd_dom.c`: document parsing, namespaces, elements, and content models.
 - `src/mxsd_value.c`: simple datatypes, whitespace, and facets.
 - `src/mxsd_regex.c`: bounded XSD regular-expression parser and matcher.
 - `src/mxsd_unicode.c`: generated Unicode category and block tables.
 - `src/mxsd_identity.c`: `unique`, `key`, `keyref`, and restricted XPath.
 - `src/mxsd_stream.c`: bounded event-driven validator.
+- `src/mxsd_model.c`: shared bounded continuation pool for nested content models.
+- `src/mxsd_xml_stream.c`: incremental raw-XML tokenizer feeding the streaming validator.
 - `src/mxsd_bind.c`: typed binding reader and writer for `mxsdc --bindings`.
+- `src/mxsd_bind_stream.c`: single-pass typed subtree callbacks for `--stream-bind`.
+- `src/mxsd_bind_internal.h`: shared private arena and scalar-conversion helpers.
 - `src/mxsd_xml_builtin.c`: portable allocation-free XML backend.
 - `src/mxsd_xml_mxml.c`: optional Mini-XML 4 adapter.
 - `src/mxsd_internal.h` and `src/mxsd_xml.h`: private runtime contracts.
 - `tests/`: compiler, runtime, conformance, Zephyr Twister, and optional W3C tests.
+- `tests/benchmark/`: opt-in comparisons; `streaming/` is the paired typed-binding
+  protocol, with shared value consumption, memory/latency measurements, and flag audits.
 - `fuzz/`: libFuzzer and Atheris targets with bounded seed corpora.
 - `samples/host/`: cross-platform CMake example.
-- `samples/zephyr/`: Zephyr examples: `basic` ztest suite and `bindings` application.
+- `samples/zephyr/`: Zephyr examples: `basic` ztest suite plus `bindings`, `rest`, and
+  interactive `weather` applications.
 - `zephyr/`: external-module CMake, Kconfig, and metadata.
 - `doc/`: Sphinx guide and Doxygen API configuration.
 - `.github/workflows/`: format, build, conformance, CodeQL, and documentation CI.
 
 Keep public declarations in `include/`; do not expose private runtime helpers.
 Generated validators must depend only on the public API.
+
+Review runtime, descriptor, and binding epochs for public layout or generated
+contract changes. Incompatible changes require the affected epoch increments,
+migration notes, and a minor (not patch) release during 0.x. Keep embedded
+compiler/header release metadata synchronized with CMake. New public limit
+macros must be included in the runtime configuration stamp and its tests.
 
 ## Build and test
 
@@ -209,3 +231,8 @@ pushes to `main` and validates it on pull requests.
 
 Before handing off a change, report which build/test/documentation commands
 were run and call out any platform or optional suite that was not available.
+
+For performance comparisons, keep validation/extracted values, fragment sizes,
+target/compiler options (including external XSD/e runtime options), and common
+resource ceilings aligned. Keep XML measurements separate from HTTP/TLS; do not
+call virtual QEMU rates physical-MCU throughput or ROM payload physical Flash.

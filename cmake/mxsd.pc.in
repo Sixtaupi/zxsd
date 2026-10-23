@@ -1,0 +1,10 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: mxsd
+Description: Bounded XML Schema validation runtime for embedded C
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lmxsd
+Cflags: -I${includedir}

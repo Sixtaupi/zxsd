@@ -21,6 +21,36 @@
 
 static const char *stream_ns(const char *namespace_uri);
 
+/** Reset one reusable stack frame without clearing its large child history. */
+static void stream_reset_frame(mxsd_stream_frame_t *frame)
+{
+	frame->expected_name = NULL;
+	frame->expected_namespace = NULL;
+	frame->type = MXSD_T_STRING;
+	frame->complex_type = NULL;
+	frame->simple_type = NULL;
+	frame->default_value = NULL;
+	frame->fixed_value = NULL;
+	memset(frame->seen_attributes, 0, sizeof(frame->seen_attributes));
+	memset(frame->child_counts, 0, sizeof(frame->child_counts));
+	frame->sequence_index = 0u;
+	frame->incremental_model = 0;
+	frame->model_states = 0u;
+	frame->model_occurrences = 0u;
+	frame->child_particle_table_count = 0u;
+	/* Token and table entries below their counts are overwritten before use. */
+	frame->text_length = 0u;
+	frame->child_count = 0u;
+	frame->nillable = 0;
+	frame->nilled = 0;
+	frame->content_started = 0;
+	frame->skip_validation = 0;
+	frame->namespace_base = 0u;
+	frame->local_name[0] = '\0';
+	frame->namespace_uri[0] = '\0';
+	frame->text[0] = '\0';
+}
+
 /** Release the optional XML copy retained for streamed identity constraints. */
 static void stream_release_identity(mxsd_stream_t *stream)
 {
@@ -161,10 +191,27 @@ static const char *stream_ns(const char *namespace_uri)
 static void stream_prepare_parser(const mxsd_stream_t *stream, xml_parser_t *parser)
 {
 	size_t index;
-	memset(parser, 0, sizeof(*parser));
+
+	/* Simple-value validation only observes this metadata. Avoid clearing the
+	 * parser's large DOM identity scratch areas for every streamed value. */
+	parser->input = NULL;
+	parser->length = 0u;
+	parser->position = 0u;
+	parser->depth = 0u;
+	parser->namespace_count = 0u;
+	parser->global_elements = NULL;
+	parser->global_element_count = 0u;
+	parser->global_attributes = NULL;
+	parser->global_attribute_count = 0u;
+	parser->named_types = NULL;
+	parser->named_type_count = 0u;
 	parser->values_are_decoded = 1;
 	parser->notations = stream->schema->notations;
 	parser->notation_count = stream->schema->notation_count;
+	parser->mixed_content = 0;
+	parser->id_count = 0u;
+	parser->idref_count = 0u;
+	parser->identity_text_length = 0u;
 	for (index = 0u; index < stream->namespace_count; ++index) {
 		parser->namespaces[index].prefix.data = stream->namespaces[index].prefix;
 		parser->namespaces[index].prefix.length = strlen(stream->namespaces[index].prefix);
@@ -404,6 +451,198 @@ static int stream_particle_can_start(const mxsd_particle_t *particle, const mxsd
 	return 0;
 }
 
+/** Content models whose occurrence state can be updated without child history. */
+enum {
+	STREAM_MODEL_HISTORY,
+	STREAM_MODEL_LEAF,
+	STREAM_MODEL_SEQUENCE,
+	STREAM_MODEL_ALL,
+	STREAM_MODEL_CHOICE,
+	STREAM_MODEL_REPEATED_CHOICE,
+	STREAM_MODEL_NESTED
+};
+
+/** Return whether a particle consumes exactly one element per occurrence. */
+static int stream_particle_is_leaf(const mxsd_particle_t *particle)
+{
+	return particle->kind == MXSD_PARTICLE_ELEMENT || particle->kind == MXSD_PARTICLE_ANY;
+}
+
+/** Select a bounded cursor after xsi:type has selected the effective model. */
+static int stream_incremental_model(const mxsd_particle_t *particle)
+{
+	size_t index;
+	int singleton_branches = 1;
+
+	if (particle == NULL) {
+		return STREAM_MODEL_HISTORY;
+	}
+	if (stream_particle_is_leaf(particle)) {
+		return STREAM_MODEL_LEAF;
+	}
+	if (particle->child_count > MXSD_MAX_PARTICLES) {
+		return STREAM_MODEL_HISTORY;
+	}
+	for (index = 0u; index < particle->child_count; ++index) {
+		const mxsd_particle_t *child = &particle->children[index];
+
+		if (!stream_particle_is_leaf(child)) {
+			return STREAM_MODEL_HISTORY;
+		}
+		if (child->min_occurs != 1u || child->max_occurs != 1u) {
+			singleton_branches = 0;
+		}
+	}
+	if (particle->max_occurs <= 1u) {
+		switch (particle->kind) {
+		case MXSD_PARTICLE_SEQUENCE:
+			return STREAM_MODEL_SEQUENCE;
+		case MXSD_PARTICLE_ALL:
+			return STREAM_MODEL_ALL;
+		case MXSD_PARTICLE_CHOICE:
+			return STREAM_MODEL_CHOICE;
+		default:
+			return STREAM_MODEL_HISTORY;
+		}
+	}
+	/* With at most one mandatory iteration, greedy flat sequences never need
+	 * sibling look-ahead to reserve tokens for later mandatory iterations. */
+	if (particle->kind == MXSD_PARTICLE_SEQUENCE && particle->min_occurs <= 1u) {
+		return STREAM_MODEL_SEQUENCE;
+	}
+	return particle->kind == MXSD_PARTICLE_CHOICE && singleton_branches
+		       ? STREAM_MODEL_REPEATED_CHOICE
+		       : STREAM_MODEL_HISTORY;
+}
+
+/** Return whether every direct term has met its minimum in the current iteration. */
+static int stream_incremental_terms_complete(const mxsd_stream_frame_t *frame)
+{
+	const mxsd_particle_t *model = frame->complex_type->particle;
+	size_t index;
+
+	for (index = 0u; index < model->child_count; ++index) {
+		if (frame->child_counts[index] < model->children[index].min_occurs) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/** Consume a known leaf using counters and a monotonic sequence/branch cursor. */
+static int stream_incremental_consume(mxsd_stream_frame_t *frame, const mxsd_particle_t *leaf)
+{
+	const mxsd_particle_t *model = frame->complex_type->particle;
+	size_t index;
+	unsigned long *count;
+
+	if (model->max_occurs == 0u) {
+		return 0;
+	}
+	if (frame->incremental_model == STREAM_MODEL_LEAF ||
+	    frame->incremental_model == STREAM_MODEL_REPEATED_CHOICE) {
+		count = &frame->child_counts[0];
+		if (model->max_occurs != ULONG_MAX && *count >= model->max_occurs) {
+			return 0;
+		}
+	} else {
+		/* leaf belongs to this flat group's child array; no sibling history is read. */
+		index = (size_t)(leaf - model->children);
+		count = &frame->child_counts[index];
+		if (frame->incremental_model == STREAM_MODEL_SEQUENCE) {
+			if (index < frame->sequence_index ||
+			    (leaf->max_occurs != ULONG_MAX && *count >= leaf->max_occurs)) {
+				if (!stream_incremental_terms_complete(frame) ||
+				    (model->max_occurs != ULONG_MAX &&
+				     frame->model_occurrences >= model->max_occurs)) {
+					return 0;
+				}
+				memset(frame->child_counts, 0,
+				       model->child_count * sizeof(frame->child_counts[0]));
+				frame->sequence_index = 0u;
+				if (frame->model_occurrences != ULONG_MAX) {
+					frame->model_occurrences++;
+				}
+			} else if (frame->child_count == 0u) {
+				frame->model_occurrences = 1u;
+			}
+			while (frame->sequence_index < index) {
+				size_t skipped = frame->sequence_index;
+
+				if (frame->child_counts[skipped] <
+				    model->children[skipped].min_occurs) {
+					return 0;
+				}
+				frame->sequence_index++;
+			}
+		} else if (frame->incremental_model == STREAM_MODEL_CHOICE) {
+			if (frame->child_count != 0u && frame->sequence_index != index) {
+				return 0;
+			}
+			frame->sequence_index = index;
+		}
+		if (leaf->max_occurs != ULONG_MAX && *count >= leaf->max_occurs) {
+			return 0;
+		}
+	}
+	/* ULONG_MAX denotes unbounded; keep its counter saturated rather than wrapping. */
+	if (*count != ULONG_MAX) {
+		(*count)++;
+	}
+	return 1;
+}
+
+/** Check the remaining minimum occurrences when an incremental model closes. */
+static int stream_incremental_finish(const mxsd_stream_frame_t *frame)
+{
+	const mxsd_particle_t *model = frame->complex_type->particle;
+	size_t index;
+
+	if (frame->child_count == 0u) {
+		return stream_particle_accepts_empty(model);
+	}
+	if (frame->incremental_model == STREAM_MODEL_LEAF ||
+	    frame->incremental_model == STREAM_MODEL_REPEATED_CHOICE) {
+		return frame->child_counts[0] >= model->min_occurs;
+	}
+	if (frame->incremental_model == STREAM_MODEL_CHOICE) {
+		index = frame->sequence_index;
+		return frame->child_counts[index] >= model->children[index].min_occurs;
+	}
+	return stream_incremental_terms_complete(frame);
+}
+
+/** Resolve one compact child token to its leaf-particle descriptor. */
+static const mxsd_particle_t *stream_child_particle(const mxsd_stream_frame_t *frame,
+						    size_t position)
+{
+	uint16_t id = frame->child_particle_ids[position];
+
+	return id < frame->child_particle_table_count ? frame->child_particle_table[id] : NULL;
+}
+
+/** Intern a leaf particle and return its compact per-frame token. */
+static int stream_child_particle_id(mxsd_stream_frame_t *frame, const mxsd_particle_t *particle,
+				    uint16_t *id)
+{
+	size_t index;
+
+	for (index = 0u; index < frame->child_particle_table_count; ++index) {
+		if (frame->child_particle_table[index] == particle) {
+			*id = (uint16_t)index;
+			return 1;
+		}
+	}
+	if (frame->child_particle_table_count >= MXSD_MAX_PARTICLES ||
+	    frame->child_particle_table_count > UINT16_MAX) {
+		return 0;
+	}
+	index = frame->child_particle_table_count++;
+	frame->child_particle_table[index] = particle;
+	*id = (uint16_t)index;
+	return 1;
+}
+
 static const mxsd_particle_t *stream_homogeneous_leaf(const mxsd_particle_t *particle)
 {
 	const mxsd_particle_t *leaf = NULL;
@@ -461,7 +700,7 @@ static unsigned long stream_consecutive_starts(const mxsd_stream_frame_t *frame,
 	unsigned long count = 0u;
 
 	while (position < frame->child_count &&
-	       stream_particle_can_start(particle, frame->child_particles[position])) {
+	       stream_particle_can_start(particle, stream_child_particle(frame, position))) {
 		position++;
 		count++;
 	}
@@ -481,7 +720,7 @@ static int stream_match_particle_once(const mxsd_stream_frame_t *frame,
 	*matched = 0;
 	if (particle->kind == MXSD_PARTICLE_ELEMENT || particle->kind == MXSD_PARTICLE_ANY) {
 		if (*position < frame->child_count &&
-		    frame->child_particles[*position] == particle) {
+		    stream_child_particle(frame, *position) == particle) {
 			(*position)++;
 			*matched = 1;
 		}
@@ -515,7 +754,8 @@ static int stream_match_particle_once(const mxsd_stream_frame_t *frame,
 			const mxsd_particle_t *child = &particle->children[index];
 
 			if (*position < frame->child_count &&
-			    stream_particle_can_start(child, frame->child_particles[*position])) {
+			    stream_particle_can_start(child,
+						      stream_child_particle(frame, *position))) {
 				mxsd_particle_t limited;
 				unsigned long count;
 
@@ -549,8 +789,8 @@ static int stream_match_particle_once(const mxsd_stream_frame_t *frame,
 
 				if (*position < frame->child_count &&
 				    counts[index] < child->max_occurs &&
-				    stream_particle_can_start(child,
-							      frame->child_particles[*position])) {
+				    stream_particle_can_start(
+					    child, stream_child_particle(frame, *position))) {
 					int one;
 
 					if (!stream_match_particle_once(frame, child, position, 0,
@@ -581,11 +821,15 @@ static int stream_consume_particle(const mxsd_stream_frame_t *frame,
 {
 	*consumed = 0u;
 	while (*consumed < particle->max_occurs && *position < frame->child_count &&
-	       stream_particle_can_start(particle, frame->child_particles[*position])) {
+	       stream_particle_can_start(particle, stream_child_particle(frame, *position))) {
 		int matched;
 		int prefer_minimum = force_minimum || *consumed + 1u < particle->min_occurs;
 
-		if (!prefer_minimum && particle->max_occurs > 1u &&
+		/* A leaf consumes exactly one token per occurrence, so there is no
+		 * ambiguous inner repetition to protect with look-ahead. Rescanning
+		 * the remaining tokens here would make a plain repeated element O(n²). */
+		if (!prefer_minimum && particle->kind != MXSD_PARTICLE_ELEMENT &&
+		    particle->kind != MXSD_PARTICLE_ANY && particle->max_occurs > 1u &&
 		    stream_homogeneous_leaf(particle) != NULL) {
 			unsigned long maximum = stream_particle_one_maximum(particle);
 
@@ -746,6 +990,13 @@ mxsd_result_t mxsd_stream_init(mxsd_stream_t *stream, const mxsd_schema_t *schem
 void mxsd_stream_dispose(mxsd_stream_t *stream)
 {
 	if (stream != NULL) {
+		size_t index;
+
+		for (index = 0u; index < stream->depth; ++index) {
+			if (stream->frames[index].model_states != 0u) {
+				mxsd_model_release(stream, &stream->frames[index]);
+			}
+		}
 		stream_release_identity(stream);
 	}
 }
@@ -777,6 +1028,17 @@ mxsd_result_t mxsd_start_content(mxsd_stream_t *stream)
 				return stream_fail(stream, MXSD_ERR_MISSING_ATTRIBUTE,
 						   frame->expected_name);
 			}
+		}
+		frame->incremental_model = stream_incremental_model(frame->complex_type->particle);
+		if (frame->incremental_model == STREAM_MODEL_HISTORY &&
+		    frame->complex_type->particle != NULL &&
+		    mxsd_model_supported(frame->complex_type->particle)) {
+			mxsd_error_t error = mxsd_model_init(stream, frame);
+
+			if (error != MXSD_OK) {
+				return stream_fail(stream, error, frame->expected_name);
+			}
+			frame->incremental_model = STREAM_MODEL_NESTED;
 		}
 	}
 	frame->content_started = 1;
@@ -815,7 +1077,7 @@ mxsd_result_t mxsd_start_element(mxsd_stream_t *stream, const char *namespace_ur
 			return stream_fail(stream, MXSD_ERR_INVALID_VALUE, parent->expected_name);
 		}
 		frame = &stream->frames[stream->depth];
-		memset(frame, 0, sizeof(*frame));
+		stream_reset_frame(frame);
 		if (parent->skip_validation) {
 			parent->child_count++;
 			frame->skip_validation = 1;
@@ -826,15 +1088,35 @@ mxsd_result_t mxsd_start_element(mxsd_stream_t *stream, const char *namespace_ur
 			const mxsd_particle_t *leaf =
 				stream_find_leaf(stream, parent->complex_type->particle,
 						 namespace_uri, local_name, &substitute);
+			uint16_t particle_id;
 
 			if (leaf == NULL) {
 				return stream_fail(stream, MXSD_ERR_UNEXPECTED_ELEMENT, local_name);
 			}
-			if (parent->child_count >= MXSD_STREAM_CHILD_CAPACITY) {
+			if (parent->incremental_model == STREAM_MODEL_NESTED) {
+				mxsd_error_t error = mxsd_model_consume(stream, parent, leaf);
+
+				if (error != MXSD_OK) {
+					return stream_fail(stream, error, parent->expected_name);
+				}
+			} else if (parent->incremental_model != STREAM_MODEL_HISTORY) {
+				if (!stream_incremental_consume(parent, leaf)) {
+					return stream_fail(stream, MXSD_ERR_ELEMENT_ORDER,
+							   parent->expected_name);
+				}
+			} else {
+				if (parent->child_count >= MXSD_STREAM_CHILD_CAPACITY ||
+				    !stream_child_particle_id(parent, leaf, &particle_id)) {
+					return stream_fail(stream, MXSD_ERR_STREAM_LIMIT,
+							   parent->expected_name);
+				}
+				parent->child_particle_ids[parent->child_count] = particle_id;
+			}
+			if (parent->child_count == SIZE_MAX) {
 				return stream_fail(stream, MXSD_ERR_STREAM_LIMIT,
 						   parent->expected_name);
 			}
-			parent->child_particles[parent->child_count++] = leaf;
+			parent->child_count++;
 			if (leaf->kind == MXSD_PARTICLE_ELEMENT) {
 				element = leaf->element;
 				stream_set_element(frame, element, substitute);
@@ -899,7 +1181,7 @@ mxsd_result_t mxsd_start_element(mxsd_stream_t *stream, const char *namespace_ur
 		int unbound = stream->schema->root_name == NULL;
 
 		frame = &stream->frames[0];
-		memset(frame, 0, sizeof(*frame));
+		stream_reset_frame(frame);
 		if (!unbound &&
 		    !stream_name_equal(local_name, namespace_uri, stream->schema->root_name,
 				       stream->schema->root_namespace_uri)) {
@@ -1298,11 +1580,21 @@ mxsd_result_t mxsd_end_element(mxsd_stream_t *stream, const char *namespace_uri,
 	if (!frame->skip_validation && !frame->nilled && frame->type == MXSD_T_COMPLEX &&
 	    frame->complex_type != NULL && !frame->complex_type->has_simple_content) {
 		if (frame->complex_type->particle != NULL) {
-			if (!stream_validate_particle(frame)) {
+			mxsd_error_t error = MXSD_OK;
+
+			if (frame->incremental_model == STREAM_MODEL_NESTED) {
+				error = mxsd_model_finish(stream, frame);
+			} else if (!(frame->incremental_model != STREAM_MODEL_HISTORY
+					     ? stream_incremental_finish(frame)
+					     : stream_validate_particle(frame))) {
+				error = MXSD_ERR_ELEMENT_ORDER;
+			}
+			if (error != MXSD_OK) {
 				return stream_fail(stream,
-						   frame->child_count == 0u
+						   error == MXSD_ERR_ELEMENT_ORDER &&
+								   frame->child_count == 0u
 							   ? MXSD_ERR_MISSING_ELEMENT
-							   : MXSD_ERR_ELEMENT_ORDER,
+							   : error,
 						   frame->expected_name);
 			}
 		} else if (frame->complex_type->model == MXSD_CHOICE) {
@@ -1368,6 +1660,9 @@ mxsd_result_t mxsd_end_element(mxsd_stream_t *stream, const char *namespace_uri,
 		return stream_fail(stream, MXSD_ERR_STREAM_LIMIT, local_name);
 	}
 	stream->namespace_count = frame->namespace_base;
+	if (frame->model_states != 0u) {
+		mxsd_model_release(stream, frame);
+	}
 	stream->depth--;
 	if (stream->depth == 0u) {
 		stream->finished = 1;

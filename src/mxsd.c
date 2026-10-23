@@ -74,6 +74,7 @@ const char *mxsd_error_string(mxsd_error_t error)
 		"resource limit exceeded",
 		"output failure",
 		"unsupported by binding",
+		"incompatible runtime ABI or configuration",
 	};
 
 	if ((unsigned)error >= sizeof(messages) / sizeof(messages[0])) {

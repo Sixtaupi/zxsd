@@ -10,6 +10,11 @@ validator, and the reader and writer live in ``src/mxsd_bind.c``. They are
 interpreted from constant descriptor tables, like the validator, and never use
 the heap.
 
+Generated bindings check runtime, descriptor, and binding ABI epochs at compile
+and link time. See :doc:`compatibility` before upgrading or linking a separately
+built runtime; use ``mxsd_bind_check_runtime()`` at that boundary. Regenerate
+all binding headers and sources together when the XSD or options change.
+
 Generating bindings
 *******************
 
@@ -136,6 +141,112 @@ A valid document can still be impossible to represent. ``xsi:type`` naming a
 derived type, or ``xsi:nil="true"``, makes the reader return
 ``MXSD_ERR_UNSUPPORTED`` instead of silently dropping information.
 
+Reading fragments with typed callbacks
+****************************************
+
+Select a root or a nested element at generation time:
+
+.. code-block:: console
+
+   $ python3 mxsdc met_weather.xsd -o generated \
+       --stream-bind weatherdata/product/time
+
+This emits the ordinary ``.mxsd.[ch]`` validator, plus ``.bind.[ch]`` containing
+the selected type and a typed reader/callback interface. Full-document object
+bindings are not enabled unless ``--bindings`` is also passed. Unselected
+ancestors and siblings need not be representable as C structures: they still
+receive complete schema validation, including facets and identity constraints.
+The selected subtree itself follows the ordinary binding support contract.
+
+.. code-block:: c
+
+   static met_weather_weatherdata_product_time_reader_t reader;
+   static met_weather_timeType_t forecast;
+   static unsigned char storage[4096];
+   static mxsd_bind_arena_t arena;
+
+   static mxsd_bind_action_t on_forecast(void *context,
+                                       const met_weather_timeType_t *value)
+   {
+           /* Copy needed values into application-owned storage here. */
+           return MXSD_BIND_CONTINUE;
+   }
+
+   mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+   mxsd_result_t r = met_weather_weatherdata_product_time_reader_init(
+           &reader, &forecast, &arena, on_forecast, application_context, NULL);
+   /* For every received HTTP body fragment, while r.code == MXSD_OK: */
+   r = met_weather_weatherdata_product_time_reader_feed(&reader, bytes, count);
+   /* Once the complete HTTP body has arrived: */
+   r = met_weather_weatherdata_product_time_reader_finish(&reader);
+   met_weather_weatherdata_product_time_reader_dispose(&reader);
+
+In CMake use ``mxsd_generate(TARGET app SCHEMA met_weather.xsd STREAM_BIND
+weatherdata/product/time)``. ``STREAM_BIND`` accepts a list of paths. On Zephyr,
+enable ``CONFIG_MXSD_BINDINGS``. The generic functions are
+``mxsd_bind_stream_init/feed/finish/dispose()``; generated wrappers adapt their
+callbacks without nonportable function-pointer conversions.
+
+Path rules
+==========
+
+Paths are finite absolute element paths, optionally starting with ``/``.
+Local names work when unambiguous; use ``{namespace-uri}name`` for an explicit
+expanded name. URI slashes inside braces are preserved. There are no prefixes,
+wildcards, predicates, descendant axes, attributes, or runtime XPath engine.
+Unknown or ambiguous steps, duplicate selections, and selected constructs
+outside the binding subset fail generation explicitly. An element with a
+simple type is delivered as a generated structure with a ``value`` member.
+Finite paths through recursive schema types are supported.
+
+Each repeated ``--stream-bind`` option generates an independent reader for
+that selection, not simultaneous subscriptions on one reader. Reader symbols
+join local path names with underscores; deterministic suffixes resolve naming
+collisions. The ordinary binding output stays unchanged without the option.
+
+Lifetime and validation
+=======================
+
+The raw XML is parsed and validated once. A callback runs after the selected
+element closes successfully. Values split across fragments are reassembled
+by the validator's existing bounded text storage, then converted with the
+same normalization, native integer/boolean/enum, and default rules as the
+full-document reader. No XML substring is retained or reparsed for binding.
+
+The caller provides a reusable output structure and an arena. Their contents
+and pointers are valid **only during the callback**. The output is cleared
+and the arena restored to its initial usage after each delivery, on error,
+and on dispose. Do not feed, finish, dispose, or reset the arena from inside
+the callback. Copy retained values into independent application storage.
+
+Return ``MXSD_BIND_CONTINUE`` to receive later occurrences,
+``MXSD_BIND_VALIDATE_ONLY`` to stop materializing but keep validating all
+remaining input, or ``MXSD_BIND_CALLBACK_ERROR`` to stop with
+``MXSD_ERR_OUTPUT``. Later invalid XML or a failed key/keyref can invalidate
+the document **after a callback already ran**. Treat deliveries as provisional
+and only publish application results after a successful ``*_reader_finish()``.
+The weather sample follows this rule even after retaining its first summary.
+
+Memory and failure rules
+========================
+
+There is no implicit heap allocation. Streaming binding adds a fixed per-depth
+binding stack to ``mxsd_xml_reader_t``. Only the currently selected subtree is
+materialized. Its arrays grow geometrically in the explicit arena, without
+input-based preallocation from ``maxOccurs``. Old array blocks remain in the
+bump arena until delivery, so reserve growth/alignment overhead as well as
+strings and nested structures. No repeated value is silently truncated.
+
+The arena must fit the largest selected occurrence, not the whole response.
+Choose a finer selection when one subtree is too large.
+``MXSD_ERR_RESOURCE_LIMIT`` reports arena exhaustion; parser/validator capacities
+keep their ordinary errors. The first failure is sticky, and no later callback
+runs after it. A derived ``xsi:type`` or unsupported nil inside a materialized
+subtree is rejected, while unselected dynamic content is still validated.
+For document-wide identity constraints, pass an explicit scratch allocator to
+the generated initializer; the same bounded canonical-XML scratch requirement
+as the event validator applies. Dispose releases that scratch even on error.
+
 Writing
 *******
 
@@ -189,10 +300,15 @@ because a fixed C structure cannot represent them without losing information:
 
 * element wildcards (``xs:any``) and attribute wildcards (``xs:anyAttribute``);
 * mixed content and ``xs:anyType`` elements;
-* model groups that repeat (``maxOccurs`` greater than one on ``sequence``,
-  ``choice`` or ``all``), since the interleaving of their elements would be lost;
+* repeating ``choice`` and ``all`` groups, finite repeating ``sequence``
+  groups, and unbounded ``sequence`` groups with required members, since their
+  occurrence correlation would be lost;
 * the same element name at several places of one content model;
 * nillable elements, abstract elements, and heads of substitution groups;
 * abstract complex types, which are only usable through ``xsi:type``;
 * ``QName`` and ``NOTATION`` values, whose meaning depends on namespace
   declarations.
+
+An unbounded ``sequence`` whose members are all optional and uniquely named is
+representable: each member is generated as its own typed array. This supports
+schemas such as MET Norway's weather format without discarding XML content.

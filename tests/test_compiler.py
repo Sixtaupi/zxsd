@@ -1,4 +1,4 @@
-import pathlib, subprocess, sys, tempfile
+import pathlib, re, shutil, subprocess, sys, tempfile
 
 compiler, schema, expected, build = map(pathlib.Path, sys.argv[1:])
 with tempfile.TemporaryDirectory(dir=build) as a, tempfile.TemporaryDirectory(dir=build) as b:
@@ -716,6 +716,12 @@ for body, diagnostic in (
         "mixed content",
     ),
     (
+        '<xs:element name="r"><xs:complexType><xs:choice maxOccurs="2">'
+        + ITEM
+        + "</xs:choice></xs:complexType></xs:element>",
+        "repeating xs:choice group",
+    ),
+    (
         '<xs:element name="r"><xs:complexType><xs:sequence maxOccurs="2">'
         + ITEM
         + "</xs:sequence></xs:complexType></xs:element>",
@@ -767,6 +773,20 @@ for body, diagnostic in (
         # A failed binding generation leaves no partial output behind.
         out = pathlib.Path(d) / "out"
         assert not out.exists() or not list(out.iterdir()), body
+
+# A repeated sequence of optional, uniquely named members maps losslessly to
+# one array per member. This is the shape used by MET Norway's weather schema.
+with tempfile.TemporaryDirectory(dir=build) as d:
+    p = compile_bindings(
+        d,
+        '<xs:element name="r"><xs:complexType><xs:sequence maxOccurs="unbounded">'
+        '<xs:element name="temperature" type="xs:decimal" minOccurs="0"/>'
+        '<xs:element name="humidity" type="xs:decimal" minOccurs="0"/>'
+        "</xs:sequence></xs:complexType></xs:element>",
+    )
+    assert p.returncode == 0, p.stderr
+    header = (pathlib.Path(d) / "out" / "bind.bind.h").read_text(encoding="utf-8")
+    assert "temperature_count" in header and "humidity_count" in header
 
 # Root selection, and the validator for the remaining roots is still generated.
 TWO_ROOTS = (
@@ -825,3 +845,434 @@ with tempfile.TemporaryDirectory(dir=build) as d:
         assert declaration in header, (declaration, header)
     # Whitespace-equivalent enumeration values collapse to a single constant.
     assert "BIND_E_A_B_3" not in header
+
+
+def compile_zephyr_profile(directory, body, *options):
+    """Generate a profile from a self-contained schema without network dependencies."""
+    source = pathlib.Path(directory) / "profile.xsd"
+    source.write_text(
+        '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">' + body + "</xs:schema>",
+        encoding="utf-8",
+    )
+    return subprocess.run(
+        [
+            sys.executable,
+            str(compiler),
+            str(source),
+            "-o",
+            str(pathlib.Path(directory) / "out"),
+            "--zephyr-config",
+            *options,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+def profile_values(directory, stem="profile"):
+    """Read active assignments separately from intentionally commented policy suggestions."""
+    fragment = (pathlib.Path(directory) / "out" / (stem + ".conf")).read_text(encoding="utf-8")
+    values = dict(re.findall(r"^CONFIG_MXSD_(\w+)=(\d+)$", fragment, re.MULTILINE))
+    return fragment, {key: int(value) for key, value in values.items()}
+
+
+# Optional configuration output is deterministic and preserves ordinary descriptors.
+with (
+    tempfile.TemporaryDirectory(dir=build) as first,
+    tempfile.TemporaryDirectory(dir=build) as second,
+):
+    for directory in (first, second):
+        subprocess.run(
+            [
+                sys.executable,
+                str(compiler),
+                str(schema),
+                "-o",
+                str(pathlib.Path(directory) / "out"),
+                "--zephyr-config",
+                "--bindings",
+            ],
+            check=True,
+        )
+    for name in (
+        "device.conf",
+        "device.limits.h",
+        "device.mxsd.c",
+        "device.mxsd.h",
+        "device.bind.c",
+        "device.bind.h",
+    ):
+        assert (pathlib.Path(first) / "out" / name).read_bytes() == (
+            pathlib.Path(second) / "out" / name
+        ).read_bytes(), name
+    fragment, values = profile_values(first, "device")
+    assert values["MAX_PARTICLES"] == 3 and values["MAX_ATTRIBUTES"] == 1, values
+    assert values["MAX_DEPTH"] == 2 and values["MAX_SCHEMA_COMPLEXITY"] == 10, values
+    assert values["STREAM_CHILD_CAPACITY"] == 1, values
+    assert values["STREAM_MODEL_CAPACITY"] == 0, values
+    assert "CONFIG_MXSD_BINDINGS=y" in fragment
+    for policy in ("MAX_INPUT", "MAX_TEXT_LENGTH", "MAX_NAMESPACES", "XML_TOKEN_CAPACITY"):
+        assert policy not in values and "# CONFIG_MXSD_" + policy + "=" in fragment, policy
+    generated = (pathlib.Path(first) / "out" / "device.mxsd.c").read_text(encoding="utf-8")
+    assert generated.replace('#include "device.limits.h"\n', "") == (
+        expected / "device.mxsd.c"
+    ).read_text(encoding="utf-8")
+
+# Finite graph depth includes nested anonymous types; regex sizing counts UTF-8 bytes,
+# runtime AST nodes, parentheses, and character-class subtraction independently.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    result = compile_zephyr_profile(
+        directory,
+        '<xs:simpleType name="Letters"><xs:restriction base="xs:string">'
+        '<xs:pattern value="abcdefghij"/></xs:restriction></xs:simpleType>'
+        '<xs:simpleType name="Unicode"><xs:restriction base="xs:string">'
+        '<xs:pattern value="éééééééééé"/></xs:restriction></xs:simpleType>'
+        '<xs:simpleType name="Groups"><xs:restriction base="xs:string">'
+        '<xs:pattern value="(((x)))"/></xs:restriction></xs:simpleType>'
+        '<xs:simpleType name="Subtraction"><xs:restriction base="xs:string">'
+        '<xs:pattern value="[a-z-[b-d-[c]]]"/></xs:restriction></xs:simpleType>'
+        '<xs:element name="r"><xs:complexType><xs:sequence>'
+        '<xs:element name="nested"><xs:complexType><xs:sequence>'
+        '<xs:element name="text" type="Letters"/></xs:sequence></xs:complexType></xs:element>'
+        "</xs:sequence></xs:complexType></xs:element>",
+    )
+    assert result.returncode == 0, result.stderr
+    _, values = profile_values(directory)
+    assert values["MAX_PATTERN_LENGTH"] == 20, values
+    assert values["MAX_REGEX_NODES"] == 19 and values["MAX_REGEX_DEPTH"] == 3, values
+    assert values["MAX_DEPTH"] == 3, values
+
+    # Verify the generated diagnostic at its exact accepted and first rejected value.
+    cc = shutil.which("cc")
+    if cc:
+        out = pathlib.Path(directory) / "out"
+        for nodes, success in ((19, True), (18, False)):
+            compiled = subprocess.run(
+                [
+                    cc,
+                    "-std=c99",
+                    "-I",
+                    str(compiler.parent / "include"),
+                    "-c",
+                    str(out / "profile.mxsd.c"),
+                    "-o",
+                    str(out / "profile.o"),
+                    "-DMXSD_MAX_REGEX_NODES=" + str(nodes),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert (compiled.returncode == 0) == success, compiled.stderr
+            if not success:
+                assert "requires MXSD_MAX_REGEX_NODES >= 19" in compiled.stderr, compiled.stderr
+
+# Repetitions with multiple mandatory iterations use the shared pool, not history.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    result = compile_zephyr_profile(
+        directory,
+        '<xs:element name="r"><xs:complexType><xs:sequence minOccurs="2" maxOccurs="3">'
+        '<xs:element name="a" type="xs:string"/><xs:element name="b" type="xs:string"/>'
+        "</xs:sequence></xs:complexType></xs:element>",
+    )
+    assert result.returncode == 0, result.stderr
+    fragment, values = profile_values(directory)
+    assert values["STREAM_CHILD_CAPACITY"] == 1, values
+    assert "STREAM_MODEL_CAPACITY" not in values
+    assert "# CONFIG_MXSD_STREAM_MODEL_CAPACITY=128" in fragment, fragment
+    header = (pathlib.Path(directory) / "out" / "profile.limits.h").read_text(encoding="utf-8")
+    assert "#if MXSD_STREAM_CHILD_CAPACITY < 1u" in header, header
+    assert "#if MXSD_STREAM_MODEL_CAPACITY < 1u" in header, header
+
+# Unbounded nested groups need a shared-pool budget, independent of child count.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    result = compile_zephyr_profile(
+        directory,
+        '<xs:element name="r"><xs:complexType><xs:choice maxOccurs="unbounded">'
+        '<xs:element name="a" type="xs:string"/><xs:sequence>'
+        '<xs:element name="b" type="xs:string"/><xs:element name="c" type="xs:string"/>'
+        "</xs:sequence></xs:choice></xs:complexType></xs:element>",
+    )
+    assert result.returncode == 0, result.stderr
+    fragment, values = profile_values(directory)
+    assert values["STREAM_CHILD_CAPACITY"] == 1, values
+    assert "STREAM_MODEL_CAPACITY" not in values
+    assert "alternative repetition partitions" in fragment, fragment
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    weather = compiler.parent / "samples" / "zephyr" / "weather" / "met_weather.xsd"
+    subprocess.run(
+        [
+            sys.executable,
+            str(compiler),
+            str(weather),
+            "-o",
+            str(pathlib.Path(directory) / "out"),
+            "--zephyr-config",
+        ],
+        check=True,
+    )
+    _, values = profile_values(directory, "met_weather")
+    assert values["MAX_PARTICLES"] == 45 and values["MAX_ATTRIBUTES"] == 8, values
+    assert values["MAX_DEPTH"] == 6 and values["STREAM_CHILD_CAPACITY"] == 1, values
+
+    assert values["STREAM_MODEL_CAPACITY"] == 0, values
+
+# Streaming selections resolve schema paths before code generation. Unsupported
+# ancestors are validated but do not need a C representation. Default output is
+# unchanged, and every optional generated file is deterministic.
+with (
+    tempfile.TemporaryDirectory(dir=build) as first,
+    tempfile.TemporaryDirectory(dir=build) as second,
+):
+    fixture = compiler.parent / "tests" / "stream_bindings.xsd"
+    for directory in (first, second):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(compiler),
+                str(fixture),
+                "-o",
+                directory,
+                "--stream-bind",
+                "doc/row",
+                "--stream-bind",
+                "doc/row/label",
+                "--zephyr-config",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+    for path in pathlib.Path(first).iterdir():
+        assert path.read_bytes() == (pathlib.Path(second) / path.name).read_bytes(), path.name
+    header = (pathlib.Path(first) / "stream_bindings.bind.h").read_text(encoding="utf-8")
+    assert "stream_bindings_doc_row_reader_init" in header
+    assert "stream_bindings_doc_row_label_t" in header
+    assert "stream_bindings_doc_read(" not in header
+    assert "struct stream_bindings_Doc" not in header
+    assert "CONFIG_MXSD_BINDINGS=y" in (pathlib.Path(first) / "stream_bindings.conf").read_text()
+    cc = shutil.which("cc")
+    if cc:
+        subprocess.run(
+            [
+                cc,
+                "-std=c99",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-fsyntax-only",
+                "-I",
+                str(compiler.parent / "include"),
+                "-I",
+                first,
+                str(pathlib.Path(first) / "stream_bindings.bind.c"),
+            ],
+            check=True,
+        )
+
+# Clark names can contain URI slashes. Simple roots and finite recursive paths
+# also produce typed callbacks, without enabling full-document object bindings.
+for body, path in (
+    ('<xs:element name="value" type="xs:unsignedByte"/>', "value"),
+    (
+        '<xs:element name="root"><xs:complexType><xs:sequence>'
+        '<xs:element name="value" type="xs:int"/></xs:sequence></xs:complexType></xs:element>',
+        "root/value",
+    ),
+):
+    with tempfile.TemporaryDirectory(dir=build) as directory:
+        source = pathlib.Path(directory) / "selected.xsd"
+        source.write_text(
+            '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">' + body + "</xs:schema>",
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, str(compiler), str(source), "-o", directory, "--stream-bind", path],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    source = pathlib.Path(directory) / "qualified.xsd"
+    source.write_text(
+        '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" '
+        'targetNamespace="https://example.test/schema/v1" elementFormDefault="qualified">'
+        '<xs:element name="root"><xs:complexType><xs:sequence>'
+        '<xs:element name="value" type="xs:int"/></xs:sequence></xs:complexType></xs:element>'
+        "</xs:schema>",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(compiler),
+            str(source),
+            "-o",
+            directory,
+            "--stream-bind",
+            "/{https://example.test/schema/v1}root/{https://example.test/schema/v1}value",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+for paths, diagnostic in (
+    (["doc//row"], "malformed stream path"),
+    (["doc/row/"], "malformed stream path"),
+    (["doc/row[@id='1']"], "only element names"),
+    (["doc/row/missing"], "unknown stream path step"),
+    (["doc/row", "/doc/row"], "duplicate stream selection"),
+    (["doc/meta"], "mixed content"),
+):
+    with tempfile.TemporaryDirectory(dir=build) as directory:
+        out = pathlib.Path(directory) / "out"
+        command = [
+            sys.executable,
+            str(compiler),
+            str(compiler.parent / "tests" / "stream_bindings.xsd"),
+            "-o",
+            str(out),
+        ]
+        for path in paths:
+            command += ["--stream-bind", path]
+        result = subprocess.run(command, capture_output=True, text=True)
+        assert result.returncode != 0 and diagnostic in result.stderr, result.stderr
+        assert not list(out.iterdir()), "failed streaming generation left partial outputs"
+# Direct recursion and recursion introduced solely by xsi:type remain policies.
+for body in (
+    '<xs:complexType name="Node"><xs:sequence><xs:element name="child" type="Node" '
+    'minOccurs="0"/></xs:sequence></xs:complexType><xs:element name="r" type="Node"/>',
+    '<xs:complexType name="Base"/><xs:complexType name="Derived"><xs:complexContent>'
+    '<xs:extension base="Base"><xs:sequence><xs:element name="child" type="Base" '
+    'minOccurs="0"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>'
+    '<xs:element name="r" type="Base"/>',
+):
+    with tempfile.TemporaryDirectory(dir=build) as directory:
+        result = compile_zephyr_profile(directory, body)
+        assert result.returncode == 0, result.stderr
+        fragment, values = profile_values(directory)
+        assert "MAX_DEPTH" not in values and "recursive type graph" in fragment, fragment
+
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    result = compile_zephyr_profile(directory, '<xs:element name="r"/>')
+    assert result.returncode == 0, result.stderr
+    fragment, values = profile_values(directory)
+    assert "MAX_DEPTH" not in values and "wildcard/anyType" in fragment, fragment
+
+# Included/imported components contribute to the same resource envelope.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    foreign = pathlib.Path(directory) / "foreign.xsd"
+    foreign.write_text(
+        '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:foreign">'
+        '<xs:complexType name="T"><xs:sequence>'
+        + "".join('<xs:element name="e%d" type="xs:int"/>' % index for index in range(4))
+        + "</xs:sequence>"
+        + "".join('<xs:attribute name="a%d" type="xs:int"/>' % index for index in range(5))
+        + "</xs:complexType></xs:schema>",
+        encoding="utf-8",
+    )
+    result = compile_zephyr_profile(
+        directory,
+        '<xs:import namespace="urn:foreign" schemaLocation="foreign.xsd"/>'
+        '<xs:element xmlns:f="urn:foreign" name="r" type="f:T"/>',
+    )
+    assert result.returncode == 0, result.stderr
+    _, values = profile_values(directory)
+    assert values["MAX_PARTICLES"] == 4 and values["MAX_ATTRIBUTES"] == 5, values
+    assert values["MAX_SCHEMA_COMPLEXITY"] == 16, values
+
+# UTF-8 schema literals and facets give lower bounds, not lexical upper bounds.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    result = compile_zephyr_profile(
+        directory,
+        '<xs:simpleType name="T"><xs:restriction base="xs:string"><xs:maxLength value="3"/>'
+        '<xs:enumeration value="été"/></xs:restriction></xs:simpleType>'
+        '<xs:element name="r" type="T"/>',
+    )
+    assert result.returncode == 0, result.stderr
+    fragment, values = profile_values(directory)
+    assert "MAX_TEXT_LENGTH" not in values and "lower bound 5 bytes" in fragment, fragment
+    assert "3 character/item/decoded-byte units" in fragment, fragment
+
+# Requirements beyond Zephyr's declared ranges fail without partial artifacts.
+for count, success in ((256, True), (257, False)):
+    with tempfile.TemporaryDirectory(dir=build) as directory:
+        result = compile_zephyr_profile(
+            directory,
+            '<xs:element name="r"><xs:complexType>'
+            + "".join('<xs:attribute name="a%d" type="xs:int"/>' % index for index in range(count))
+            + "</xs:complexType></xs:element>",
+        )
+        assert (result.returncode == 0) == success, result.stderr
+        if success:
+            assert profile_values(directory)[1]["MAX_ATTRIBUTES"] == count
+        else:
+            assert "CONFIG_MXSD_MAX_ATTRIBUTES needs 257" in result.stderr, result.stderr
+            assert not list((pathlib.Path(directory) / "out").iterdir())
+
+# Name capacity counts UTF-8 bytes and the terminating NUL, not XSD code points.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    result = compile_zephyr_profile(
+        directory, '<xs:element name="' + "é" * 70 + '" type="xs:int"/>'
+    )
+    assert result.returncode == 0, result.stderr
+    _, values = profile_values(directory)
+    assert values["STREAM_NAME_CAPACITY"] == 141, values
+
+# Empty alternatives allocate empty nodes but do not allocate redundant ALT nodes.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    result = compile_zephyr_profile(
+        directory,
+        '<xs:simpleType name="T"><xs:restriction base="xs:string"><xs:pattern value="'
+        + "|" * 20
+        + '"/></xs:restriction></xs:simpleType><xs:element name="r" type="T"/>',
+    )
+    assert result.returncode == 0, result.stderr
+    assert profile_values(directory)[1]["MAX_REGEX_NODES"] == 21
+
+# Identity-table cardinality remains an explicit application policy; schema-only
+# field/path sizes are still checked without silently enabling an implicit heap.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    identity = compiler.parent / "tests" / "identity.xsd"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(compiler),
+            str(identity),
+            "-o",
+            str(pathlib.Path(directory) / "out"),
+            "--zephyr-config",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    fragment, values = profile_values(directory, "identity")
+    assert "MAX_IDENTITY_VALUES" not in values
+    assert "# CONFIG_MXSD_MAX_IDENTITY_VALUES=64" in fragment
+    assert "CONFIG_MXSD_NO_HEAP=n" not in fragment
+    header = (pathlib.Path(directory) / "out" / "identity.limits.h").read_text(encoding="utf-8")
+    for name in ("MAX_IDENTITY_CONSTRAINTS", "MAX_IDENTITY_FIELDS", "MAX_XPATH_DEPTH"):
+        assert "#if MXSD_" + name in header, header
+
+# Multiple top-level schemas share one profile, avoiding last-fragment-wins merges.
+with tempfile.TemporaryDirectory(dir=build) as directory:
+    weather = compiler.parent / "samples" / "zephyr" / "weather"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(compiler),
+            str(weather / "nominatim.xsd"),
+            str(weather / "met_weather.xsd"),
+            "-o",
+            str(pathlib.Path(directory) / "out"),
+            "--zephyr-config",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    _, values = profile_values(directory, "nominatim")
+    assert values["MAX_PARTICLES"] == 45 and values["MAX_ATTRIBUTES"] == 14, values
+    assert values["MAX_DEPTH"] == 6 and values["STREAM_CHILD_CAPACITY"] == 1, values

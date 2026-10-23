@@ -32,7 +32,8 @@ config MXSD_MAX_PARTICLES
 	range 1 256
 	help
 	  Maximum number of element particles accepted in one generated complex
-	  type. The runtime keeps one occurrence counter per particle on the stack.
+	  type. The runtime keeps one occurrence counter and one pointer-table entry
+	  per distinct particle on each active streaming frame.
 
 config MXSD_MAX_ATTRIBUTES
 	int "Maximum attributes per element"
@@ -63,6 +64,44 @@ config MXSD_MAX_TEXT_LENGTH
 	range 1 1048576
 	help
 	  Maximum decoded lexical value length and per-frame streaming text buffer.
+
+config MXSD_STREAM_CHILD_CAPACITY
+	int "Maximum child history per streamed element"
+	default 64
+	range 1 65536
+	help
+	  Maximum child tokens retained when the nested-model pool is disabled,
+	  or for hand-built particle trees outside the incremental subset.
+	  Incremental models do not consume this capacity. History storage is
+	  reserved for every configured XML nesting level.
+
+config MXSD_STREAM_MODEL_CAPACITY
+	int "Shared nested content-model continuation slots"
+	default 128
+	range 0 4096
+	help
+	  Fixed continuation/frontier pool shared by all open XML elements.
+	  Handles nested sequences, choices and ambiguous repetition partitions
+	  without retaining child history. Exhaustion reports MXSD_ERR_STREAM_LIMIT.
+	  Zero disables this interpreter and uses bounded child history instead.
+	  Flat content models always keep their counter-based fast path.
+
+config MXSD_STREAM_NAME_CAPACITY
+	int "Streaming name and namespace storage"
+	default 128
+	range 1 4096
+	help
+	  Bytes retained for one local name, namespace URI, or namespace prefix,
+	  including its terminating NUL. Configure enough storage for schema names
+	  and URIs as well as the prefixes accepted from input documents.
+
+config MXSD_XML_TOKEN_CAPACITY
+	int "Maximum incomplete XML token size"
+	default 4096
+	range 64 1048576
+	help
+	  Maximum bytes retained when a raw XML fragment ends inside a tag,
+	  comment, processing instruction, or CDATA section.
 
 config MXSD_MAX_PATTERN_LENGTH
 	int "Maximum XSD regular-expression length"

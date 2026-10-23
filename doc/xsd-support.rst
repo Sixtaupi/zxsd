@@ -5,6 +5,10 @@ XSD 1.0 support
 tests. **Partial** means only the documented subset is implemented.
 **Unsupported** means ``mxsdc`` rejects the construct instead of ignoring it.
 
+The :doc:`compatibility` contract separately defines API/ABI epochs, generated
+format checks, memory configuration requirements, and migration rules. It does
+not change the supported XSD subset or promise full W3C conformance.
+
 Schema structure and types
 **************************
 
@@ -97,6 +101,15 @@ Namespaces and composition
 
 Instance validation
 *******************
+
+Streaming validation uses occurrence counters for eligible flat models and a
+shared, bounded continuation pool for nested sequences/choices and complex
+repetitions. Alternative occurrence partitions are retained and merged, not
+chosen greedily. ``MXSD_STREAM_MODEL_CAPACITY`` bounds this shared workspace;
+exhaustion or excessive epsilon work reports ``MXSD_ERR_STREAM_LIMIT``.
+Setting it to zero selects the old bounded-history matcher for non-flat
+models. ``MXSD_STREAM_CHILD_CAPACITY`` limits only that fallback's child
+history, not repetitions processed by an incremental model.
 
 .. list-table::
    :header-rows: 1

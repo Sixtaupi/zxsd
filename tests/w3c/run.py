@@ -23,10 +23,12 @@ RUNTIME_SOURCES = (
     "mxsd.c",
     "mxsd_dom.c",
     "mxsd_identity.c",
+    "mxsd_model.c",
     "mxsd_regex.c",
     "mxsd_stream.c",
     "mxsd_unicode.c",
     "mxsd_value.c",
+    "mxsd_version.c",
     "mxsd_xml_builtin.c",
 )
 RUNTIME_DEFINES = (

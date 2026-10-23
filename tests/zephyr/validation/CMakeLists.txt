@@ -11,6 +11,7 @@ include(${MXSD_ROOT}/cmake/mxsdGenerate.cmake)
 set(MXSD_TEST_ROOT ${MXSD_ROOT}/tests)
 target_sources(app PRIVATE
   src/main.c
+  ${MXSD_TEST_ROOT}/test_compatibility.c
   ${MXSD_TEST_ROOT}/test_runtime.c
   ${MXSD_TEST_ROOT}/test_advanced.c
   ${MXSD_TEST_ROOT}/test_derivation.c
@@ -20,12 +21,17 @@ target_sources(app PRIVATE
   ${MXSD_TEST_ROOT}/test_composition.c
   ${MXSD_TEST_ROOT}/test_element_semantics.c
   ${MXSD_TEST_ROOT}/test_groups.c
+  ${MXSD_TEST_ROOT}/test_stream_models.c
   ${MXSD_TEST_ROOT}/test_mixed_any.c
   ${MXSD_TEST_ROOT}/test_recursive.c
   ${MXSD_TEST_ROOT}/test_regex.c
   ${MXSD_TEST_ROOT}/test_notation.c
   ${MXSD_TEST_ROOT}/test_declarations.c
-  ${MXSD_TEST_ROOT}/test_bindings.c)
+  ${MXSD_TEST_ROOT}/test_bindings.c
+  ${MXSD_TEST_ROOT}/test_stream_bindings.c
+  ${MXSD_TEST_ROOT}/test_weather_binding.c
+  ${MXSD_ROOT}/samples/zephyr/weather/src/weather_summary.c)
+target_include_directories(app PRIVATE ${MXSD_ROOT}/samples/zephyr/weather/src)
 target_compile_definitions(app PRIVATE MXSD_TEST_NO_MAIN=1)
 
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/device.xsd)
@@ -43,6 +49,7 @@ mxsd_generate(
     ${MXSD_TEST_ROOT}/composition_base.xsd)
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/element_semantics.xsd)
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/groups.xsd)
+mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/stream_models.xsd)
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/mixed_any.xsd)
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/recursive.xsd)
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/regex.xsd)
@@ -52,3 +59,7 @@ mxsd_generate(
   DEPENDS ${MXSD_TEST_ROOT}/notation_formats.xsd)
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/declarations.xsd)
 mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/bindings.xsd BINDINGS)
+mxsd_generate(TARGET app SCHEMA ${MXSD_TEST_ROOT}/stream_bindings.xsd
+  BINDINGS BIND_ROOT row STREAM_BIND doc/row doc/row/label row uniqueDoc/row)
+mxsd_generate(TARGET app SCHEMA ${MXSD_ROOT}/samples/zephyr/weather/met_weather.xsd
+  STREAM_BIND weatherdata/product/time)

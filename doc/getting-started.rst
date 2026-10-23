@@ -8,6 +8,10 @@ Requirements
 * CMake 3.16 or newer;
 * Python 3 to run ``mxsdc`` and the tests.
 
+Prefer a compiler/runtime pair from the same release. On upgrades, follow
+:doc:`compatibility`: legacy unversioned output must be regenerated, and all
+0.x consumers must be rebuilt with matching memory limits and ABI flags.
+
 Build and test the runtime
 **************************
 
@@ -74,7 +78,7 @@ CMake helper to generate and compile it during the build:
 
 .. code-block:: cmake
 
-   include(path/to/mxsd/cmake/mxsdGenerate.cmake)
+   find_package(mxsd CONFIG REQUIRED)
 
    add_executable(application main.c)
    mxsd_generate(TARGET application SCHEMA device.xsd)
@@ -85,6 +89,10 @@ reached through ``xs:include``, ``xs:import``, or ``xs:redefine`` to
 ``DEPENDS`` so CMake regenerates the output when they change. Repeated
 ``BIND_ROOT`` and ``SCHEMA_PATH`` arguments map to repeated compiler options;
 ``MAX_SCHEMA_COMPLEXITY`` sets the compiler limit.
+
+The installed package exports ``mxsd::mxsd``, ``mxsd_generate()``, and the
+host ``mxsdc`` location. Set ``CMAKE_PREFIX_PATH`` to the installation prefix
+when it is outside CMake's normal search locations.
 
 The complete cross-platform example in ``samples/host`` uses this helper:
 
@@ -124,6 +132,31 @@ values must already be XML-decoded.
 Every operation returns a sticky :c:struct:`mxsd_result_t`; stop sending events
 after the first error. Resolve the QName value of ``xsi:type`` in the XML
 frontend before calling :c:func:`mxsd_xsi_type`.
+
+Consume raw XML fragments
+*************************
+
+Use :c:struct:`mxsd_xml_reader_t` when a socket or HTTP client returns raw XML
+in pieces. Fragment boundaries may occur anywhere in the document, and the
+reader does not retain pointers into the input buffer.
+
+.. code-block:: c
+
+   mxsd_xml_reader_t reader;
+   mxsd_result_t result = mxsd_xml_reader_init(&reader, device_schema());
+
+   while (result.code == MXSD_OK && receive_fragment(buffer, sizeof(buffer), &length))
+           result = mxsd_xml_reader_feed(&reader, buffer, length);
+   if (result.code == MXSD_OK)
+           result = mxsd_xml_reader_finish(&reader);
+   mxsd_xml_reader_dispose(&reader);
+
+The embedded validator preserves the event API's sticky first error. Storage
+for an incomplete XML token is fixed by ``MXSD_XML_TOKEN_CAPACITY`` and decoded
+text is bounded by ``MXSD_MAX_TEXT_LENGTH``.
+Install an :c:type:`mxsd_xml_event_fn` with
+:c:func:`mxsd_xml_reader_set_event_callback` to copy a compact application
+summary while the complete document continues to be validated.
 
 Memory policy
 *************

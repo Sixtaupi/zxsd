@@ -40,6 +40,26 @@ jobs:
       - name: Install
         run: cmake --install build --config Release --prefix install
 
+      - name: Validate pkg-config metadata
+        if: runner.os == 'Linux'
+        env:
+          PKG_CONFIG_PATH: ${{ github.workspace }}/install/lib/pkgconfig
+        run: |
+          pkg-config --validate mxsd
+          test "$(pkg-config --modversion mxsd)" = "0.20.0"
+
+      - name: Configure installed-package consumer
+        run: >-
+          cmake -S tests/package-consumer -B build-consumer
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install
+
+      - name: Build installed-package consumer
+        run: cmake --build build-consumer --config Release --parallel
+
+      - name: Test installed-package consumer
+        run: ctest --test-dir build-consumer -C Release --output-on-failure
+
       - name: Configure host sample
         run: >-
           cmake -S samples/host -B build-sample

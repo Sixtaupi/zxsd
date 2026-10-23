@@ -6,11 +6,17 @@ import base64
 import binascii
 import io
 import itertools
+import json
 import pathlib
 import re
 import sys
 import xml.etree.ElementTree as ET
 from decimal import Decimal, InvalidOperation
+
+# Embedded metadata keeps the installed single-file compiler self-contained.
+# tests/test_compatibility.py checks it against the public headers and CMake.
+VERSION = "0.20.0"
+ABI_VERSIONS = {"runtime": 1, "descriptor": 1, "binding": 1}
 
 XSD_URI = "http://www.w3.org/2001/XMLSchema"
 XSI_URI = "http://www.w3.org/2001/XMLSchema-instance"
@@ -225,7 +231,12 @@ def valid_duration(value):
 
 def primitive_lexical_form(base, value):
     """Validate a built-in simple type lexical form while compiling a schema."""
-    if base in ("MXSD_T_STRING", "MXSD_T_NORMALIZED_STRING", "MXSD_T_TOKEN", "MXSD_T_ANY_URI"):
+    if base in (
+        "MXSD_T_STRING",
+        "MXSD_T_NORMALIZED_STRING",
+        "MXSD_T_TOKEN",
+        "MXSD_T_ANY_URI",
+    ):
         return True
     if base == "MXSD_T_BOOLEAN":
         return value in ("true", "false", "0", "1")
@@ -732,6 +743,62 @@ def validate_pattern(pattern):
     PatternParser(pattern).parse()
 
 
+class PatternResources(PatternParser):
+    """Compute runtime AST storage and grammar nesting, matching mxsd_regex.c."""
+
+    def __init__(self, pattern):
+        super().__init__(pattern)
+        self.nodes = 0
+        self.maximum_depth = 0
+        self.empty_node = False
+
+    def atom(self):
+        grouped = self.pattern[self.position] == "("
+        if grouped:
+            self.maximum_depth = max(self.maximum_depth, self.depth + 1)
+        super().atom()
+        if not grouped:
+            self.nodes += 1
+            self.empty_node = False
+
+    def character_class(self, subtraction_depth=0):
+        self.maximum_depth = max(self.maximum_depth, subtraction_depth)
+        super().character_class(subtraction_depth)
+
+    def quantifier(self):
+        position = self.position
+        super().quantifier()
+        if self.position != position:
+            self.nodes += 1
+            self.empty_node = False
+
+    def branch(self):
+        pieces = 0
+        while self.position < len(self.pattern) and self.pattern[self.position] not in "|)":
+            self.atom()
+            self.quantifier()
+            pieces += 1
+        if pieces >= 1024:
+            raise SchemaError("Zephyr pattern exceeds the runtime's 1023-piece branch limit")
+        if pieces == 0:
+            self.nodes += 1
+            self.empty_node = True
+        elif pieces > 1:
+            self.nodes += pieces - 1
+            self.empty_node = False
+
+    def regexp(self):
+        self.branch()
+        empty = self.empty_node
+        while self.position < len(self.pattern) and self.pattern[self.position] == "|":
+            self.position += 1
+            self.branch()
+            if not (empty and self.empty_node):
+                self.nodes += 1
+                empty = False
+        self.empty_node = empty
+
+
 def occurs(n):
     """Parse and validate minOccurs/maxOccurs on a particle."""
 
@@ -842,7 +909,11 @@ def default_resolver(namespace, location, base_path, search_paths):
 
 
 def load_documents(
-    path, resolver=None, search_paths=(), additional_paths=(), allow_unresolved_locations=False
+    path,
+    resolver=None,
+    search_paths=(),
+    additional_paths=(),
+    allow_unresolved_locations=False,
 ):
     """Load an explicitly connected include/import/redefine graph."""
     resolver = resolver or (
@@ -934,7 +1005,10 @@ def load_documents(
         declared = root.get("targetNamespace")
         if declared == "":
             raise InvalidSchemaError("targetNamespace must not be empty")
-        if relation in ("include", "redefine") and declared not in (None, expected_namespace):
+        if relation in ("include", "redefine") and declared not in (
+            None,
+            expected_namespace,
+        ):
             raise SchemaError("included schema has a different targetNamespace")
         if (
             relation == "import"
@@ -1088,7 +1162,10 @@ def parse(
     schema_for_schemas = target == XSD_URI
     efd = main["efd"]
     afd = main["afd"]
-    if efd not in ("qualified", "unqualified") or afd not in ("qualified", "unqualified"):
+    if efd not in ("qualified", "unqualified") or afd not in (
+        "qualified",
+        "unqualified",
+    ):
         raise SchemaError("invalid form default")
     type_nodes = {}
     global_nodes = {}
@@ -1462,7 +1539,9 @@ def parse(
             notation_order.append(key)
         else:
             raise SchemaError("unsupported XSD construct 'xs:%s'" % k)
-    order.sort(key=lambda key: 0 if contexts[id(global_nodes[key])]["path"] == main["path"] else 1)
+    order.sort(
+        key=lambda key: (0 if contexts[id(global_nodes[key])]["path"] == main["path"] else 1)
+    )
     types = {}
     visiting = set()
     anon = [0]
@@ -1580,7 +1659,11 @@ def parse(
             elif n in LIST_BUILTINS:
                 generated_name = "__builtin_" + n
                 if generated_name not in types:
-                    singular = {"NMTOKENS": "NMTOKEN", "IDREFS": "IDREF", "ENTITIES": "ENTITY"}[n]
+                    singular = {
+                        "NMTOKENS": "NMTOKEN",
+                        "IDREFS": "IDREF",
+                        "ENTITIES": "ENTITY",
+                    }[n]
                     item = {
                         "base": PRIMITIVES[singular],
                         "simple": None,
@@ -1982,7 +2065,13 @@ def parse(
                 fixed_facets[k] = True
             if k == "enumeration":
                 local_enums.append((v, f))
-            elif k in ("length", "minLength", "maxLength", "totalDigits", "fractionDigits"):
+            elif k in (
+                "length",
+                "minLength",
+                "maxLength",
+                "totalDigits",
+                "fractionDigits",
+            ):
                 if not re.fullmatch(r"0|[1-9][0-9]*", v):
                     raise SchemaError("invalid xs:%s value" % k)
                 if k == "totalDigits" and v == "0":
@@ -2013,7 +2102,11 @@ def parse(
                 }
                 if v not in values:
                     raise SchemaError("invalid xs:whiteSpace value")
-                ranks = {"MXSD_WS_PRESERVE": 0, "MXSD_WS_REPLACE": 1, "MXSD_WS_COLLAPSE": 2}
+                ranks = {
+                    "MXSD_WS_PRESERVE": 0,
+                    "MXSD_WS_REPLACE": 1,
+                    "MXSD_WS_COLLAPSE": 2,
+                }
                 if ranks[values[v]] < ranks[whitespace]:
                     raise SchemaError("xs:whiteSpace cannot weaken the base of %r" % name)
                 whitespace = values[v]
@@ -2031,7 +2124,12 @@ def parse(
             raise InvalidSchemaError("minInclusive and minExclusive are mutually exclusive")
         if "maxInclusive" in local_facet_values and "maxExclusive" in local_facet_values:
             raise InvalidSchemaError("maxInclusive and maxExclusive are mutually exclusive")
-        for facet_name in ("minInclusive", "maxInclusive", "minExclusive", "maxExclusive"):
+        for facet_name in (
+            "minInclusive",
+            "maxInclusive",
+            "minExclusive",
+            "maxExclusive",
+        ):
             if facet_name in local_facet_values and not value_matches_type(
                 base, local_facet_values[facet_name]
             ):
@@ -2571,7 +2669,15 @@ def parse(
             ):
                 raise SchemaError("element-only complex element cannot have default/fixed")
         lo, hi = (1, 1) if global_ else occurs(n)
-        return {"name": name, "ns": ens, "type": typ, "min": lo, "max": hi, "node": n, **metadata}
+        return {
+            "name": name,
+            "ns": ens,
+            "type": typ,
+            "min": lo,
+            "max": hi,
+            "node": n,
+            **metadata,
+        }
 
     def parse_attribute(n, parent):
         """Compile an attribute use in its owning complex type."""
@@ -2598,7 +2704,10 @@ def parse(
             fixed = n.get("fixed", base["fixed"])
             if default is not None and fixed is not None:
                 raise SchemaError("attribute ref cannot combine default and fixed values")
-            if base["fixed"] is not None and n.get("fixed") not in (None, base["fixed"]):
+            if base["fixed"] is not None and n.get("fixed") not in (
+                None,
+                base["fixed"],
+            ):
                 raise SchemaError("attribute ref changes the global fixed value")
             if use == "required" and default is not None:
                 raise SchemaError("required attribute cannot have a default")
@@ -2870,9 +2979,18 @@ def parse(
                 return expanded
             if kind == "element":
                 element = parse_element(node, name)
-                return {"kind": "element", "min": lo, "max": hi, "element": element, "children": []}
+                return {
+                    "kind": "element",
+                    "min": lo,
+                    "max": hi,
+                    "element": element,
+                    "children": [],
+                }
             if kind == "any":
-                check(node, {"id", "minOccurs", "maxOccurs", "namespace", "processContents"})
+                check(
+                    node,
+                    {"id", "minOccurs", "maxOccurs", "namespace", "processContents"},
+                )
                 process = node.get("processContents", "strict")
                 if process not in ("strict", "lax", "skip"):
                     raise SchemaError("invalid processContents %r" % process)
@@ -3701,7 +3819,7 @@ def parse(
                     (
                         None
                         if token == "##local"
-                        else wildcard.get("target") if token == "##targetNamespace" else token
+                        else (wildcard.get("target") if token == "##targetNamespace" else token)
                     )
                     for token in tokens
                 }
@@ -3712,7 +3830,11 @@ def parse(
                     "##local" if value is None else value
                     for value in sorted(values, key=lambda value: value or "")
                 )
-                return {"namespace": namespace, "process": process, "target": context["target"]}
+                return {
+                    "namespace": namespace,
+                    "process": process,
+                    "target": context["target"],
+                }
 
             left_kind, left_value = accepted_values(left)
             right_kind, right_value = accepted_values(right)
@@ -3924,10 +4046,21 @@ def parse(
             if particle is not None:
                 validate_particle_determinism(particle)
             validate_element_consistency(elements)
-            return model, group_min, group_max, elements, attributes, particle, any_attribute
+            return (
+                model,
+                group_min,
+                group_max,
+                elements,
+                attributes,
+                particle,
+                any_attribute,
+            )
 
         children = list(n)
-        if len(children) == 1 and lname(children[0].tag) in ("complexContent", "simpleContent"):
+        if len(children) == 1 and lname(children[0].tag) in (
+            "complexContent",
+            "simpleContent",
+        ):
             content = children[0]
             ck = lname(content.tag)
             check(content, {"id", "mixed"})
@@ -4250,7 +4383,8 @@ def parse(
                 anon[0] += 1
                 alias = ident(name) + "__content_base_%d" % anon[0]
                 nested_simple = next(
-                    (facet for facet in facets if lname(facet.tag) == "simpleType"), None
+                    (facet for facet in facets if lname(facet.tag) == "simpleType"),
+                    None,
                 )
                 if nested_simple is not None:
                     parse_simple(nested_simple, alias)
@@ -4635,7 +4769,11 @@ def parse(
                 check(child, {"id", "namespace", "processContents"})
                 if list(child):
                     raise InvalidSchemaError("xs:anyAttribute cannot contain child components")
-                if child.get("processContents", "strict") not in ("strict", "lax", "skip"):
+                if child.get("processContents", "strict") not in (
+                    "strict",
+                    "lax",
+                    "skip",
+                ):
                     raise InvalidSchemaError("invalid processContents on xs:anyAttribute")
                 normalized_wildcard_namespace(child)
                 wildcard_seen = True
@@ -4850,6 +4988,417 @@ def parse(
     }
 
 
+def zephyr_particle_nodes(particle):
+    """Walk descriptor particles, including terms with zero occurrences."""
+    if particle is not None:
+        yield particle
+        for child in particle.get("children", []):
+            yield from zephyr_particle_nodes(child)
+
+
+def zephyr_particle_bounds(particle):
+    """Return descriptor depth and minimum/maximum direct-child token counts."""
+    if particle is None:
+        return 0, 0, 0
+    children = [zephyr_particle_bounds(child) for child in particle.get("children", [])]
+    depth = 1 + max((child[0] for child in children), default=0)
+    if particle["kind"] in ("element", "any"):
+        minimum = maximum = 1
+    elif particle["kind"] == "choice":
+        minimum = min((child[1] for child in children), default=0)
+        maximum = (
+            None
+            if any(child[2] is None for child in children)
+            else max((child[2] for child in children), default=0)
+        )
+    else:
+        minimum = sum(child[1] for child in children)
+        maximum = (
+            None if any(child[2] is None for child in children) else sum(c[2] for c in children)
+        )
+    minimum *= particle["min"]
+    if particle["max"] == 0 or maximum == 0:
+        maximum = 0
+    elif maximum is None or particle["max"] is None:
+        maximum = None
+    else:
+        maximum *= particle["max"]
+    return depth, minimum, maximum
+
+
+def zephyr_particle_is_flat(particle):
+    """Mirror stream_incremental_model() assuming enough direct-term counters."""
+    if particle is None or particle["kind"] in ("element", "any"):
+        return True
+    children = particle["children"]
+    if any(child["kind"] not in ("element", "any") for child in children):
+        return False
+    if particle["max"] is not None and particle["max"] <= 1:
+        return True
+    if particle["kind"] == "sequence" and particle["min"] <= 1:
+        return True
+    return particle["kind"] == "choice" and all(
+        child["min"] == child["max"] == 1 for child in children
+    )
+
+
+def zephyr_particle_is_incremental(particle):
+    """Account for both flat counters and the shared continuation interpreter."""
+    if zephyr_particle_is_flat(particle):
+        return True
+    return particle["kind"] in ("sequence", "choice") and all(
+        child["kind"] in ("element", "any", "sequence", "choice")
+        for child in zephyr_particle_nodes(particle)
+    )
+
+
+def zephyr_depth_envelope(model):
+    """Bound element depth, accounting for recursion through dynamic derived types.
+
+    Derivation edges have weight zero (same element); element-type edges have
+    weight one. A cycle, wildcard, or anyType leaves the input depth a policy.
+    All emitted complex types are included, even unused named declarations.
+    """
+    types = {key: value for key, value in model["types"].items() if value["kind"] == "complex"}
+    edges = {key: {} for key in types}
+    depth = dict.fromkeys(types, 1)
+    wildcard = False
+
+    def active_terms(particle):
+        if particle is None or particle["max"] == 0:
+            return
+        if particle["kind"] in ("element", "any"):
+            yield particle
+        else:
+            for child in particle["children"]:
+                yield from active_terms(child)
+
+    for key, definition in types.items():
+        wildcard |= bool(definition.get("any_type"))
+        base = definition.get("base_ref")
+        if base in types:
+            edges[base].setdefault(key, 0)
+        for term in active_terms(definition.get("particle")):
+            if term["kind"] == "any":
+                wildcard = True
+                continue
+            child_type = term["element"]["type"].get("complex")
+            if child_type in types:
+                edges[key][child_type] = 1
+            else:
+                depth[key] = max(depth[key], 2)
+
+    reverse = {key: [] for key in types}
+    pending = {key: len(children) for key, children in edges.items()}
+    for parent, children in edges.items():
+        for child, weight in children.items():
+            reverse[child].append((parent, weight))
+    ready = [key for key in types if pending[key] == 0]
+    visited = 0
+    while ready:
+        child = ready.pop()
+        visited += 1
+        for parent, weight in reverse[child]:
+            depth[parent] = max(depth[parent], depth[child] + weight)
+            pending[parent] -= 1
+            if pending[parent] == 0:
+                ready.append(parent)
+    return max(depth.values(), default=1), visited != len(types), wildcard
+
+
+def generate_zephyr_config(stem, model, bindings=False):
+    """Render a Kconfig fragment and opt-in compile-time structural-limit checks.
+
+    Values depending on document spelling, arbitrary instance declarations,
+    recursion budgets, or unbounded repetitions remain commented suggestions.
+    The runtime never reads Kconfig or loads schemas at run time.
+    """
+    complex_types = [t for t in model["types"].values() if t["kind"] == "complex"]
+    particles = [node for t in complex_types for node in zephyr_particle_nodes(t.get("particle"))]
+    particle_depth = max(
+        (zephyr_particle_bounds(t.get("particle"))[0] for t in complex_types), default=1
+    )
+    counter_count = max(
+        [1]
+        + [len(t["elements"]) for t in complex_types]
+        + [len(p.get("children", [])) for p in particles]
+        + [
+            sum(p["kind"] in ("element", "any") for p in zephyr_particle_nodes(t.get("particle")))
+            for t in complex_types
+        ]
+    )
+    attributes = max((len(t["attributes"]) for t in complex_types), default=0)
+    named = sum(bool(t.get("type_name")) for t in model["types"].values())
+    registry_count = (
+        len(model["order"]) + len(model["global_attributes"]) + len(model["notations"]) + named
+    )
+    root_complexities = [registry_count]
+    for key in model["order"]:
+        root = model["globals"][key]
+        definition = model["types"].get(root["type"].get("complex"))
+        count = registry_count + len(root.get("identities", []))
+        if definition is not None:
+            count += len(definition["elements"]) + len(definition["attributes"])
+            count += sum(1 for _ in zephyr_particle_nodes(definition.get("particle")))
+        root_complexities.append(count)
+
+    required = {
+        "MAX_PARTICLES": counter_count,
+        "MAX_ATTRIBUTES": max(1, attributes),
+        "MAX_SCHEMA_COMPLEXITY": max(1, max(root_complexities)),
+        "MAX_PATTERN_LENGTH": 1,
+        "MAX_REGEX_NODES": 16,
+        "MAX_REGEX_DEPTH": 1,
+    }
+    assigned = dict(required)
+    notes = []
+    policy = {
+        "MAX_INPUT": (
+            1048576,
+            "XML spelling, comments and whitespace are not bounded by XSD",
+        ),
+        "MAX_NAMESPACES": (
+            16,
+            "instances may declare additional or aliased namespace bindings",
+        ),
+        "MAX_TEXT_LENGTH": (
+            1024,
+            "lexical whitespace and unconstrained values need a byte budget",
+        ),
+        "XML_TOKEN_CAPACITY": (
+            4096,
+            "raw tags, prefixes, entities, comments and CDATA need a budget",
+        ),
+    }
+    depth, recursive, wildcard = zephyr_depth_envelope(model)
+    required["MAX_DEPTH"] = max(1, particle_depth)
+    if recursive or wildcard:
+        reason = ", ".join(
+            text
+            for enabled, text in (
+                (recursive, "recursive type graph"),
+                (wildcard, "wildcard/anyType"),
+            )
+            if enabled
+        )
+        policy["MAX_DEPTH"] = (
+            max(32, particle_depth),
+            reason + "; choose an application depth",
+        )
+    else:
+        required["MAX_DEPTH"] = assigned["MAX_DEPTH"] = max(1, depth, particle_depth)
+        notes.append("Depth covers all emitted types, dynamic derivations and descriptor nesting.")
+
+    history_minimum = history_maximum = 1
+    history_unbounded = False
+    for definition in complex_types:
+        particle = definition.get("particle")
+        if zephyr_particle_is_incremental(particle):
+            continue
+        _, minimum, maximum = zephyr_particle_bounds(particle)
+        history_minimum = max(history_minimum, minimum)
+        if maximum is None:
+            history_unbounded = True
+        else:
+            history_maximum = max(history_maximum, maximum)
+    required["STREAM_CHILD_CAPACITY"] = history_minimum
+    if history_unbounded or history_maximum > 65536:
+        reason = "unbounded" if history_unbounded else "larger than Zephyr's 65536-token limit"
+        policy["STREAM_CHILD_CAPACITY"] = (
+            max(64, history_minimum),
+            reason + " fallback history; choose an accepted-document child budget",
+        )
+    else:
+        assigned["STREAM_CHILD_CAPACITY"] = history_maximum
+    notes.append("Incremental flat models do not consume child-history capacity.")
+    notes.append("Attribute minima cover declarations; allow headroom for xsi:* and wildcards.")
+    nested = any(not zephyr_particle_is_flat(t.get("particle")) for t in complex_types)
+    if nested:
+        required["STREAM_MODEL_CAPACITY"] = 1
+        policy["STREAM_MODEL_CAPACITY"] = (
+            max(128, 2 * particle_depth + 4),
+            "shared continuation pool: budget active nesting and alternative repetition partitions",
+        )
+        notes.append("Nested sequences/choices need no child history with the model pool enabled.")
+    else:
+        assigned["STREAM_MODEL_CAPACITY"] = 0
+        notes.append("All emitted models use flat counters; the shared model pool can be disabled.")
+
+    patterns = set()
+    text_floor = 1
+    length_hint = 0
+    for definition in model["types"].values():
+        if definition["kind"] != "simple":
+            continue
+        patterns.update(definition.get("patterns", []))
+        facets = definition["facets"]
+        if "pattern" in facets:
+            patterns.add(facets["pattern"])
+        text_floor = max(text_floor, facets.get("length", 0), facets.get("minLength", 0))
+        length_hint = max(length_hint, facets.get("length", 0), facets.get("maxLength", 0))
+        literals = definition.get("enums", []) + [
+            str(facets[key])
+            for key in ("minInclusive", "minExclusive", "maxInclusive", "maxExclusive")
+            if key in facets
+        ]
+        text_floor = max([text_floor] + [len(value.encode("utf-8")) for value in literals])
+    declarations = list(model["globals"].values()) + model["global_attributes"]
+    declarations += [element for t in complex_types for element in t["elements"]]
+    declarations += [attribute for t in complex_types for attribute in t["attributes"]]
+    names = [XSD_URI, XSI_URI, XML_URI]
+    for declaration in declarations:
+        names.extend([declaration.get("name") or "", declaration.get("ns") or ""])
+        text_floor = max(text_floor, len((declaration.get("ns") or "").encode("utf-8")))
+    for definition in model["types"].values():
+        names.extend([definition.get("type_name") or "", definition.get("type_ns") or ""])
+    required["STREAM_NAME_CAPACITY"] = assigned["STREAM_NAME_CAPACITY"] = (
+        max(len(name.encode("utf-8")) for name in names) + 1
+    )
+    notes.append(
+        "Name storage includes NUL and standard XML/XSD/xsi URIs; budget extra-long prefixes."
+    )
+    for declaration in declarations:
+        for key in ("default", "fixed"):
+            value = declaration.get(key)
+            if value is not None:
+                text_floor = max(text_floor, len(value.encode("utf-8")))
+    required["MAX_TEXT_LENGTH"] = text_floor
+    policy["MAX_TEXT_LENGTH"] = (
+        max(1024, text_floor),
+        policy["MAX_TEXT_LENGTH"][1] + "; schema-only lower bound %d bytes" % text_floor,
+    )
+    if length_hint:
+        notes.append(
+            "Largest length/maxLength facet: %d character/item/decoded-byte units, not raw XML bytes."
+            % length_hint
+        )
+    if patterns:
+        resources = []
+        for pattern in sorted(patterns):
+            resource = PatternResources(pattern)
+            resource.parse()
+            resources.append(resource)
+        required["MAX_PATTERN_LENGTH"] = assigned["MAX_PATTERN_LENGTH"] = max(
+            1, max(len(pattern.encode("utf-8")) for pattern in patterns)
+        )
+        required["MAX_REGEX_NODES"] = assigned["MAX_REGEX_NODES"] = max(
+            16, max(resource.nodes for resource in resources)
+        )
+        required["MAX_REGEX_DEPTH"] = assigned["MAX_REGEX_DEPTH"] = max(
+            1, max(resource.maximum_depth for resource in resources)
+        )
+        notes.append(
+            "Regex AST sizing accounts for collapsed empty alternatives and UTF-8 patterns."
+        )
+
+    identities = [model["globals"][key].get("identities", []) for key in model["order"]]
+    if any(identities):
+        required["MAX_IDENTITY_CONSTRAINTS"] = max(map(len, identities))
+        constraints = [identity for group in identities for identity in group]
+        required["MAX_IDENTITY_FIELDS"] = max(len(identity["fields"]) for identity in constraints)
+        paths = []
+        for identity in constraints:
+            paths.extend([identity["scope"], identity["selector"], *identity["fields"]])
+        for path in list(paths):
+            paths.extend(path.get("alternatives", []))
+        required["MAX_XPATH_DEPTH"] = max(1, max(len(path["steps"]) for path in paths))
+        required["MAX_XPATH_ALTERNATIVES"] = max(
+            1, max(len(path.get("alternatives", [])) for path in paths)
+        )
+        policy["MAX_IDENTITY_VALUES"] = (
+            64,
+            "tuple counts depend on the accepted input document",
+        )
+        notes.append("Identity constraints require caller-owned scratch allocation with NO_HEAP.")
+
+    # Keep these ranges aligned with zephyr/Kconfig. Never silently clamp a
+    # derived requirement to a smaller supported value.
+    maxima = {
+        "MAX_PARTICLES": 256,
+        "MAX_ATTRIBUTES": 256,
+        "MAX_SCHEMA_COMPLEXITY": 1048576,
+        "MAX_DEPTH": 256,
+        "STREAM_CHILD_CAPACITY": 65536,
+        "STREAM_MODEL_CAPACITY": 4096,
+        "MAX_TEXT_LENGTH": 1048576,
+        "MAX_PATTERN_LENGTH": 4096,
+        "MAX_REGEX_NODES": 4096,
+        "MAX_REGEX_DEPTH": 256,
+        "STREAM_NAME_CAPACITY": 4096,
+    }
+    for name, maximum in maxima.items():
+        value = max(required.get(name, 1), assigned.get(name, 1))
+        if value > maximum:
+            raise SchemaError(
+                "Zephyr CONFIG_MXSD_%s needs %d, exceeding its Kconfig maximum %d"
+                % (name, value, maximum)
+            )
+
+    lines = [
+        "# Generated by mxsdc for %s. Do not edit; copy and review for your application." % stem,
+        "# Merge before Zephyr's Kconfig phase, e.g. with -DEXTRA_CONF_FILE=<this file>.",
+        "# Structural minima are not a guarantee of accepting every XSD-valid XML spelling.",
+        "CONFIG_MXSD=y",
+    ]
+    if bindings:
+        lines.append("CONFIG_MXSD_BINDINGS=y")
+    lines += ["", "# Schema-derived descriptor requirements and finite envelopes."]
+    lines += ["CONFIG_MXSD_%s=%d" % item for item in sorted(assigned.items())]
+    lines += [
+        "",
+        "# Application policies: uncomment and adjust; these are not XSD-derived bounds.",
+    ]
+    for name, (suggestion, reason) in sorted(policy.items()):
+        lines += ["# " + reason, "# CONFIG_MXSD_%s=%d" % (name, suggestion)]
+    lines += ["", *["# " + note for note in notes]]
+    for name in sorted(set(required) - set(maxima)):
+        lines.append(
+            "# Set C compile definition MXSD_%s >= %d (no Kconfig option)." % (name, required[name])
+        )
+
+    guard = ident(stem).upper() + "_MXSD_LIMITS_H"
+    header = [
+        "/* Generated by mxsdc. Structural limits only; document budgets remain application policy. */",
+        "#ifndef " + guard,
+        "#define " + guard,
+        "#include <mxsd.h>",
+    ]
+    for name, value in sorted(required.items()):
+        header += [
+            "#if MXSD_%s < %du" % (name, value),
+            '#error "%s requires MXSD_%s >= %d"' % (stem, name, value),
+            "#endif",
+        ]
+    header += ["#endif", ""]
+    return "\n".join(lines) + "\n", "\n".join(header)
+
+
+def abi_checks(bindings=False):
+    """Reject stale generated headers AND sources before reading any descriptors."""
+    checks = []
+    for kind in (("runtime", "descriptor", "binding") if bindings else ("runtime", "descriptor")):
+        macro = "MXSD_%s_ABI_VERSION" % kind.upper()
+        epoch = ABI_VERSIONS[kind]
+        checks += [
+            "#if !defined(%s) || %s != %d" % (macro, macro, epoch),
+            '#error "mxsdc requires %s=%d; regenerate with a matching compiler/runtime"'
+            % (macro, epoch),
+            "#endif",
+        ]
+    return "\n".join(checks) + "\n"
+
+
+def abi_guard(sid, bindings=False):
+    """Emit real symbol references so precompiled objects cannot bypass epoch checks."""
+    kinds = ("runtime", "descriptor", "binding") if bindings else ("runtime", "descriptor")
+    return (
+        "/** Require matching runtime epochs even when this object is precompiled. */\n"
+        "static void %s_require_abi(void)\n{\n" % sid
+        + "".join("\tmxsd_%s_abi_%d();\n" % (kind, ABI_VERSIONS[kind]) for kind in kinds)
+        + "}\n"
+    )
+
+
 def generate(stem, m):
     """Render a compiled schema model as deterministic C header/source text."""
     guard = ident(stem).upper() + "_MXSD_H"
@@ -4870,7 +5419,7 @@ def generate(stem, m):
     )
     file_doc = license_header + (
         "/**\n * @file\n * @brief Generated mxsd validator for the " + stem + " schema.\n"
-        " *\n * @note Generated by mxsdc. Do not edit manually.\n */\n\n"
+        f" *\n * @note Generated by mxsdc {VERSION}. Do not edit manually.\n */\n\n"
     )
     decl = [
         f"/**\n * @brief Validate XML against the default {stem} root.\n *\n * @param[in] xml NUL-terminated XML document.\n *\n * @return A structured validation result.\n */\nmxsd_result_t {sid}_validate(const char *xml);",
@@ -4884,10 +5433,21 @@ def generate(stem, m):
     h = (
         file_doc
         + f"#ifndef {guard}\n#define {guard}\n\n#include <mxsd.h>\n\n"
+        + abi_checks()
+        + "\n"
         + "\n\n".join(decl)
         + "\n\n#endif\n"
     )
-    out = [file_doc.rstrip(), "", f'#include "{stem}.mxsd.h"', "", "#include <limits.h>", ""]
+    out = [
+        file_doc.rstrip(),
+        "",
+        f'#include "{stem}.mxsd.h"',
+        "",
+        "#include <limits.h>",
+        "",
+        abi_checks(),
+        abi_guard(sid),
+    ]
     for n, t in m["types"].items():
         out.append(f"static const mxsd_{t['kind']}_t type_{type_symbol(n)};")
     out.append("")
@@ -5157,9 +5717,11 @@ def generate(stem, m):
                 + ", ".join(field_values)
                 + "};"
             )
-            kind = {"unique": "MXSD_ID_UNIQUE", "key": "MXSD_ID_KEY", "keyref": "MXSD_ID_KEYREF"}[
-                constraint["kind"]
-            ]
+            kind = {
+                "unique": "MXSD_ID_UNIQUE",
+                "key": "MXSD_ID_KEY",
+                "keyref": "MXSD_ID_KEYREF",
+            }[constraint["kind"]]
             entries.append(
                 f"{{{cstr(constraint['name'])}, {kind}, {scope}, {selector}, identity_fields_{ni}_{ci}, {len(field_values)}, {constraint['refer_index']}}}"
             )
@@ -5188,16 +5750,17 @@ def generate(stem, m):
         )
         out += [
             "",
-            f"mxsd_result_t {sid}_validate(const char *xml) {{ return mxsd_validate(&schema_unbound, xml); }}",
-            f"mxsd_result_t {sid}_validate_document(const char *xml) {{ return mxsd_validate(&schema_unbound, xml); }}",
-            f"mxsd_result_t {sid}_stream_init(mxsd_stream_t *stream) {{ return mxsd_stream_init(stream, &schema_unbound); }}",
-            f"const mxsd_schema_t *{sid}_schema(void) {{ return &schema_unbound; }}",
+            f"mxsd_result_t {sid}_validate(const char *xml) {{ {sid}_require_abi(); return mxsd_validate(&schema_unbound, xml); }}",
+            f"mxsd_result_t {sid}_validate_document(const char *xml) {{ {sid}_require_abi(); return mxsd_validate(&schema_unbound, xml); }}",
+            f"mxsd_result_t {sid}_stream_init(mxsd_stream_t *stream) {{ {sid}_require_abi(); return mxsd_stream_init(stream, &schema_unbound); }}",
+            f"const mxsd_schema_t *{sid}_schema(void) {{ {sid}_require_abi(); return &schema_unbound; }}",
         ]
         return h, "\n".join(out) + "\n"
     first = root_symbol(m["order"][0])
     any_root = [
         f"mxsd_result_t {sid}_validate_document(const char *xml) {{",
         "  mxsd_result_t result;",
+        f"  {sid}_require_abi();",
     ]
     for n in m["order"]:
         any_root += [
@@ -5208,15 +5771,15 @@ def generate(stem, m):
     out += (
         [
             "",
-            f"mxsd_result_t {sid}_validate(const char *xml) {{ return mxsd_validate(&schema_{first}, xml); }}",
+            f"mxsd_result_t {sid}_validate(const char *xml) {{ {sid}_require_abi(); return mxsd_validate(&schema_{first}, xml); }}",
         ]
         + any_root
         + [
-            f"mxsd_result_t {sid}_stream_init(mxsd_stream_t *stream) {{ return mxsd_stream_init(stream, &schema_{first}); }}",
-            f"const mxsd_schema_t *{sid}_schema(void) {{ return &schema_{first}; }}",
+            f"mxsd_result_t {sid}_stream_init(mxsd_stream_t *stream) {{ {sid}_require_abi(); return mxsd_stream_init(stream, &schema_{first}); }}",
+            f"const mxsd_schema_t *{sid}_schema(void) {{ {sid}_require_abi(); return &schema_{first}; }}",
         ]
         + [
-            f"mxsd_result_t {sid}_{root_symbol(n)}_validate(const char *xml) {{ return mxsd_validate(&schema_{root_symbol(n)}, xml); }}\nmxsd_result_t {sid}_{root_symbol(n)}_stream_init(mxsd_stream_t *stream) {{ return mxsd_stream_init(stream, &schema_{root_symbol(n)}); }}\nconst mxsd_schema_t *{sid}_{root_symbol(n)}_schema(void) {{ return &schema_{root_symbol(n)}; }}"
+            f"mxsd_result_t {sid}_{root_symbol(n)}_validate(const char *xml) {{ {sid}_require_abi(); return mxsd_validate(&schema_{root_symbol(n)}, xml); }}\nmxsd_result_t {sid}_{root_symbol(n)}_stream_init(mxsd_stream_t *stream) {{ {sid}_require_abi(); return mxsd_stream_init(stream, &schema_{root_symbol(n)}); }}\nconst mxsd_schema_t *{sid}_{root_symbol(n)}_schema(void) {{ {sid}_require_abi(); return &schema_{root_symbol(n)}; }}"
             for n in m["order"]
         ]
     )
@@ -5290,7 +5853,80 @@ def normalize_enumeration(value, whitespace):
     return " ".join(part for part in value.split(" ") if part)
 
 
-def generate_bindings(stem, m, selected_roots=None):
+def resolve_stream_paths(model, paths):
+    """Resolve finite absolute element paths, never runtime XPath expressions."""
+    selections = []
+    symbols = set()
+    for path in paths:
+        parts, current, braced = [], "", False
+        for character in path.removeprefix("/"):
+            if character == "{":
+                if braced or current:
+                    raise BindingError("bindings: malformed stream path %r" % path)
+                braced = True
+            elif character == "}":
+                if not braced:
+                    raise BindingError("bindings: malformed stream path %r" % path)
+                braced = False
+            if character == "/" and not braced:
+                parts.append(current)
+                current = ""
+            else:
+                current += character
+        parts.append(current)
+        if braced or any(not part for part in parts):
+            raise BindingError("bindings: malformed stream path %r" % path)
+        steps, root_key, element = [], None, None
+        for index, part in enumerate(parts):
+            uri, name = None, part
+            qualified = part.startswith("{")
+            if qualified:
+                uri, name = part[1:].split("}", 1)
+                uri = uri or None
+            if not name or name in (".", "..") or any(c in name for c in ":*[]@{}"):
+                raise BindingError("bindings: stream paths support only element names: %r" % path)
+            candidates = (
+                [(key, model["globals"][key]) for key in model["order"]]
+                if index == 0
+                else [
+                    (None, child)
+                    for child in model["types"]
+                    .get(element["type"].get("complex"), {})
+                    .get("elements", [])
+                ]
+            )
+            matches = [
+                (key, child)
+                for key, child in candidates
+                if child["name"] == name and (not qualified or child["ns"] == uri)
+            ]
+            if len(matches) != 1:
+                reason = "ambiguous" if matches else "unknown"
+                raise BindingError("bindings: %s stream path step %r in %r" % (reason, part, path))
+            key, element = matches[0]
+            if index == 0:
+                root_key = key
+            if element.get("abstract") or any(
+                global_.get("substitution_head") == [element["name"], element["ns"]]
+                or global_.get("substitution_head") == (element["name"], element["ns"])
+                for global_ in model["globals"].values()
+            ):
+                raise BindingError("bindings: stream path crosses a substitution-group head")
+            steps.append((element["name"], element["ns"]))
+        if element.get("nillable"):
+            raise BindingError("bindings: selected stream element is nillable")
+        if any(item["steps"] == steps for item in selections):
+            raise BindingError("bindings: duplicate stream selection %r" % path)
+        base = "_".join(ident(name) for name, _uri in steps)
+        symbol, suffix = base, 2
+        while symbol in symbols:
+            symbol, suffix = "%s_%d" % (base, suffix), suffix + 1
+        symbols.add(symbol)
+        selections.append({"steps": steps, "root": root_key, "element": element, "symbol": symbol})
+    return selections
+
+
+def generate_bindings(stem, m, selected_roots=None, stream_paths=None, stream_only=False):
     """Render typed C structures and binding descriptors for complex global elements.
 
     Every construct reachable from a bound root must have a faithful C
@@ -5298,13 +5934,14 @@ def generate_bindings(stem, m, selected_roots=None):
     """
     sid = ident(stem)
     guard = sid.upper() + "_BIND_H"
-    types = m["types"]
+    types = dict(m["types"])
     globals_ = m["globals"]
     root_symbol = lambda key: component_symbol(key, m["order"])
     type_symbol = lambda key: component_symbol(key, types)
     heads = {tuple(e["substitution_head"]) for e in globals_.values() if e.get("substitution_head")}
 
-    roots = [key for key in m["order"] if globals_[key]["type"]["complex"]]
+    selections = resolve_stream_paths(m, stream_paths or [])
+    roots = [] if stream_only else [key for key in m["order"] if globals_[key]["type"]["complex"]]
     if selected_roots:
         chosen = []
         for wanted in selected_roots:
@@ -5328,7 +5965,7 @@ def generate_bindings(stem, m, selected_roots=None):
                 if key not in chosen:
                     chosen.append(key)
         roots = [key for key in m["order"] if key in chosen]
-    if not roots:
+    if not roots and not selections:
         raise BindingError("bindings: the schema declares no global element with a complex type")
 
     type_names = set()
@@ -5424,7 +6061,11 @@ def generate_bindings(stem, m, selected_roots=None):
         if particle["kind"] == "element":
             if particle["max"] != 0:
                 out.append(
-                    (particle["element"], 0 if optional else particle["min"], particle["max"])
+                    (
+                        particle["element"],
+                        0 if optional else particle["min"],
+                        particle["max"],
+                    )
                 )
             return
         if particle["kind"] == "any":
@@ -5432,10 +6073,28 @@ def generate_bindings(stem, m, selected_roots=None):
         if particle["max"] == 0:
             return
         if particle["max"] is None or particle["max"] > 1:
-            raise BindingError(
-                "bindings: %s contains a repeating xs:%s group; only its elements may repeat"
-                % (context, particle["kind"])
-            )
+            if particle["kind"] != "sequence" or particle["max"] is not None:
+                raise BindingError(
+                    "bindings: %s contains a repeating xs:%s group; only optional "
+                    "members of an unbounded sequence can be represented"
+                    % (context, particle["kind"])
+                )
+            if any(child["min"] != 0 for child in particle["children"]):
+                raise BindingError(
+                    "bindings: %s contains required members in a repeating xs:sequence group"
+                    % context
+                )
+            repeated = []
+            for child in particle["children"]:
+                flatten(child, True, repeated, context)
+            for element, _minimum, maximum in repeated:
+                combined = (
+                    None
+                    if particle["max"] is None or maximum is None
+                    else particle["max"] * maximum
+                )
+                out.append((element, 0, combined))
+            return
         children = particle["children"]
         child_optional = (
             optional or particle["min"] == 0 or (particle["kind"] == "choice" and len(children) > 1)
@@ -5446,15 +6105,23 @@ def generate_bindings(stem, m, selected_roots=None):
     def content_particle(definition):
         if definition.get("particle") is not None or not definition["elements"]:
             return definition.get("particle")
-        kind = {"MXSD_SEQUENCE": "sequence", "MXSD_CHOICE": "choice", "MXSD_ALL": "all"}[
-            definition["model"]
-        ]
+        kind = {
+            "MXSD_SEQUENCE": "sequence",
+            "MXSD_CHOICE": "choice",
+            "MXSD_ALL": "all",
+        }[definition["model"]]
         return {
             "kind": kind,
             "min": definition["group_min"],
             "max": definition["group_max"],
             "children": [
-                {"kind": "element", "min": e["min"], "max": e["max"], "element": e, "children": []}
+                {
+                    "kind": "element",
+                    "min": e["min"],
+                    "max": e["max"],
+                    "element": e,
+                    "children": [],
+                }
                 for e in definition["elements"]
             ],
         }
@@ -5582,6 +6249,28 @@ def generate_bindings(stem, m, selected_roots=None):
             )
         root_structs.append(struct_for(root["type"]["complex"], root_symbol(key)))
 
+    for selection in selections:
+        element = selection["element"]
+        key = element["type"].get("complex")
+        if key is None:
+            key = "#stream-value-" + selection["symbol"]
+            types[key] = {
+                "kind": "complex",
+                "elements": [],
+                "attributes": [],
+                "simple_content": element["type"],
+            }
+        selection["struct"] = struct_for(key, selection["symbol"])
+
+    # Reader typedefs share C's ordinary identifier namespace with bound types.
+    for selection in selections:
+        base = selection["symbol"]
+        suffix = 2
+        while selection["symbol"] + "_reader" in type_names:
+            selection["symbol"] = "%s_%d" % (base, suffix)
+            suffix += 1
+        type_names.add(selection["symbol"] + "_reader")
+
     # A required single child is embedded by value unless its type can reach the
     # enclosing type, in which case the recursion is broken with a pointer.
     edges = {
@@ -5621,7 +6310,10 @@ def generate_bindings(stem, m, selected_roots=None):
                 base = "x" + base
             if base in C_RESERVED_WORDS:
                 base += "_"
-            alternatives = [base, base + ("_attr" if role == "MXSD_BIND_ATTRIBUTE" else "_elem")]
+            alternatives = [
+                base,
+                base + ("_attr" if role == "MXSD_BIND_ATTRIBUTE" else "_elem"),
+            ]
             suffix = 2
             while True:
                 for candidate in alternatives:
@@ -5633,7 +6325,8 @@ def generate_bindings(stem, m, selected_roots=None):
                 suffix += 1
 
         ordered = sorted(
-            info["fields"], key=lambda field: 0 if field["role"] == "MXSD_BIND_CONTENT" else 1
+            info["fields"],
+            key=lambda field: 0 if field["role"] == "MXSD_BIND_CONTENT" else 1,
         )
         for field in ordered:
             field["member"] = claim(field["name"], field["role"])
@@ -5684,11 +6377,12 @@ def generate_bindings(stem, m, selected_roots=None):
     )
     file_doc = license_header + (
         "/**\n * @file\n * @brief Generated mxsd typed bindings for the " + stem + " schema.\n"
-        " *\n * @note Generated by mxsdc. Do not edit manually.\n */\n\n"
+        f" *\n * @note Generated by mxsdc {VERSION}. Do not edit manually.\n */\n\n"
     )
     h = [
         file_doc + f"#ifndef {guard}\n#define {guard}\n",
         "#include <mxsd_bind.h>\n",
+        abi_checks(bindings=True),
         "#include <stdbool.h>\n#include <stddef.h>\n#include <stdint.h>\n",
         '#ifdef __cplusplus\nextern "C" {\n#endif\n',
     ]
@@ -5722,7 +6416,10 @@ def generate_bindings(stem, m, selected_roots=None):
             if definition.get("type_name")
             else "an anonymous complex type"
         )
-        lines = ["/** Typed binding of %s. */" % source, "struct %s_%s {" % (sid, info["name"])]
+        lines = [
+            "/** Typed binding of %s. */" % source,
+            "struct %s_%s {" % (sid, info["name"]),
+        ]
         for field in info["fields"]:
             member, ctype = field["member"], field["ctype"]
             comment = member_comment(field)
@@ -5785,6 +6482,46 @@ def generate_bindings(stem, m, selected_roots=None):
             " * @return Generated immutable binding descriptor.\n */\n"
             f"const mxsd_bind_root_t *{prefix}_binding(void);\n"
         )
+    for selection in selections:
+        prefix = "%s_%s" % (sid, selection["symbol"])
+        ctype = "%s_%s_t" % (sid, selection["struct"]["name"])
+        h.append(
+            f"/** @brief Deliver one locally validated subtree; pointers expire on return.\n"
+            " * @param[in] user_data Application context.\n"
+            " * @param[in] object Selected value; document validity is decided at finish.\n"
+            " * @return Delivery action; see mxsd_bind_action_t.\n */\n"
+            f"typedef mxsd_bind_action_t (*{prefix}_item_fn)(void *user_data,\n"
+            f"\t\tconst {ctype} *object);\n\n"
+            "/** Caller-owned typed streaming reader; initialize before use. */\n"
+            f"typedef struct {{\n\tmxsd_bind_stream_t stream; /**< Generic reader. */\n"
+            f"\t{prefix}_item_fn callback; /**< Typed delivery callback. */\n"
+            f"\tvoid *user_data; /**< Application context. */\n}} {prefix}_reader_t;\n\n"
+            "/** @brief Initialize full-document validation and selected typed delivery.\n"
+            " * @param[out] reader Reader to initialize.\n"
+            " * @param[out] object Reusable output structure.\n"
+            " * @param[in,out] arena Reusable subtree storage.\n"
+            " * @param[in] callback Typed delivery callback.\n"
+            " * @param[in] user_data Application context.\n"
+            " * @param[in] allocator Identity scratch allocator, or NULL.\n"
+            " * @return Structured initialization result.\n */\n"
+            f"mxsd_result_t {prefix}_reader_init({prefix}_reader_t *reader,\n"
+            f"\t\t{ctype} *object, mxsd_bind_arena_t *arena,\n"
+            f"\t\t{prefix}_item_fn callback, void *user_data,\n"
+            "\t\tconst mxsd_allocator_t *allocator);\n\n"
+            "/** @brief Feed raw XML fragments.\n"
+            " * @param[in,out] reader Initialized reader.\n"
+            " * @param[in] data Raw XML bytes.\n * @param[in] length Byte count.\n"
+            " * @return First sticky error or success.\n */\n"
+            f"mxsd_result_t {prefix}_reader_feed({prefix}_reader_t *reader,\n"
+            "\t\tconst void *data, size_t length);\n\n"
+            "/** @brief Finish full-document validation, including identity constraints.\n"
+            " * @param[in,out] reader Initialized reader.\n"
+            " * @return Final document result.\n */\n"
+            f"mxsd_result_t {prefix}_reader_finish({prefix}_reader_t *reader);\n\n"
+            "/** @brief Release scratch storage and restore the arena.\n"
+            " * @param[in,out] reader Initialized reader, or NULL.\n */\n"
+            f"void {prefix}_reader_dispose({prefix}_reader_t *reader);\n"
+        )
     h.append("#ifdef __cplusplus\n}\n#endif\n#endif")
 
     def c_string(value):
@@ -5799,6 +6536,8 @@ def generate_bindings(stem, m, selected_roots=None):
         "#include <limits.h>",
         "#include <stddef.h>",
         "",
+        abi_checks(bindings=True),
+        abi_guard(sid + "_binding", bindings=True),
     ]
     for enum in enums.values():
         out.append(
@@ -5926,14 +6665,65 @@ def generate_bindings(stem, m, selected_roots=None):
         )
         out.append(
             f"mxsd_result_t {prefix}_read(const char *xml, {ctype} *object, mxsd_bind_arena_t *arena)\n"
-            f"{{\n\treturn mxsd_bind_read(&binding_root_{symbol}, xml, object, arena);\n}}\n\n"
+            f"{{\n\t{sid}_binding_require_abi();\n\treturn mxsd_bind_read(&binding_root_{symbol}, xml, object, arena);\n}}\n\n"
             f"mxsd_result_t {prefix}_write(const {ctype} *object, mxsd_bind_sink_fn sink, void *context,\n"
             "\t\t\tmxsd_stream_t *validator)\n"
-            f"{{\n\treturn mxsd_bind_write(&binding_root_{symbol}, object, sink, context, validator);\n}}\n\n"
+            f"{{\n\t{sid}_binding_require_abi();\n\treturn mxsd_bind_write(&binding_root_{symbol}, object, sink, context, validator);\n}}\n\n"
             f"mxsd_result_t {prefix}_write_buffer(const {ctype} *object, char *buffer, size_t capacity,\n"
             "\t\t\t\tsize_t *length)\n"
-            f"{{\n\treturn mxsd_bind_write_buffer(&binding_root_{symbol}, object, buffer, capacity, length);\n}}\n\n"
-            f"const mxsd_bind_root_t *{prefix}_binding(void)\n{{\n\treturn &binding_root_{symbol};\n}}\n"
+            f"{{\n\t{sid}_binding_require_abi();\n\treturn mxsd_bind_write_buffer(&binding_root_{symbol}, object, buffer, capacity, length);\n}}\n\n"
+            f"const mxsd_bind_root_t *{prefix}_binding(void)\n{{\n\t{sid}_binding_require_abi();\n\treturn &binding_root_{symbol};\n}}\n"
+        )
+    for selection in selections:
+        prefix = "%s_%s" % (sid, selection["symbol"])
+        ctype = "%s_%s_t" % (sid, selection["struct"]["name"])
+        path_symbol = "stream_path_" + selection["symbol"]
+        out.append(
+            "static const mxsd_bind_path_step_t %s[] = {%s};\n"
+            % (
+                path_symbol,
+                ", ".join("{%s, %s}" % (cstr(n), c_string(ns)) for n, ns in selection["steps"]),
+            )
+        )
+        out.append(
+            "static const mxsd_bind_selection_t selection_%s = {%s_%s_schema, %s, %du,\n"
+            "\t&binding_type_%s, %s, %s};\n"
+            % (
+                selection["symbol"],
+                sid,
+                root_symbol(selection["root"]),
+                path_symbol,
+                len(selection["steps"]),
+                selection["struct"]["name"],
+                c_string(selection["element"].get("default")),
+                c_string(selection["element"].get("fixed")),
+            )
+        )
+        out.append(
+            "/** Adapt the generated callback without converting a function pointer. */\n"
+            f"static mxsd_bind_action_t {prefix}_deliver(void *context, const void *object)\n"
+            f"{{\n\t{prefix}_reader_t *reader = context;\n"
+            f"\treturn reader->callback(reader->user_data, (const {ctype} *)object);\n}}\n\n"
+            f"mxsd_result_t {prefix}_reader_init({prefix}_reader_t *reader,\n"
+            f"\t\t{ctype} *object, mxsd_bind_arena_t *arena,\n"
+            f"\t\t{prefix}_item_fn callback, void *user_data,\n"
+            "\t\tconst mxsd_allocator_t *allocator)\n{\n"
+            f"\t{sid}_binding_require_abi();\n"
+            "\tif (reader != NULL) {\n\t\treader->callback = callback;\n"
+            "\t\treader->user_data = user_data;\n\t}\n"
+            f"\treturn mxsd_bind_stream_init(reader != NULL ? &reader->stream : NULL,\n"
+            f"\t\t&selection_{selection['symbol']}, object, arena,\n"
+            f"\t\tcallback != NULL ? {prefix}_deliver : NULL, reader, allocator);\n}}\n\n"
+            f"mxsd_result_t {prefix}_reader_feed({prefix}_reader_t *reader,\n"
+            "\t\tconst void *data, size_t length)\n{\n"
+            f"\t{sid}_binding_require_abi();\n"
+            "\treturn mxsd_bind_stream_feed(reader != NULL ? &reader->stream : NULL, data, length);\n}\n\n"
+            f"mxsd_result_t {prefix}_reader_finish({prefix}_reader_t *reader)\n{{\n"
+            f"\t{sid}_binding_require_abi();\n"
+            "\treturn mxsd_bind_stream_finish(reader != NULL ? &reader->stream : NULL);\n}\n\n"
+            f"void {prefix}_reader_dispose({prefix}_reader_t *reader)\n{{\n"
+            f"\t{sid}_binding_require_abi();\n"
+            "\tmxsd_bind_stream_dispose(reader != NULL ? &reader->stream : NULL);\n}\n"
         )
     return "\n".join(h) + "\n", "\n".join(out).rstrip("\n") + "\n"
 
@@ -5941,6 +6731,13 @@ def generate_bindings(stem, m, selected_roots=None):
 def main():
     """Parse command-line arguments and compile one root schema."""
     parser = argparse.ArgumentParser(prog="mxsdc")
+    parser.add_argument("--version", action="version", version="mxsdc " + VERSION)
+    parser.add_argument(
+        "--abi-info",
+        action="version",
+        version=json.dumps({"compiler_version": VERSION, **ABI_VERSIONS}, sort_keys=True),
+        help="print compiler release and required ABI epochs as JSON",
+    )
     parser.add_argument("schema", nargs="+", type=pathlib.Path)
     parser.add_argument("-o", "--output", required=True, type=pathlib.Path)
     parser.add_argument(
@@ -5968,6 +6765,18 @@ def main():
         help="also generate typed C structures with read/write functions (<stem>.bind.[ch])",
     )
     parser.add_argument(
+        "--stream-bind",
+        action="append",
+        default=[],
+        metavar="ELEMENT/PATH",
+        help="generate a typed fragment reader for an absolute schema element path (repeatable)",
+    )
+    parser.add_argument(
+        "--zephyr-config",
+        action="store_true",
+        help="also generate <stem>.conf recommendations and <stem>.limits.h compile-time checks",
+    )
+    parser.add_argument(
         "--bind-root",
         action="append",
         default=[],
@@ -5989,10 +6798,27 @@ def main():
         stem = ident(args.schema[0].stem)
         header, source = generate(stem, model)
         outputs = {stem + ".mxsd.h": header, stem + ".mxsd.c": source}
-        if args.bindings:
-            bind_header, bind_source = generate_bindings(stem, model, args.bind_root)
+        if args.bindings or args.stream_bind:
+            bind_header, bind_source = generate_bindings(
+                stem,
+                model,
+                args.bind_root,
+                args.stream_bind,
+                stream_only=not args.bindings,
+            )
             outputs[stem + ".bind.h"] = bind_header
             outputs[stem + ".bind.c"] = bind_source
+        if args.zephyr_config:
+            fragment, limits_header = generate_zephyr_config(
+                stem, model, args.bindings or bool(args.stream_bind)
+            )
+            outputs[stem + ".conf"] = fragment
+            outputs[stem + ".limits.h"] = limits_header
+            outputs[stem + ".mxsd.c"] = source.replace(
+                '#include "%s.mxsd.h"' % stem,
+                '#include "%s.mxsd.h"\n#include "%s.limits.h"' % (stem, stem),
+                1,
+            )
         # Nothing is written unless every requested output could be generated.
         for name, text in outputs.items():
             (args.output / name).write_text(text, encoding="utf-8", newline="\n")

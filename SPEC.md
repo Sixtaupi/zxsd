@@ -48,6 +48,30 @@ Typical usage:
 
 The generated validator MUST NOT perform dynamic schema parsing.
 
+## API/ABI stability and migration
+
+`doc/compatibility.rst` defines the public compatibility contract. In 0.x,
+patch releases MUST preserve existing C APIs and compatibility epochs; minor
+releases MAY break them with migration notes. Upgrades MUST rebuild the runtime
+and all consumers. No drop-in binary compatibility is promised during 0.x.
+
+`include/mxsd_version.h` versions the runtime, schema descriptors, and binding
+contracts independently. Generated headers AND sources MUST reject mismatched
+epochs. Generated entry points MUST reference epoch-specific link guards so
+precompiled objects cannot silently link against another descriptor format.
+Unversioned legacy output MUST be regenerated once.
+
+Epochs do not encode resource limits or toolchain ABI flags. All translation
+units MUST share those settings. Explicit allocation-free startup checks MUST
+compare configured limits, heap mode, and recorded public structure sizes before
+using caller-owned state across a separately built runtime boundary. These
+checks MUST NOT claim to establish arbitrary cross-toolchain compatibility.
+
+XSD or generator-option changes MUST regenerate a complete consistent output
+set. Incompatible releases MUST document required application/configuration
+migrations in `CHANGELOG.md`; the compiler metadata, public version header,
+and package version MUST remain synchronized by tests.
+
 ## XML backend
 
 Initial backend:
@@ -289,6 +313,18 @@ The generated schema representation MUST work with both:
 The streaming validator MUST NOT require storage proportional to the XML
 document size.
 
+Eligible flat content models use incremental occurrence counters and cursors,
+including flat sequences with at most one mandatory iteration and repeated
+choices with single-child branches. These models do not consume child-history
+capacity. Nested sequences/choices and complex repetitions MUST use a bounded
+shared continuation pool, preserving all viable occurrence partitions until
+they merge or fail. Nullable groups MUST NOT enumerate empty iterations.
+Pool exhaustion and excessive per-event epsilon work MUST fail explicitly,
+without silently pruning alternatives. A zero-capacity pool selects the
+fixed-capacity history fallback. All paths MUST preserve namespace-aware
+declaration matching, dynamic types, substitution groups, wildcard processing,
+and sticky first-error behavior.
+
 
 ## v0.13 — Resource-constrained operation
 
@@ -429,6 +465,18 @@ document that a structure cannot represent MUST be rejected by the reader.
 Reading MUST NOT allocate in proportion to the input except from the
 caller-provided arena, and arena exhaustion MUST be reported.
 
+The optional `--stream-bind element/path` mode MUST resolve finite absolute
+element selections on the host and generate typed raw-fragment readers.
+It MUST validate the entire document while materializing only one selected
+subtree at a time, without retaining or reparsing its XML. Repeated selections
+generate independent readers, not dynamic XPath or simultaneous subscriptions.
+Callbacks MUST receive complete locally validated typed values, with explicit
+transient lifetimes and caller-owned reusable structures/arenas. Their delivery
+is provisional until full-document finish, including identity checks.
+Validation-only processing after a callback MUST NOT bypass later schema or
+identity errors. Arena exhaustion, unsupported representations, and callback
+errors MUST be explicit and sticky; output MUST NOT be silently truncated.
+
 ## Critical rule
 
 Unsupported XSD constructs MUST cause `mxsdc` to fail.
@@ -452,6 +500,12 @@ Generated code MUST:
 - avoid network access
 - contain no XSD parser
 - contain no unused schema information
+
+An optional ``--zephyr-config`` host mode emits a Kconfig fragment and generated
+compile-time resource checks. It MUST distinguish schema-derived requirements
+from application input budgets, MUST account for dynamic types and recursive
+graphs, and MUST NOT silently clamp requirements to Zephyr's supported ranges.
+Ordinary validator output remains unchanged when this option is absent.
 
 Generation of the same XSD MUST produce byte-identical output.
 
