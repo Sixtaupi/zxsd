@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -10,12 +11,67 @@ import sys
 import tempfile
 
 
-def run(command, success=True, diagnostic=None):
+def run(command, success=True, diagnostic=None, env=None, cwd=None):
     """Require the expected exit status, optionally checking a failure's cause."""
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    result = subprocess.run(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, cwd=cwd
+    )
     if (result.returncode == 0) != success or (diagnostic and diagnostic not in result.stdout):
         raise AssertionError("%r\n%s" % (command, result.stdout))
     return result.stdout
+
+
+def msvc_setup(compiler):
+    """Locate the developer script belonging to CMake's exact cl.exe/toolset."""
+    compiler = pathlib.Path(compiler).resolve()
+    host = compiler.parent.parent.name.lower()
+    target = compiler.parent.name.lower()
+    toolset = compiler.parent.parent.parent.parent
+    if (
+        compiler.name.lower() != "cl.exe"
+        or not host.startswith("host")
+        or host[4:] not in ("x86", "x64", "arm64")
+        or target not in ("x86", "x64", "arm", "arm64")
+        or not re.fullmatch(r"14\.\d+\.\d+", toolset.name)
+    ):
+        raise RuntimeError(
+            "Cannot identify the Visual Studio toolset/architecture for " + str(compiler)
+        )
+    script = toolset.parent.parent.parent / "Auxiliary/Build/vcvarsall.bat"
+    if not script.is_file():
+        raise RuntimeError("Visual Studio developer environment script not found: " + str(script))
+    architecture = host[4:] if host[4:] == target else host[4:] + "_" + target
+    return script, architecture, toolset.name
+
+
+def msvc_environment(compiler, inherited=None):
+    """Capture INCLUDE/LIB/PATH in a child process, never mutate the caller's environment."""
+    script, architecture, toolset = msvc_setup(compiler)
+    inherited = dict(os.environ if inherited is None else inherited)
+    command_processor = next(
+        (value for key, value in inherited.items() if key.upper() == "COMSPEC"), "cmd.exe"
+    )
+    # Pass an explicit Windows command line: list2cmdline's backslash escaping
+    # is not cmd.exe's quoting syntax. /s strips the outer /c quote pair; /u
+    # makes the SET builtin output UTF-16LE independently of the console locale.
+    command = (
+        f'"{command_processor}" /d /u /s /c '
+        f'""{script}" {architecture} -vcvars_ver={toolset} >nul && set"'
+    )
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=inherited)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Could not initialize the Visual Studio environment using " + str(script)
+        )
+    environment = {key.upper(): value for key, value in inherited.items()}
+    for line in result.stdout.decode("utf-16le").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key:  # Skip cmd.exe's hidden '=C:' working-directory entries.
+            environment[key.upper()] = value
+    missing = [key for key in ("INCLUDE", "LIB", "PATH") if not environment.get(key)]
+    if missing:
+        raise RuntimeError("Incomplete Visual Studio environment: missing " + ", ".join(missing))
+    return environment
 
 
 def main():
@@ -26,6 +82,9 @@ def main():
     parser.add_argument("--compiler-id", required=True)
     parser.add_argument("--cmake", required=True)
     args = parser.parse_args()
+    args.project = args.project.resolve()
+    args.build = args.build.resolve()
+    compiler_env = msvc_environment(args.cc) if args.compiler_id == "MSVC" else None
     compiler = [sys.executable, str(args.project / "mxsdc")]
     info = json.loads(run(compiler + ["--abi-info"]))
     version_header = (args.project / "include/mxsd_version.h").read_text(encoding="utf-8")
@@ -59,12 +118,14 @@ def main():
         def compile_file(source, output, success=True, diagnostic=None):
             includes = [str(headers), str(work)]
             if args.compiler_id == "MSVC":
-                flags = ["/nologo", "/c"] + ["/I" + path for path in includes]
+                flags = ["/nologo", "/std:c11", "/c"] + ["/I" + path for path in includes]
                 flags += ["/Fo" + str(output)]
             else:
                 flags = ["-std=c99", "-Werror=implicit-function-declaration", "-c"]
                 flags += ["-I" + path for path in includes] + ["-o", str(output)]
-            return run([args.cc] + flags + [str(source)], success, diagnostic)
+            return run(
+                [args.cc] + flags + [str(source)], success, diagnostic, env=compiler_env, cwd=work
+            )
 
         objects = []
         for schema, options in (
@@ -164,9 +225,11 @@ int main(void) {
                 [args.cc] + link_flags + [str(p) for p in objects + [stub_object]],
                 missing is None,
                 diagnostic,
+                env=compiler_env,
+                cwd=work,
             )
             if missing is None:
-                run([str(executable)])
+                run([str(executable)], env=compiler_env, cwd=work)
 
         # Actual package version selection must enforce the pre-1.0 minor line.
         script = work / "package-version.cmake"

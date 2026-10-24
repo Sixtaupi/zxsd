@@ -177,3 +177,12 @@ Twister) and ``generated-compatibility``. They test matching/mismatched stamps,
 header/source rejection, precompiled-object link rejection, release metadata,
 and CMake package selection. These establish the new baseline, not compatibility
 with historical releases whose output was unversioned.
+
+On Windows, the generated-code test initializes the developer environment using
+``vcvarsall.bat`` from the configured compiler's Visual Studio installation and
+toolset, with matching host/target architectures. Its direct compiler/linker
+probes therefore have the SDK's ``INCLUDE``, ``LIB``, and ``PATH`` even when
+CTest is launched from an ordinary PowerShell prompt after a Visual Studio
+CMake build. Environment changes remain local to the test's child processes;
+compilation/link artifacts stay in its temporary directory. The
+``compatibility-helpers`` tests exercise this setup and error handling offline.

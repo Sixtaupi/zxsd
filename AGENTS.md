@@ -112,6 +112,11 @@ ctest --test-dir build-sample --output-on-failure
 On multi-configuration generators, add `--config Release` to build commands
 and `-C Release` to CTest commands.
 
+The generated-compatibility probes invoke the compiler directly. On Windows,
+preserve the test's `vcvarsall.bat` environment initialization for CMake's selected
+MSVC toolset/architecture: a Visual Studio build does not export SDK include/library
+paths back to the CTest process. Keep probes in their temporary working directory.
+
 The host `mxsd_model_limits_test` compiles its own `mxsd_model.c` with the private
 force-included `tests/model_limits_config.h` (eight pool slots). Keep that override
 on both test translation units, independent of global flags and the normal runtime;
