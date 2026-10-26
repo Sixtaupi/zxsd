@@ -117,6 +117,10 @@ preserve the test's `vcvarsall.bat` environment initialization for CMake's selec
 MSVC toolset/architecture: a Visual Studio build does not export SDK include/library
 paths back to the CTest process. Keep probes in their temporary working directory.
 
+The installed-package consumer stages the imported runtime DLL beside its executable
+on Windows shared builds. Preserve configuration-aware target paths and the test's
+timeout; linking an import library alone does not make the installed DLL discoverable.
+
 The host `mxsd_model_limits_test` compiles its own `mxsd_model.c` with the private
 force-included `tests/model_limits_config.h` (eight pool slots). Keep that override
 on both test translation units, independent of global flags and the normal runtime;

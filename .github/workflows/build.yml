@@ -58,7 +58,7 @@ jobs:
         run: cmake --build build-consumer --config Release --parallel
 
       - name: Test installed-package consumer
-        run: ctest --test-dir build-consumer -C Release --output-on-failure
+        run: ctest --test-dir build-consumer -C Release --output-on-failure --timeout 120
 
       - name: Configure host sample
         run: >-
