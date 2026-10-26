@@ -1,0 +1,82 @@
+name: Static analysis
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  cppcheck:
+    name: Cppcheck
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate compilation database
+        run: >-
+          cmake -S . -B build-cppcheck
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DMXSD_BUILD_TESTS=OFF
+          -DMXSD_USE_MXML=OFF
+
+      - name: Build Cppcheck image
+        id: cppcheck_image
+        run: >-
+          docker build --target runtime
+          --tag mxsd-cppcheck:ci
+          tools/docker/cppcheck
+
+      - name: Analyze C sources
+        shell: bash
+        run: |
+          set +e
+          docker run --rm \
+            --volume "${{ github.workspace }}:${{ github.workspace }}:ro" \
+            --workdir "${{ github.workspace }}" \
+            mxsd-cppcheck:ci \
+            cmake -S . -B build-misra -DMXSD_NO_HEAP=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            cppcheck \
+              --project=build-misra/compile_commands.json \
+              --dump \
+              --max-configs=1
+            find . -name '*.dump' -not -path './build-misra/*' -print0 |
+              xargs -0 python3 /usr/local/share/Cppcheck/addons/misra.py \
+                  --rule-texts=tools/docker/cppcheck/misra2023_rules_ascii.txt
+                  --junit-file-export=misra_report.xml
+          status=$?
+          cat build-misra/misra_report.xml
+          exit "$status"
+
+      - name: Analyze C sources with Flawfinder
+        if: ${{ always() && steps.cppcheck_image.outcome == 'success' }}
+        shell: bash
+        run: |
+          set +e
+          docker run --rm \
+            --volume "${{ github.workspace }}:${{ github.workspace }}:ro" \
+            --workdir "${{ github.workspace }}" \
+            mxsd-cppcheck:ci \
+            flawfinder \
+              --columns \
+              --context \
+              --error-level=4 \
+              --omittime \
+              include src \
+              >build-cppcheck/flawfinder.txt
+          status=$?
+          cat build-cppcheck/flawfinder.txt
+          exit "$status"
+
+      - name: Upload static analysis reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: static-analysis-reports
+          path: |
+            build-misra/misra_report.xml
+            build-cppcheck/flawfinder.txt
+          if-no-files-found: warn
