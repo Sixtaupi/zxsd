@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Before 1.0, installed CMake version selection requires the same minor line,
   and the shared-library ABI identifier includes the minor version (`0.20`).
+- The host compiler implementation is split into focused Python modules while
+  preserving the `mxsdc` command, public Python import, and generated output.
 
 ### Migration
 

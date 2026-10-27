@@ -1,6 +1,9 @@
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME compatibility-helpers
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_compatibility_helpers.py)
+add_test(NAME compiler-modules
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_compiler_modules.py
+          ${PROJECT_SOURCE_DIR})
 add_test(NAME benchmark-protocol
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_benchmark.py)
 add_executable(mxsd_compatibility_test test_compatibility.c)

@@ -17,21 +17,39 @@
 /** Resolve a QName prefix against declarations on an element and its parents. */
 static const char *namespace_for(mxml_node_t *node, const char *prefix, int attribute)
 {
+	static const char default_declaration[] = "xmlns";
+	static const char declaration_prefix[] = "xmlns:";
 	char declaration[MXSD_STREAM_NAME_CAPACITY];
+	const char *declaration;
 	const char *value;
+
 	if (prefix == NULL && attribute) {
 		return NULL;
 	}
+
 	if (prefix == NULL) {
-		strcpy(declaration, "xmlns");
+		/* "xmlns" */
+		declaration = default_declaration;
 	} else {
 		size_t length = strlen(prefix);
-		if (length + 7u > sizeof(declaration)) {
+
+		if (sizeof(declaration_storage) < sizeof(declaration_prefix) ||
+		    length > sizeof(declaration_storage) - sizeof(declaration_prefix)) {
 			return NULL;
 		}
-		memcpy(declaration, "xmlns:", 6u);
-		memcpy(declaration + 6u, prefix, length + 1u);
+
+		/* Safe: capacity includes the prefix and terminating NUL. */
+		/* Flawfinder: ignore */
+		memcpy(declaration_storage, declaration_prefix,
+		       sizeof(declaration_prefix) - 1u);
+		/* Safe: length was bounded against the remaining capacity above. */
+		/* Flawfinder: ignore */
+		memcpy(declaration_storage + sizeof(declaration_prefix) - 1u,
+		       prefix, length + 1u);
+		/* "xmlns:" */
+		declaration = declaration_storage;
 	}
+
 	while (node != NULL) {
 		if (mxmlGetType(node) == MXML_TYPE_ELEMENT &&
 		    (value = mxmlElementGetAttr(node, declaration)) != NULL) {
@@ -39,6 +57,7 @@ static const char *namespace_for(mxml_node_t *node, const char *prefix, int attr
 		}
 		node = mxmlGetParent(node);
 	}
+
 	return NULL;
 }
 

@@ -122,6 +122,8 @@ if(MXSD_HAS_MXML)
   install(FILES include/mxsd_mxml.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 install(PROGRAMS mxsdc DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY mxsdc_lib DESTINATION ${CMAKE_INSTALL_BINDIR}
+  FILES_MATCHING PATTERN "*.py" PATTERN "__pycache__" EXCLUDE)
 install(EXPORT mxsdTargets
   FILE mxsdTargets.cmake
   NAMESPACE mxsd::

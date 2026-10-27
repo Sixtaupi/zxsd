@@ -40,7 +40,9 @@ documentation together. Do not let these descriptions drift apart.
 
 ## Repository layout
 
-- `mxsdc`: Python host compiler and C code generator.
+- `mxsdc`: extensionless host-compiler launcher retained for source-tree and CMake use.
+- `mxsdc_lib/`: modular Python compiler implementation: schema loading/compilation,
+  regular expressions, descriptor generation, bindings, Zephyr sizing, and the CLI.
 - `include/`: public, installed C headers.
 - `src/mxsd.c`: public validation facade and resource checks.
 - `src/mxsd_version.c`: runtime version, configuration checks, and ABI link guards.

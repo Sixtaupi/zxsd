@@ -138,7 +138,9 @@ function(mxsd_generate)
     list(APPEND command_args --bind-root "${root}")
   endforeach()
 
-  set(dependencies "${schema}" "${MXSDC_EXECUTABLE}")
+  get_filename_component(mxsdc_directory "${MXSDC_EXECUTABLE}" DIRECTORY)
+  file(GLOB mxsdc_modules CONFIGURE_DEPENDS "${mxsdc_directory}/mxsdc_lib/*.py")
+  set(dependencies "${schema}" "${MXSDC_EXECUTABLE}" ${mxsdc_modules})
   foreach(dependency IN LISTS MXSD_DEPENDS)
     if(NOT IS_ABSOLUTE "${dependency}")
       get_filename_component(dependency "${dependency}" ABSOLUTE

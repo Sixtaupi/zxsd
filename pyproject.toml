@@ -39,12 +39,12 @@ path = "CMakeLists.txt"
 pattern = "project\\(mxsd VERSION (?P<version>[0-9.]+)"
 
 [tool.hatch.build.targets.sdist]
-only-include = ["mxsdc", "CMakeLists.txt", "README.md", "LICENSE", "pyproject.toml"]
+only-include = ["mxsdc", "mxsdc_lib", "CMakeLists.txt", "README.md", "LICENSE", "pyproject.toml"]
 
-# The repository keeps the compiler as a single extensionless script; ship it as
-# the mxsdc module so the console entry point can import main().
+# Keep the extensionless source-tree launcher while installing the implementation
+# package under the public `mxsdc` import name.
 [tool.hatch.build.targets.wheel]
 bypass-selection = true
 
 [tool.hatch.build.targets.wheel.force-include]
-"mxsdc" = "mxsdc/__init__.py"
+"mxsdc_lib" = "mxsdc"

@@ -15,14 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Generate compilation database
-        run: >-
-          cmake -S . -B build-cppcheck
-          -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          -DMXSD_BUILD_TESTS=OFF
-          -DMXSD_USE_MXML=OFF
-
       - name: Build Cppcheck image
         id: cppcheck_image
         run: >-
