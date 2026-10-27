@@ -12,8 +12,10 @@ Docker image based on alpine including
     docker build --target runtime -t <imagename> .
 ```
 
-The repository's `.devcontainer/devcontainer.json` uses the `development` target, which also
-includes Git, CMake, Ninja, and the C toolchain.
+The `runtime` target includes CMake and the C toolchain so CI can generate compilation
+databases with analysis-specific configuration flags. The repository's
+`.devcontainer/devcontainer.json` uses the `development` target, which additionally includes
+Bash, Git, and Ninja.
 
 ## Cppcheck MISRA usage
 

@@ -15,7 +15,7 @@ RUN mkdir build && cd build && cmake .. && cmake --build .
 ###### FINAL IMAGE
 FROM alpine:latest AS runtime
 RUN apk update && \
-    apk add --no-cache libstdc++ python3 py3-pip
+    apk add --no-cache build-base cmake libstdc++ python3 py3-pip
 # Python is installed
 
 # cppcheck
@@ -32,7 +32,7 @@ RUN pip install --break-system-packages flawfinder
 ###################################
 ###### DEVELOPMENT IMAGE
 FROM runtime AS development
-RUN apk add --no-cache bash build-base cmake git ninja
+RUN apk add --no-cache bash git ninja
 RUN addgroup -g 1000 vscode && \
     adduser -D -u 1000 -G vscode vscode
 USER vscode

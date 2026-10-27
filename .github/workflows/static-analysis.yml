@@ -35,18 +35,25 @@ jobs:
         run: |
           set +e
           docker run --rm \
-            --volume "${{ github.workspace }}:${{ github.workspace }}:ro" \
+            --volume "${{ github.workspace }}:${{ github.workspace }}" \
             --workdir "${{ github.workspace }}" \
             mxsd-cppcheck:ci \
-            cmake -S . -B build-misra -DMXSD_NO_HEAP=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-            cppcheck \
-              --project=build-misra/compile_commands.json \
-              --dump \
-              --max-configs=1
-            find . -name '*.dump' -not -path './build-misra/*' -print0 |
-              xargs -0 python3 /usr/local/share/Cppcheck/addons/misra.py \
-                  --rule-texts=tools/docker/cppcheck/misra2023_rules_ascii.txt
-                  --junit-file-export=misra_report.xml
+            sh -c '
+              cmake -S . -B build-misra \
+                -DCMAKE_BUILD_TYPE=Debug \
+                -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+                -DMXSD_BUILD_TESTS=OFF \
+                -DMXSD_NO_HEAP=ON \
+                -DMXSD_USE_MXML=OFF &&
+              cppcheck \
+                --project=build-misra/compile_commands.json \
+                --dump \
+                --max-configs=1 &&
+              find src -name "*.dump" -print0 |
+                xargs -0 python3 /usr/local/share/Cppcheck/addons/misra.py \
+                  --rule-texts=/usr/local/share/Cppcheck/addons/misra2023_rules_ascii.txt \
+                  --junit-file-export=build-misra/misra_report.xml
+            '
           status=$?
           cat build-misra/misra_report.xml
           exit "$status"
