@@ -65,9 +65,9 @@ jobs:
               --error-level=4 \
               --omittime \
               include src \
-              >build-cppcheck/flawfinder.txt
+              >flawfinder.txt
           status=$?
-          cat build-cppcheck/flawfinder.txt
+          cat flawfinder.txt
           exit "$status"
 
       - name: Upload static analysis reports
@@ -77,5 +77,5 @@ jobs:
           name: static-analysis-reports
           path: |
             build-misra/misra_report.xml
-            build-cppcheck/flawfinder.txt
+            flawfinder.txt
           if-no-files-found: warn

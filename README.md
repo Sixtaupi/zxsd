@@ -2,6 +2,7 @@
 
 [![Build and test][build-badge]][build-workflow]
 [![Documentation][docs-badge]][documentation]
+[![OpenSSF Scorecard][scorecard-badge]][scorecard-report]
 [![PyPI](https://img.shields.io/pypi/v/mxsdc.svg)](https://pypi.org/project/mxsdc/)
 [![License](https://img.shields.io/github/license/Sixtaupi/mxsd.svg)](LICENSE)
 
@@ -9,6 +10,8 @@
 [build-workflow]: https://github.com/Sixtaupi/mxsd/actions/workflows/build.yml
 [docs-badge]: https://github.com/Sixtaupi/mxsd/actions/workflows/documentation.yml/badge.svg
 [documentation]: https://sixtaupi.github.io/mxsd/
+[scorecard-badge]: https://api.scorecard.dev/projects/github.com/Sixtaupi/mxsd/badge
+[scorecard-report]: https://scorecard.dev/viewer/?uri=github.com/Sixtaupi/mxsd
 
 `mxsd` is a strict, bounded, zero-heap-capable XML Schema validator and typed C
 binding generator for embedded systems. `mxsdc` processes XSD on the host; the

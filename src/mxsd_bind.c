@@ -32,18 +32,23 @@ mxsd_result_t mxsd_bind_check_runtime(const mxsd_bind_runtime_config_t *expected
 	if (expected == NULL) {
 		return make_result(MXSD_ERR_ARGUMENT, 0u, NULL);
 	}
+
 	result = mxsd_check_runtime(&expected->runtime);
+
 	if (result.code != MXSD_OK) {
 		return result;
 	}
+
 	if (expected->binding_abi != actual.binding_abi) {
 		return make_result(MXSD_ERR_INCOMPATIBLE_ABI, 0u, NULL);
 	}
+
 	for (index = 0u; index < sizeof(actual.layouts) / sizeof(actual.layouts[0]); ++index) {
 		if (expected->layouts[index] != actual.layouts[index]) {
 			return make_result(MXSD_ERR_INCOMPATIBLE_ABI, 0u, "binding layouts");
 		}
 	}
+
 	return result;
 }
 
@@ -217,10 +222,12 @@ static int load_enum_index(const unsigned char *address, size_t size, size_t *in
 	} else {
 		return 0;
 	}
+
 	if (value < 0) {
 		return 0;
 	}
 	*index = (size_t)value;
+
 	return 1;
 }
 
@@ -363,6 +370,7 @@ static mxsd_result_t emit_escaped(writer_t *writer, const char *text, size_t len
 		}
 		position += consumed;
 	}
+
 	return emit(writer, text + run_start, position - run_start, path);
 }
 
@@ -374,11 +382,13 @@ static const char *namespace_prefix_for(const mxsd_bind_root_t *root, const char
 	if (strcmp(namespace_uri, xml_namespace) == 0) {
 		return "xml";
 	}
+
 	for (index = 0u; index < root->namespace_count; ++index) {
 		if (strcmp(root->namespaces[index].namespace_uri, namespace_uri) == 0) {
 			return root->namespaces[index].prefix;
 		}
 	}
+
 	return NULL;
 }
 
@@ -416,10 +426,12 @@ static size_t format_unsigned(uint64_t value, char *text)
 		reversed[count++] = (char)('0' + (int)(value % 10u));
 		value /= 10u;
 	} while (value != 0u);
+
 	for (index = 0u; index < count; ++index) {
 		text[index] = reversed[count - index - 1u];
 	}
 	text[count] = '\0';
+
 	return count;
 }
 
@@ -431,6 +443,7 @@ static size_t format_signed(int64_t value, char *text)
 		text[0] = '-';
 		return 1u + format_unsigned((uint64_t)0u - (uint64_t)value, text + 1);
 	}
+
 	return format_unsigned((uint64_t)value, text);
 }
 
@@ -522,6 +535,7 @@ static mxsd_error_t simple_text(const mxsd_bind_field_t *field, const unsigned c
 		return MXSD_ERR_ARGUMENT;
 	}
 	*text = scratch;
+
 	return MXSD_OK;
 }
 
@@ -566,8 +580,10 @@ static int type_has_content(const mxsd_bind_type_t *type, const void *object)
 				continue;
 			}
 		}
+
 		return 1;
 	}
+
 	return 0;
 }
 
@@ -622,6 +638,7 @@ static mxsd_result_t write_attributes(writer_t *writer, const mxsd_bind_type_t *
 			return result;
 		}
 	}
+
 	return make_result(MXSD_OK, writer->written, NULL);
 }
 
@@ -634,6 +651,7 @@ static mxsd_result_t write_text(writer_t *writer, const char *text, const char *
 	if (result.code == MXSD_OK && writer->validator != NULL && length != 0u) {
 		result = mxsd_text(writer->validator, text, length);
 	}
+
 	return result;
 }
 
@@ -651,19 +669,24 @@ static mxsd_result_t write_simple_element(writer_t *writer, const mxsd_bind_fiel
 				    code == MXSD_ERR_ARGUMENT ? MXSD_ERR_MISSING_ELEMENT : code,
 				    field->name);
 	}
+
 	result = emit(writer, "<", 1u, field->name);
+
 	if (result.code == MXSD_OK) {
 		result = emit_name(writer, field->namespace_uri, field->name);
 	}
+
 	if (result.code == MXSD_OK && writer->validator != NULL) {
 		result = mxsd_start_element(writer->validator, field->namespace_uri, field->name);
 		if (result.code == MXSD_OK) {
 			result = mxsd_start_content(writer->validator);
 		}
 	}
+
 	if (result.code != MXSD_OK) {
 		return result;
 	}
+
 	if (text[0] == '\0') {
 		result = emit(writer, "/>", 2u, field->name);
 	} else {
@@ -681,9 +704,11 @@ static mxsd_result_t write_simple_element(writer_t *writer, const mxsd_bind_fiel
 			result = emit(writer, ">", 1u, field->name);
 		}
 	}
+
 	if (result.code == MXSD_OK && writer->validator != NULL) {
 		result = mxsd_end_element(writer->validator, field->namespace_uri, field->name);
 	}
+
 	return result;
 }
 
@@ -695,6 +720,7 @@ static mxsd_result_t write_item(writer_t *writer, const mxsd_bind_field_t *field
 		return write_complex(writer, field->namespace_uri, field->name, field->type,
 				     address, 0);
 	}
+
 	return write_simple_element(writer, field, address);
 }
 
@@ -725,17 +751,21 @@ static mxsd_result_t write_element_field(writer_t *writer, const mxsd_bind_field
 				return result;
 			}
 		}
+
 		return make_result(MXSD_OK, writer->written, NULL);
 	}
+
 	if (!field_present(field, object)) {
 		if (!field_is_optional(field)) {
 			return writer_error(writer, MXSD_ERR_MISSING_ELEMENT, field->name);
 		}
 		return make_result(MXSD_OK, writer->written, NULL);
 	}
+
 	if (field->storage == MXSD_BIND_POINTER) {
 		return write_item(writer, field, (const unsigned char *)load_pointer(address));
 	}
+
 	return write_item(writer, field, address);
 }
 
@@ -752,10 +782,13 @@ static mxsd_result_t write_content_field(writer_t *writer, const mxsd_bind_field
 			       ? make_result(MXSD_OK, writer->written, NULL)
 			       : writer_error(writer, MXSD_ERR_INVALID_VALUE, field->name);
 	}
+
 	code = simple_text(field, const_member(object, field->offset), scratch, &text);
+
 	if (code != MXSD_OK) {
 		return writer_error(writer, code, field->name);
 	}
+
 	return write_text(writer, text, field->name);
 }
 
@@ -861,10 +894,12 @@ static mxsd_result_t write_complex(writer_t *writer, const char *namespace_uri, 
 			result = emit(writer, ">", 1u, name);
 		}
 	}
+
 	if (result.code == MXSD_OK && writer->validator != NULL) {
 		result = mxsd_end_element(writer->validator, namespace_uri, name);
 	}
 	writer->depth--;
+
 	return result;
 }
 
@@ -901,6 +936,7 @@ mxsd_result_t mxsd_bind_write(const mxsd_bind_root_t *root, const void *object,
 	if (result.code != MXSD_OK) {
 		return result;
 	}
+
 	return make_result(MXSD_OK, writer.written, NULL);
 }
 
@@ -921,6 +957,7 @@ static int buffer_sink(void *context, const char *data, size_t length)
 	}
 	memcpy(buffer->data + buffer->length, data, length);
 	buffer->length += length;
+
 	return 0;
 }
 
@@ -1019,6 +1056,7 @@ static void *arena_allocate(mxsd_bind_arena_t *arena, size_t size, size_t alignm
 	}
 	arena->used = start + size;
 	memset(arena->data + start, 0, size);
+
 	return arena->data + start;
 }
 
@@ -1037,6 +1075,7 @@ static size_t normalize_in_place(char *text, size_t length, mxsd_whitespace_t mo
 	if (mode == MXSD_WS_PRESERVE) {
 		return length;
 	}
+
 	for (source = 0u; source < length; ++source) {
 		char character = text[source];
 		int space = is_xml_space(character);
@@ -1053,6 +1092,7 @@ static size_t normalize_in_place(char *text, size_t length, mxsd_whitespace_t mo
 			text[destination++] = character;
 		}
 	}
+
 	return destination;
 }
 
@@ -1067,9 +1107,11 @@ static int parse_magnitude(const char *text, int *negative, uint64_t *magnitude)
 		*negative = text[index] == '-';
 		index++;
 	}
+
 	if (text[index] == '\0') {
 		return 0;
 	}
+
 	for (; text[index] != '\0'; ++index) {
 		unsigned digit;
 
@@ -1083,6 +1125,7 @@ static int parse_magnitude(const char *text, int *negative, uint64_t *magnitude)
 		value = value * 10u + digit;
 	}
 	*magnitude = value;
+
 	return 1;
 }
 
@@ -1095,6 +1138,7 @@ static int parse_signed(const char *text, int64_t minimum, int64_t maximum, int6
 	if (!parse_magnitude(text, &negative, &magnitude)) {
 		return 0;
 	}
+
 	if (negative) {
 		if (magnitude > (uint64_t)0u - (uint64_t)minimum) {
 			return 0;
@@ -1106,6 +1150,7 @@ static int parse_signed(const char *text, int64_t minimum, int64_t maximum, int6
 		}
 		*value = (int64_t)magnitude;
 	}
+
 	return 1;
 }
 
@@ -1120,6 +1165,7 @@ static int parse_unsigned(const char *text, uint64_t maximum, uint64_t *value)
 		return 0;
 	}
 	*value = magnitude;
+
 	return 1;
 }
 
@@ -1250,14 +1296,17 @@ static mxsd_result_t finish_simple(mxsd_bind_arena_t *arena, const mxsd_bind_fie
 	/* The arena holds length + 1 bytes for the text; normalization only shrinks it. */
 	length = normalize_in_place(text, length, field->whitespace);
 	text[length] = '\0';
+
 	if (!store_simple(field, address, text)) {
 		return make_result(MXSD_ERR_INVALID_VALUE, offset, field->name);
 	}
+
 	if (field->kind != MXSD_BIND_STRING) {
 		arena->used = mark;
 	} else {
 		arena->used = (size_t)((unsigned char *)text - arena->data) + length + 1u;
 	}
+
 	return make_result(MXSD_OK, offset, NULL);
 }
 
@@ -1271,11 +1320,14 @@ mxsd_result_t mxsd_bind_store_decoded(mxsd_bind_arena_t *arena, const mxsd_bind_
 	if (length == (size_t)-1) {
 		return make_result(MXSD_ERR_RESOURCE_LIMIT, offset, field->name);
 	}
+
 	text = arena_allocate(arena, length + 1u, 1u);
+
 	if (text == NULL) {
 		return make_result(MXSD_ERR_RESOURCE_LIMIT, offset, field->name);
 	}
 	memcpy(text, value, length);
+
 	return finish_simple(arena, field, address, text, length, mark, offset);
 }
 
@@ -1291,6 +1343,7 @@ static mxsd_result_t store_lexical(reader_t *reader, const mxsd_bind_field_t *fi
 		return make_result(MXSD_ERR_RESOURCE_LIMIT, offset, field->name);
 	}
 	memcpy(text, value, length);
+
 	return finish_simple(reader->arena, field, address, text, length, mark, offset);
 }
 
@@ -1312,6 +1365,7 @@ static mxsd_result_t store_attribute(reader_t *reader, const mxsd_bind_field_t *
 	if (text == NULL) {
 		return make_result(MXSD_ERR_RESOURCE_LIMIT, offset, field->name);
 	}
+
 	for (index = 0u; index < raw.length; ++index) {
 		char character = raw.data[index];
 
@@ -1324,6 +1378,7 @@ static mxsd_result_t store_attribute(reader_t *reader, const mxsd_bind_field_t *
 		reader->arena->used = mark;
 		return make_result(MXSD_ERR_INVALID_VALUE, offset, field->name);
 	}
+
 	return finish_simple(reader->arena, field, address, text, decoded.length, mark, offset);
 }
 
@@ -1407,12 +1462,14 @@ static mxsd_result_t read_text(reader_t *reader, const char *path, char **text, 
 		}
 		return make_result(MXSD_ERR_UNEXPECTED_ELEMENT, parser->position, path);
 	}
+
 	if (arena->used >= arena->capacity) {
 		return make_result(MXSD_ERR_RESOURCE_LIMIT, parser->position, path);
 	}
 	/* Reserve the terminating NUL written by finish_simple(). */
 	arena->data[arena->used++] = '\0';
 	*length = total;
+
 	return make_result(MXSD_OK, parser->position, NULL);
 }
 
@@ -1435,6 +1492,7 @@ static mxsd_result_t consume_end_tag(reader_t *reader, const start_tag_t *tag, c
 		return make_result(MXSD_ERR_MALFORMED_XML, parser->position, path);
 	}
 	parser->position++;
+
 	return make_result(MXSD_OK, parser->position, NULL);
 }
 
@@ -1454,6 +1512,7 @@ static void skip_between_children(xml_parser_t *parser)
 			parser->position = (size_t)(end - parser->input) + 3u;
 			continue;
 		}
+
 		return;
 	}
 }
@@ -1470,9 +1529,11 @@ static const mxsd_bind_field_t *find_element_field(const xml_parser_t *parser,
 
 	split_qualified_name(qualified_name, &prefix, &local_name);
 	namespace_uri = resolve_namespace(parser, prefix, 0);
+
 	if (prefix.length != 0u && namespace_uri.length == 0u) {
 		return NULL;
 	}
+
 	for (index = 0u; index < type->field_count; ++index) {
 		const mxsd_bind_field_t *field = &type->fields[index];
 
@@ -1482,6 +1543,7 @@ static const mxsd_bind_field_t *find_element_field(const xml_parser_t *parser,
 			return field;
 		}
 	}
+
 	return NULL;
 }
 
@@ -1501,11 +1563,14 @@ static int xsi_type_matches(const xml_parser_t *parser, const mxsd_bind_type_t *
 	if (type->type_name == NULL) {
 		return 0;
 	}
+
 	split_qualified_name(trim_span(value), &prefix, &local_name);
 	namespace_uri = resolve_namespace(parser, prefix, 0);
+
 	if (prefix.length != 0u && namespace_uri.length == 0u) {
 		return 0;
 	}
+
 	return span_equals_string(local_name, type->type_name) &&
 	       namespace_matches(type->type_namespace, namespace_uri);
 }
@@ -1611,6 +1676,7 @@ static mxsd_result_t read_attributes(reader_t *reader, const start_tag_t *tag,
 			store_bool(member(object, field->presence_offset), true);
 		}
 	}
+
 	return make_result(MXSD_OK, parser->position, NULL);
 }
 
@@ -1641,6 +1707,7 @@ static mxsd_result_t read_simple_content(reader_t *reader, const start_tag_t *ta
 		}
 		reader->arena->used = mark;
 	}
+
 	return store_lexical(reader, field, address, fallback != NULL ? fallback : "",
 			     tag->start_offset);
 }
@@ -1667,9 +1734,11 @@ static mxsd_result_t allocate_arrays(reader_t *reader, const mxsd_bind_type_t *t
 			store_count(member(object, type->fields[index].count_offset), 0u);
 		}
 	}
+
 	if (!has_arrays) {
 		return make_result(MXSD_OK, parser->position, NULL);
 	}
+
 	for (;;) {
 		start_tag_t child;
 		const mxsd_bind_field_t *field;
@@ -1729,6 +1798,7 @@ static mxsd_result_t allocate_arrays(reader_t *reader, const mxsd_bind_type_t *t
 		}
 		store_pointer(member(object, field->offset), items);
 	}
+
 	return make_result(MXSD_OK, parser->position, NULL);
 }
 
@@ -1769,6 +1839,7 @@ static unsigned char *child_target(reader_t *reader, const mxsd_bind_field_t *fi
 	if (field->presence_offset != MXSD_BIND_NO_OFFSET) {
 		store_bool(member(object, field->presence_offset), true);
 	}
+
 	return address;
 }
 
@@ -1782,6 +1853,7 @@ static mxsd_result_t read_children(reader_t *reader, const mxsd_bind_type_t *typ
 	if (result.code != MXSD_OK) {
 		return result;
 	}
+
 	for (;;) {
 		start_tag_t child;
 		const mxsd_bind_field_t *field;
@@ -1840,6 +1912,7 @@ static const mxsd_bind_field_t *content_field(const mxsd_bind_type_t *type)
 			return &type->fields[index];
 		}
 	}
+
 	return NULL;
 }
 
@@ -1859,14 +1932,17 @@ static mxsd_result_t read_complex(reader_t *reader, const start_tag_t *tag,
 	if (result.code != MXSD_OK) {
 		return result;
 	}
+
 	if (content != NULL) {
 		return read_simple_content(reader, tag, content, member(object, content->offset),
 					   default_value, fixed_value);
 	}
+
 	if (tag->is_empty) {
 		/* Array counts and pointers are already zero in a zeroed structure. */
 		return make_result(MXSD_OK, tag->content_offset, NULL);
 	}
+
 	return read_children(reader, type, object, type->name);
 }
 
@@ -1893,9 +1969,11 @@ static mxsd_result_t reader_start(reader_t *reader, const mxsd_schema_t *schema,
 	}
 	skip_whitespace(parser);
 	result = skip_xml_declaration(parser);
+
 	if (result.code == MXSD_OK) {
 		skip_ignorable_markup(parser);
 	}
+
 	return result;
 }
 
@@ -1933,6 +2011,7 @@ static MXSD_NOINLINE mxsd_result_t fill_object(const mxsd_bind_root_t *root,
 	if (result.code != MXSD_OK) {
 		return result;
 	}
+
 	return make_result(MXSD_OK, reader.parser.position, NULL);
 }
 
@@ -1963,6 +2042,7 @@ static mxsd_result_t bind_read(const mxsd_bind_root_t *root, const char *xml, vo
 		memset(object, 0, root->type->size);
 		arena->used = mark;
 	}
+
 	return result;
 }
 

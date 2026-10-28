@@ -62,6 +62,7 @@ Why mxsd?
    xsd-support
    bindings
    conformance
+   w3c-results
    w3c-baseline
    zephyr
    kconfig

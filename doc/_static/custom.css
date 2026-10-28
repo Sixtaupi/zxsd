@@ -48,3 +48,9 @@ code.literal {
     color: #8b2846;
 }
 
+.w3c-report-frame {
+    width: 100%;
+    min-height: 80vh;
+    border: 1px solid var(--mxsd-border, #d0d7de);
+    border-radius: 6px;
+}

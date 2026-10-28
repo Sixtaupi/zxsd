@@ -57,8 +57,10 @@ static int binding_type_matches(mxsd_bind_stream_t *reader, size_t depth)
 			   frame->type->type_name != NULL ? frame->type->type_name : "",
 			   frame->type->type_namespace))) {
 		binding_fail(reader, MXSD_ERR_UNSUPPORTED, validated->expected_name);
+
 		return 0;
 	}
+
 	return 1;
 }
 
@@ -73,11 +75,13 @@ static int binding_value(mxsd_bind_stream_t *reader, const mxsd_bind_field_t *fi
 		binding_fail(reader, result.code, field->name);
 		return 0;
 	}
+
 	if (owner != NULL && field->presence_offset != MXSD_BIND_NO_OFFSET) {
 		bool present = true;
 
 		memcpy(binding_member(owner, field->presence_offset), &present, sizeof(present));
 	}
+
 	return 1;
 }
 
@@ -94,11 +98,13 @@ static void *binding_target(mxsd_bind_stream_t *reader, mxsd_bind_stream_frame_t
 
 		memcpy(&count, binding_member(parent->object, field->count_offset), sizeof(count));
 		memcpy(&items, address, sizeof(items));
+
 		if (count == (size_t)-1 || field->value_size == 0u ||
 		    (field->max_occurs != ULONG_MAX && count >= field->max_occurs)) {
 			binding_fail(reader, MXSD_ERR_RESOURCE_LIMIT, field->name);
 			return NULL;
 		}
+
 		if (count == 0u || (count & (count - 1u)) == 0u) {
 			size_t capacity;
 			void *grown;
@@ -107,19 +113,24 @@ static void *binding_target(mxsd_bind_stream_t *reader, mxsd_bind_stream_frame_t
 				binding_fail(reader, MXSD_ERR_RESOURCE_LIMIT, field->name);
 				return NULL;
 			}
+
 			capacity = count == 0u ? 1u : 2u * count;
+
 			if (field->max_occurs != ULONG_MAX && capacity > field->max_occurs) {
 				capacity = (size_t)field->max_occurs;
 			}
+
 			if (capacity > (size_t)-1 / field->value_size ||
 			    (grown = mxsd_bind_arena_allocate(
 				     reader->arena, capacity * field->value_size)) == NULL) {
 				binding_fail(reader, MXSD_ERR_RESOURCE_LIMIT, field->name);
 				return NULL;
 			}
+
 			if (count != 0u) {
 				memcpy(grown, items, count * field->value_size);
 			}
+
 			items = grown;
 			memcpy(address, &items, sizeof(items));
 		}
@@ -134,12 +145,14 @@ static void *binding_target(mxsd_bind_stream_t *reader, mxsd_bind_stream_frame_t
 		}
 		memcpy(address, &target, sizeof(target));
 	}
+
 	if (field->presence_offset != MXSD_BIND_NO_OFFSET) {
 		bool present = true;
 
 		memcpy(binding_member(parent->object, field->presence_offset), &present,
 		       sizeof(present));
 	}
+
 	return target;
 }
 
@@ -152,12 +165,14 @@ static void binding_start(mxsd_bind_stream_t *reader, const char *uri, const cha
 	size_t index;
 
 	memset(frame, 0, sizeof(*frame));
+
 	if (depth < selection->step_count &&
 	    (depth == 0u || reader->frames[depth - 1u].path_match)) {
 		frame->path_match =
 			(unsigned char)binding_name(name, uri, selection->steps[depth].name,
 						    selection->steps[depth].namespace_uri);
 	}
+
 	if (reader->active_depth == 0u) {
 		if (!reader->validate_only && depth + 1u == selection->step_count &&
 		    frame->path_match) {
@@ -168,26 +183,28 @@ static void binding_start(mxsd_bind_stream_t *reader, const char *uri, const cha
 		}
 		return;
 	}
+
 	if (!binding_type_matches(reader, depth - 1u)) {
 		return;
 	}
-	{
-		mxsd_bind_stream_frame_t *parent = &reader->frames[depth - 1u];
 
-		for (index = 0u; parent->type != NULL && index < parent->type->field_count;
-		     ++index) {
-			const mxsd_bind_field_t *field = &parent->type->fields[index];
+	mxsd_bind_stream_frame_t *parent = &reader->frames[depth - 1u];
 
-			if (field->role != MXSD_BIND_ELEMENT ||
-			    !binding_name(name, uri, field->name, field->namespace_uri)) {
-				continue;
-			}
-			frame->object = binding_target(reader, parent, field);
-			frame->field = field;
-			frame->type = field->kind == MXSD_BIND_COMPLEX ? field->type : NULL;
-			return;
+	for (index = 0u; parent->type != NULL && index < parent->type->field_count;
+			++index) {
+		const mxsd_bind_field_t *field = &parent->type->fields[index];
+
+		if (field->role != MXSD_BIND_ELEMENT ||
+			!binding_name(name, uri, field->name, field->namespace_uri)) {
+			continue;
 		}
+
+		frame->object = binding_target(reader, parent, field);
+		frame->field = field;
+		frame->type = field->kind == MXSD_BIND_COMPLEX ? field->type : NULL;
+		return;
 	}
+
 	binding_fail(reader, MXSD_ERR_UNSUPPORTED,
 		     selection->steps[selection->step_count - 1u].name);
 }
@@ -203,18 +220,22 @@ static void binding_attribute(mxsd_bind_stream_t *reader, const char *uri, const
 	if (reader->active_depth == 0u || !binding_type_matches(reader, depth)) {
 		return;
 	}
+
 	if (strcmp(uri, "http://www.w3.org/2001/XMLSchema-instance") == 0) {
 		return;
 	}
+
 	for (index = 0u; frame->type != NULL && index < frame->type->field_count; ++index) {
 		const mxsd_bind_field_t *field = &frame->type->fields[index];
 
 		if (field->role != MXSD_BIND_ATTRIBUTE) {
 			continue;
 		}
+
 		if (attribute >= MXSD_MAX_ATTRIBUTES) {
 			break;
 		}
+
 		if (binding_name(name, uri, field->name, field->namespace_uri)) {
 			if (binding_value(reader, field,
 					  binding_member(frame->object, field->offset),
@@ -225,6 +246,7 @@ static void binding_attribute(mxsd_bind_stream_t *reader, const char *uri, const
 		}
 		attribute++;
 	}
+
 	binding_fail(reader, MXSD_ERR_UNSUPPORTED, reader->selection->type->name);
 }
 
@@ -275,6 +297,7 @@ static int binding_complete(mxsd_bind_stream_t *reader, size_t depth)
 		}
 		return binding_value(reader, content, address, NULL, value, length);
 	}
+
 	return 1;
 }
 
@@ -287,6 +310,7 @@ static void binding_event(void *context, mxsd_xml_event_t event, const char *uri
 	if (reader->xml.result.code != MXSD_OK) {
 		return;
 	}
+
 	if (event == MXSD_XML_EVENT_START_ELEMENT) {
 		binding_start(reader, uri, name);
 	} else if (event == MXSD_XML_EVENT_ATTRIBUTE) {
@@ -322,7 +346,9 @@ mxsd_result_t mxsd_bind_stream_init(mxsd_bind_stream_t *reader,
 	if (reader == NULL) {
 		return make_result(MXSD_ERR_ARGUMENT, 0u, NULL);
 	}
+
 	memset(reader, 0, sizeof(*reader));
+
 	if (selection == NULL || selection->schema == NULL || selection->steps == NULL ||
 	    selection->step_count == 0u || selection->step_count > MXSD_MAX_DEPTH ||
 	    selection->type == NULL || object == NULL || callback == NULL || arena == NULL ||
@@ -330,6 +356,7 @@ mxsd_result_t mxsd_bind_stream_init(mxsd_bind_stream_t *reader,
 		reader->xml.result = make_result(MXSD_ERR_ARGUMENT, 0u, NULL);
 		return reader->xml.result;
 	}
+
 	reader->selection = selection;
 	reader->arena = arena;
 	reader->arena_mark = arena->used;
@@ -337,10 +364,13 @@ mxsd_result_t mxsd_bind_stream_init(mxsd_bind_stream_t *reader,
 	reader->callback = callback;
 	reader->user_data = user_data;
 	binding_reset(reader);
+
 	result = mxsd_xml_reader_init_with_allocator(&reader->xml, selection->schema(), allocator);
+
 	if (result.code == MXSD_OK) {
 		mxsd_xml_reader_set_event_callback(&reader->xml, binding_event, reader);
 	}
+
 	return result;
 }
 
@@ -351,19 +381,24 @@ mxsd_result_t mxsd_bind_stream_feed(mxsd_bind_stream_t *reader, const void *data
 	if (reader == NULL || reader->selection == NULL) {
 		return make_result(MXSD_ERR_ARGUMENT, 0u, NULL);
 	}
+
 	if (data == NULL && length != 0u && reader->xml.result.code == MXSD_OK) {
 		binding_fail(reader, MXSD_ERR_ARGUMENT, reader->selection->type->name);
 	}
+
 	if (reader->finished || reader->xml.result.code != MXSD_OK) {
 		if (reader->finished && reader->xml.result.code == MXSD_OK && length != 0u) {
 			binding_fail(reader, MXSD_ERR_ARGUMENT, reader->selection->type->name);
 		}
 		return reader->xml.result;
 	}
+
 	result = mxsd_xml_reader_feed(&reader->xml, data, length);
+
 	if (result.code != MXSD_OK) {
 		binding_reset(reader);
 	}
+
 	return result;
 }
 
@@ -374,12 +409,15 @@ mxsd_result_t mxsd_bind_stream_finish(mxsd_bind_stream_t *reader)
 	if (reader == NULL || reader->selection == NULL) {
 		return make_result(MXSD_ERR_ARGUMENT, 0u, NULL);
 	}
+
 	if (reader->finished || reader->xml.result.code != MXSD_OK) {
 		return reader->xml.result;
 	}
+
 	result = mxsd_xml_reader_finish(&reader->xml);
 	reader->finished = result.code == MXSD_OK;
 	binding_reset(reader);
+
 	return result;
 }
 
