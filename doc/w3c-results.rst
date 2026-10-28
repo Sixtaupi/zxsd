@@ -3,7 +3,9 @@ Latest W3C XSD 1.0 results
 
 This page embeds the latest complete accepted-case run published by the
 scheduled or manually dispatched conformance workflow on the default branch.
-It is distinct from the 500-case pull-request smoke selection.
+The documentation checkout and the embedded report use the exact commit and
+workflow run that produced the result. It is distinct from the 500-case
+pull-request smoke selection.
 
 The report keeps ``passed``, ``failed``, ``unsupported``,
 ``expected-failure``, and ``skipped`` results separate. It does not claim

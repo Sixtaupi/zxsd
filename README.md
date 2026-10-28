@@ -1,4 +1,4 @@
-# mxsd - Mini-XSD class generator / validator
+# mxsd — XSD compiler and bounded C validator
 
 [![Build and test][build-badge]][build-workflow]
 [![Documentation][docs-badge]][documentation]
@@ -13,38 +13,38 @@
 [scorecard-badge]: https://api.scorecard.dev/projects/github.com/Sixtaupi/mxsd/badge
 [scorecard-report]: https://scorecard.dev/viewer/?uri=github.com/Sixtaupi/mxsd
 
-`mxsd` is a strict, bounded, zero-heap-capable XML Schema validator and typed C
-binding generator for embedded systems. `mxsdc` processes XSD on the host; the
-target links only the portable C99 runtime and immutable generated descriptors.
+mxsd compiles a supported XML Schema (XSD) subset into immutable C descriptors.
+The target application links those descriptors with a portable C99 runtime to
+validate XML without parsing the schema at runtime.
 
-> **Project status:** draft/experimental. The supported subset is tested and
-> unsupported constructs fail explicitly. The [API/ABI contract](doc/compatibility.rst)
-> defines compatibility epochs and migration rules; 0.x upgrades require rebuilding
-> the runtime and application. Do not assume complete XSD 1.0 support.
+- `mxsdc` runs on the build host and generates deterministic C source and headers.
+- `libmxsd` validates complete documents, raw byte fragments, or parser events.
+- Optional generated bindings read and write typed C structures using caller-owned storage.
+- Resource limits are fixed at compile time; zero-heap builds are supported.
+
+Python, filesystem access, networking, and an XSD parser are never required on
+the target.
+
+> **Status:** draft/experimental. mxsd implements a documented XSD 1.0 subset,
+> not the complete specification. Unsupported schema constructs fail explicitly.
+> During 0.x, upgrades require rebuilding the runtime and generated code.
 
 [Documentation](https://sixtaupi.github.io/mxsd/) ·
 [XSD support matrix](SUPPORT.md) ·
+[Getting started](doc/getting-started.rst) ·
 [Typed bindings](doc/bindings.rst) ·
-[Zephyr integration](doc/zephyr.rst) ·
-[API/ABI and migration](doc/compatibility.rst) ·
-[Benchmark methodology](doc/benchmarks.rst) ·
-[Roadmap](TODO.md)
+[Zephyr](doc/zephyr.rst) ·
+[Compatibility](doc/compatibility.rst)
 
 ## Quick start
 
-Build and test with the allocation-free portable XML backend:
+Generate a schema-specific validator:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMXSD_USE_MXML=OFF
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
+python3 mxsdc tests/device.xsd -o generated
 ```
 
-Generate a validator, then call its schema-specific entry point:
-
-```sh
-./mxsdc tests/device.xsd -o generated
-```
+The generated header exposes a validation entry point:
 
 ```c
 #include "device.mxsd.h"
@@ -55,248 +55,70 @@ if (result.code != MXSD_OK) {
 }
 ```
 
-The host compiler can also be installed independently with
-`python -m pip install mxsdc`. Python is never required on the target.
-
-For Zephyr, `python3 mxsdc device.xsd -o generated --zephyr-config` also emits
-`device.conf` recommendations and `device.limits.h` compile-time checks. Review
-the suggested document budgets, then merge the fragment before configuring
-Zephyr with `-DEXTRA_CONF_FILE=/absolute/path/generated/device.conf`.
-See [the Kconfig guide](doc/kconfig.rst) for multiple schemas and application policies.
-
-The installed CMake package provides build-time schema generation similar to
-nanopb:
+The installed CMake package can generate and compile the validator as part of
+the application build:
 
 ```cmake
 find_package(mxsd CONFIG REQUIRED)
 
 add_executable(application main.c)
-mxsd_generate(
-  TARGET application
-  SCHEMA device.xsd
-  BINDINGS)
+mxsd_generate(TARGET application SCHEMA device.xsd)
 target_link_libraries(application PRIVATE mxsd::mxsd)
 ```
 
-The generated validator and optional typed bindings are compiled into the
-target automatically. Generation runs on the build host and is repeated when
-the schema or `mxsdc` changes. List schemas reached through `xs:include`,
-`xs:import`, or `xs:redefine` with the `DEPENDS` argument so their changes also
-trigger regeneration.
+Add `BINDINGS` to `mxsd_generate()` to generate typed C structures and
+read/write functions. The host compiler is also available as
+`python -m pip install mxsdc`. See [Getting started](doc/getting-started.rst)
+for source builds, installation, and non-CMake integration.
 
-Install mxsd into a prefix and point the consuming project at it when the
-prefix is not already searched by CMake:
+## What it validates
 
-```sh
-cmake -S . -B build -DMXSD_USE_MXML=OFF -DCMAKE_INSTALL_PREFIX=/opt/mxsd
-cmake --build build --parallel
-cmake --install build
-cmake -S application -B application/build -DCMAKE_PREFIX_PATH=/opt/mxsd
-```
+The supported subset includes:
 
-Non-CMake builds can obtain the installed compiler and linker flags with
-`pkg-config --cflags --libs mxsd`.
+- simple and complex types, derivation, lists, unions, and facets;
+- sequences, choices, `all`, groups, occurrences, and wildcards;
+- namespaces, schema composition, substitution groups, and recursive types;
+- `xsi:nil`, `xsi:type`, defaults, fixed values, and abstract declarations;
+- `unique`, `key`, `keyref`, and the restricted XSD identity XPath language;
+- a bounded XSD regular-expression subset with Unicode categories and blocks.
 
-## Scope
+The exact contract, including partial and unsupported features, is maintained
+in [SUPPORT.md](SUPPORT.md). Compiler acceptance alone is not treated as
+conformance.
 
-mxsd aims for rigorous conformance within its documented subset, not complete
-coverage of the W3C XSD 1.0 specification.
+## Runtime modes
 
-| Included | Deliberately bounded or excluded |
-|---|---|
-| Deterministic generated C descriptors | Runtime schema parsing or schema downloads |
-| Document and event-stream validation | Unbounded storage based on input or `maxOccurs` |
-| Typed C bindings with caller-owned arenas | Silent acceptance of unsupported schema constructs |
-| Configurable limits and zero-heap builds | Complete XSD 1.0 feature coverage |
+- **Document validation:** validate a NUL-terminated XML document with one call.
+- **Incremental XML:** feed arbitrary byte fragments from a socket, file, or HTTP client.
+- **Event validation:** send expanded start, attribute, text, and end events from another parser.
+- **Typed bindings:** validate and materialize selected schemas into generated C structures.
+- **Streaming bindings:** receive selected typed subtrees while validating the document once.
 
-See [SUPPORT.md](SUPPORT.md) for the exact feature contract and
-[doc/xsd-support.rst](doc/xsd-support.rst) for detailed limitations.
+All modes use the same generated schema descriptors. Inputs that exceed a
+configured depth, text, identity, model, or input limit fail with a structured
+error instead of growing memory without a bound.
 
-## Supported platforms
+## Embedded use
 
-| Platform | `mxsdc` host compiler | C runtime | Continuous integration |
-|---|:---:|:---:|:---:|
-| Linux | Yes | Static and shared | Yes |
-| macOS | Yes | Static and shared | Yes |
-| Windows | Yes | Static and shared | Yes |
-| Zephyr | Build-host only | Embedded module, zero-heap capable | `qemu_x86` |
+The runtime is portable C99 and is tested on Linux, macOS, Windows, and Zephyr.
+`MXSD_NO_HEAP=ON` removes standard-library allocation; schemas with identity
+constraints can use an explicit application allocator. `mxsdc --zephyr-config`
+generates Kconfig recommendations and compile-time limit checks from the schema.
 
-A C99 compiler and CMake 3.16 or newer are required. Python 3 is required to
-run `mxsdc` and the tests, but not by the target runtime. A complete portable
-example is available in [`samples/host`](samples/host), and the Zephyr module
-examples are in [`samples/zephyr`](samples/zephyr): basic validation in
-[`basic`](samples/zephyr/basic), typed bindings in
-[`bindings`](samples/zephyr/bindings), and a validated XML REST client in
-[`rest`](samples/zephyr/rest). The interactive [`weather`](samples/zephyr/weather)
-example validates live Nominatim and MET Norway XML responses over HTTPS.
+Zephyr uses the allocation-free XML backend. Mini-XML 4 is an optional host
+adapter for validating an existing Mini-XML tree.
 
-Automated Zephyr validation tests are kept separately under
-[`tests/zephyr`](tests/zephyr) and run with Twister. They reuse the portable
-`tests/test_*.c` entry points; only the optional Mini-XML adapter test remains
-host-specific.
+See the [host sample](samples/host), [Zephyr samples](samples/zephyr), and
+[resource-usage guide](doc/resource-usage.md) for complete integrations.
 
-The opt-in [mxsd versus CodeSynthesis XSD/e benchmark](tests/benchmark/README.md)
-compares validating streaming parsers on the same generated XML fixture. XSD/e
-is obtained and licensed separately and is never downloaded by the build.
+## Conformance
 
-On Windows, invoke the extensionless compiler script through Python:
+Project-owned positive and negative tests gate every documented feature. An
+optional W3C XSD 1.0 harness inventories the official suite while keeping
+`passed`, `failed`, `unsupported`, `expected-failure`, and `skipped`
+results distinct.
 
-```powershell
-python .\mxsdc schema.xsd -o generated
-```
+See [Conformance and test coverage](doc/conformance.rst) and the
+[latest complete W3C report](doc/w3c-results.rst).
 
-Set `MXSD_BUILD_TESTS=OFF` for a runtime-only cross build. Set
-`BUILD_SHARED_LIBS=ON` to build a shared library; the default is static.
-
-## XSD support and conformance
-
-The detailed support matrix and its exact limitations are maintained in the
-[XSD 1.0 support documentation](doc/xsd-support.rst). Test methodology,
-result classifications, and W3C suite integration are documented in
-[Conformance and test coverage](doc/conformance.rst).
-
-The compiler implements the supported portions of the v0.1-v0.20 milestones
-in `SPEC.md`: type
-derivation, simple/complex content, inheritance, abstract types, lists,
-unions, the XSD 1.0 simple datatype family, whitespace normalization,
-content models, model and attribute groups, declaration references,
-namespace/QName handling, recursive occurrence
-models, wildcards, identity constraints, schema composition, substitution
-groups, recursive named complex types, bounded XSD regular expressions,
-notation declarations, mixed
-content, `xs:anyType`, advanced
-instance semantics, and bounded event-driven validation. Unknown constructs and properties
-are errors. The portable XML reader has no filesystem, network,
-or POSIX dependency. Whitespace normalization uses a temporary buffer whose
-size is proportional to the simple value being checked. Limits such as
-`MXSD_MAX_INPUT`, `MXSD_MAX_DEPTH`,
-`MXSD_MAX_PARTICLES`, and `MXSD_MAX_ATTRIBUTES` are compile-time configurable.
-
-The runtime is split into focused implementation units:
-
-| Source | Responsibility |
-|---|---|
-| `src/mxsd.c` | Public validation facade, allocators, and resource checks |
-| `src/mxsd_dom.c` | XML parsing, namespaces, elements, attributes, and content models |
-| `src/mxsd_value.c` | Simple datatypes, whitespace, patterns, and facets |
-| `src/mxsd_regex.c` | Bounded XSD regular-expression parser and matcher |
-| `src/mxsd_unicode.c` | Generated Unicode 16 category and block tables |
-| `src/mxsd_identity.c` | Bounded `unique`, `key`, `keyref`, and restricted XPath processing |
-| `src/mxsd_stream.c` | Fixed-memory event-driven validation |
-| `src/mxsd_model.c` | Shared bounded continuation pool for nested content models |
-| `src/mxsd_xml_stream.c` | Incremental raw-XML parsing into validation events |
-| `src/mxsd_bind.c` | Typed binding reader and writer for `mxsdc --bindings` output |
-| `src/mxsd_bind_stream.c` | Single-pass typed delivery for generated element-path selections |
-| `src/mxsd_internal.h` | Private contracts shared by runtime modules |
-
-The same generated descriptor can validate a complete string or an event
-stream. Generated headers provide `<schema>_stream_init()` for the default
-root and one initializer per global root:
-
-```c
-mxsd_stream_t stream;
-sensor_stream_init(&stream);
-mxsd_start_element(&stream, NULL, "sensor");
-mxsd_attribute(&stream, NULL, "id", "12");
-mxsd_start_content(&stream);
-/* Send child start/text/end events here. */
-mxsd_end_element(&stream, NULL, "sensor");
-mxsd_result_t result = mxsd_stream_finish(&stream);
-```
-
-Event names are expanded names: pass the namespace URI separately from the
-local name, and decoded text/attribute values. Resolve `xsi:type` QName values
-in the XML frontend and call `mxsd_xsi_type()`. Streaming state is fixed-size;
-text for one simple element is bounded by `MXSD_STREAM_TEXT_CAPACITY` and names
-by `MXSD_STREAM_NAME_CAPACITY`.
-
-When the producer supplies raw bytes, `mxsd_xml_reader_t` performs the XML
-tokenization too. Feed each HTTP or socket fragment directly; fragments may
-end anywhere, including inside a tag, entity, or UTF-8 sequence:
-
-```c
-mxsd_xml_reader_t reader;
-mxsd_result_t result = mxsd_xml_reader_init(&reader, sensor_schema());
-
-while (result.code == MXSD_OK && receive_fragment(buffer, sizeof(buffer), &length)) {
-	result = mxsd_xml_reader_feed(&reader, buffer, length);
-}
-if (result.code == MXSD_OK) {
-	result = mxsd_xml_reader_finish(&reader);
-}
-mxsd_xml_reader_dispose(&reader);
-```
-
-The reader never retains pointers into a supplied fragment. Its incomplete XML
-token and decoded text storage are bounded by `MXSD_XML_TOKEN_CAPACITY` and
-`MXSD_MAX_TEXT_LENGTH`; exceeding either limit fails explicitly.
-`mxsd_xml_reader_set_event_callback()` optionally exposes the accepted decoded
-start, attribute, text, and end events so an application can copy a small
-summary without constructing a document tree or retaining the response.
-
-## Typed bindings
-
-`mxsdc --bindings` also generates C structures and read/write functions for
-every global element with a complex type. Reading validates the document, then
-fills the structure using a caller-provided arena; writing produces a valid
-document from the structure. Neither uses the heap.
-
-```c
-#include "device.bind.h"
-
-static unsigned char storage[2048];
-mxsd_bind_arena_t arena;
-device_Device_t device;
-
-mxsd_bind_arena_init(&arena, storage, sizeof(storage));
-if (device_device_read(xml, &device, &arena).code == MXSD_OK) {
-    /* device.id, device.name, device.sample[0 .. device.sample_count - 1] */
-}
-
-char out[256];
-mxsd_result_t r = device_device_write_buffer(&device, out, sizeof(out), NULL);
-```
-
-Integers and booleans use native C types, string enumerations become C enums,
-and other values stay as their normalized lexical text. Constructs without a
-faithful C representation, such as wildcards or mixed content, make
-generation fail instead of being dropped. See
-[Typed bindings](doc/bindings.rst).
-
-Resource-constrained builds can set `MXSD_NO_HEAP=ON`, override the
-`MXSD_MAX_*` compile-time limits, and use `mxsd_validate_with_allocator()` for
-application-owned identity-constraint scratch storage. `mxsdc` also accepts
-`--max-schema-complexity`. Measured Cortex-M usage and a reproducible reporting
-tool are documented in [`doc/resource-usage.md`](doc/resource-usage.md).
-
-The Apache-2.0 conformance manifest in `tests/conformance` executes positive
-and negative test groups and generates `conformance-report.json`. Its report
-keeps supported, unsupported, expected-failure, passed, and failed entries
-separate; compiler acceptance alone never promotes a feature to supported.
-The optional official W3C XSD 1.0 harness in [`tests/w3c`](tests/w3c) inventories
-every published test and executes accepted schema and instance cases. It keeps
-unsupported behavior separate from failures and does not download data during
-normal CMake builds.
-
-Identity constraints use the complete XSD 1.0 restricted XPath subset, including
-path unions, compiled into fixed descriptors; no general XPath engine is linked. Tuple storage is
-bounded by `MXSD_MAX_IDENTITY_VALUES`, `MXSD_MAX_IDENTITY_FIELDS`, and
-`MXSD_MAX_IDENTITY_CONSTRAINTS`.
-
-Schema composition is explicit and local. Relative `schemaLocation` values are
-resolved from the referring schema. Additional local registries can be supplied
-with `-I`; imports without `schemaLocation` use the namespace converted to a
-safe filename such as `urn_example.xsd`. The Python `parse()` entry point also
-accepts a resolver callback with the signature
-`resolver(namespace, location, referring_path)`. The default resolver rejects
-HTTP and other network URLs, so `mxsdc` never performs implicit network access.
-
-Mini-XML 4 is selected automatically when its headers and library are found;
-set `MXML_INCLUDE_DIR` and `MXML_LIBRARY` if it is installed outside the normal
-search paths. CI and packaging checks can set `MXSD_REQUIRE_MXML=ON` to reject
-an accidental fallback to the portable backend. Zephyr uses the allocation-free
-embedded backend. Both sit behind the same internal boundary so a SAX backend
-does not affect generated APIs.
-When enabled, `<mxsd_mxml.h>` provides `mxsd_mxml_validate()` for an existing
-Mini-XML document or element tree; pass the generated `<schema>_schema()`
-descriptor accessor.
+mxsd is licensed under [Apache-2.0](LICENSE).

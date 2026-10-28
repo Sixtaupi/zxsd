@@ -32,6 +32,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: >-
+            ${{ github.event_name == 'workflow_run' &&
+                github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/setup-python@v7
         with:
@@ -39,38 +43,18 @@ jobs:
           cache: pip
           cache-dependency-path: doc/requirements.txt
 
-      - name: Locate latest complete W3C report
-        id: w3c-report
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          jq_filter='[.[] | select(.conclusion == "success" and
-            (.event == "schedule" or .event == "workflow_dispatch"))]
-            [0].databaseId // empty'
-          run_id="$(
-            gh run list \
-              --workflow conformance.yml \
-              --branch "${{ github.event.repository.default_branch }}" \
-              --status completed \
-              --limit 100 \
-              --json databaseId,conclusion,event \
-              --jq "$jq_filter"
-          )"
-          printf 'run-id=%s\n' "$run_id" >> "$GITHUB_OUTPUT"
-
-      - name: Download latest complete W3C report
-        if: steps.w3c-report.outputs.run-id != ''
+      - name: Download W3C report from this conformance run
+        if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v6
         with:
           pattern: w3c-xsd10-*-report
           path: build/w3c-report
           merge-multiple: true
           github-token: ${{ github.token }}
-          run-id: ${{ steps.w3c-report.outputs.run-id }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Stage W3C report for Sphinx
-        if: steps.w3c-report.outputs.run-id != ''
+        if: github.event_name == 'workflow_run'
         run: |
           test -s build/w3c-report/w3c-xsd10-report.html
           cp build/w3c-report/w3c-xsd10-report.html doc/_static/w3c-xsd10-report.html
@@ -100,18 +84,14 @@ jobs:
           retention-days: 14
 
       - name: Upload GitHub Pages artifact
-        if: >-
-          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-          github.event_name == 'workflow_run'
+        if: github.event_name == 'workflow_run'
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
   deploy:
     name: Publish GitHub Pages
-    if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      github.event_name == 'workflow_run'
+    if: github.event_name == 'workflow_run'
     needs: build
     runs-on: ubuntu-24.04
     permissions:
