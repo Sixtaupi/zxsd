@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Atheris entry point for XSD parsing and C descriptor generation."""
 
-import importlib.machinery
-import importlib.util
 import pathlib
 import sys
 import tempfile
@@ -10,19 +8,11 @@ import tempfile
 import atheris
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-
-
-def load_compiler():
-    """Load the extensionless mxsdc script as an instrumented Python module."""
-    loader = importlib.machinery.SourceFileLoader("mxsdc_fuzz_module", str(ROOT / "mxsdc"))
-    spec = importlib.util.spec_from_loader(loader.name, loader)
-    module = importlib.util.module_from_spec(spec)
-    loader.exec_module(module)
-    return module
+sys.path.insert(0, str(ROOT))
 
 
 with atheris.instrument_imports():
-    MXSDC = load_compiler()
+    import mxsdc_lib as MXSDC
 
 TEMPORARY = tempfile.TemporaryDirectory(prefix="mxsdc-fuzz-")
 SCHEMA = pathlib.Path(TEMPORARY.name) / "input.xsd"

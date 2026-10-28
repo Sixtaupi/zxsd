@@ -19,7 +19,7 @@ static const char *namespace_for(mxml_node_t *node, const char *prefix, int attr
 {
 	static const char default_declaration[] = "xmlns";
 	static const char declaration_prefix[] = "xmlns:";
-	char declaration[MXSD_STREAM_NAME_CAPACITY];
+	char declaration_storage[MXSD_STREAM_NAME_CAPACITY];
 	const char *declaration;
 	const char *value;
 
@@ -40,12 +40,10 @@ static const char *namespace_for(mxml_node_t *node, const char *prefix, int attr
 
 		/* Safe: capacity includes the prefix and terminating NUL. */
 		/* Flawfinder: ignore */
-		memcpy(declaration_storage, declaration_prefix,
-		       sizeof(declaration_prefix) - 1u);
+		memcpy(declaration_storage, declaration_prefix, sizeof(declaration_prefix) - 1u);
 		/* Safe: length was bounded against the remaining capacity above. */
 		/* Flawfinder: ignore */
-		memcpy(declaration_storage + sizeof(declaration_prefix) - 1u,
-		       prefix, length + 1u);
+		memcpy(declaration_storage + sizeof(declaration_prefix) - 1u, prefix, length + 1u);
 		/* "xmlns:" */
 		declaration = declaration_storage;
 	}
