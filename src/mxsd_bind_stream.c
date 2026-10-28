@@ -190,12 +190,11 @@ static void binding_start(mxsd_bind_stream_t *reader, const char *uri, const cha
 
 	mxsd_bind_stream_frame_t *parent = &reader->frames[depth - 1u];
 
-	for (index = 0u; parent->type != NULL && index < parent->type->field_count;
-			++index) {
+	for (index = 0u; parent->type != NULL && index < parent->type->field_count; ++index) {
 		const mxsd_bind_field_t *field = &parent->type->fields[index];
 
 		if (field->role != MXSD_BIND_ELEMENT ||
-			!binding_name(name, uri, field->name, field->namespace_uri)) {
+		    !binding_name(name, uri, field->name, field->namespace_uri)) {
 			continue;
 		}
 
