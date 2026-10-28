@@ -1,0 +1,22 @@
+sample:
+  name: mxsd streaming typed bindings
+  description: Read, update and write XML settings in fragments through generated C structures
+tests:
+  mxsd.bindings_stream:
+    tags: xml bindings
+    platform_allow:
+      - qemu_x86
+    integration_platforms:
+      - qemu_x86
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      regex:
+        - "read: 2 sensor\\(s\\) from 24 fragments of 16 bytes"
+        - "sensor 2 \"Room & hallway humidity\": every 2000 ms"
+        - "write: ok, mode eco, 519 bytes in [0-9]+ fragments"
+        - "peer: ok"
+        - "rejected after 5 fragment\\(s\\), 0 sensor\\(s\\) delivered: incorrect element order \\(settings\\)"
+        - "refused after [0-9]+ bytes: missing required element \\(label\\)"
+        - "mxsd streaming bindings sample done"

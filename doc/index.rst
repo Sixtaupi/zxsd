@@ -67,7 +67,6 @@ Why mxsd?
    zephyr
    kconfig
    resource-usage
-   benchmarks
 
 .. toctree::
    :maxdepth: 2

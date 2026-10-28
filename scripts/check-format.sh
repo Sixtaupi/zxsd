@@ -68,6 +68,7 @@ done < <(git ls-files --cached --others --exclude-standard -z -- \
 
 python_files=(mxsdc)
 while IFS= read -r -d '' file; do
+    [[ -f "$file" ]] || continue
     python_files+=("$file")
 done < <(git ls-files --cached --others --exclude-standard -z -- '*.py')
 

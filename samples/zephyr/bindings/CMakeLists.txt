@@ -11,4 +11,4 @@ project(mxsd_zephyr_bindings)
 include(${MXSD_ROOT}/cmake/mxsdGenerate.cmake)
 
 target_sources(app PRIVATE src/main.c)
-mxsd_generate(TARGET app SCHEMA settings.xsd BINDINGS)
+mxsd_generate(TARGET app SCHEMA settings.xsd BINDINGS ZEPHYR_CONFIG)

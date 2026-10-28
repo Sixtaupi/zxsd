@@ -19,9 +19,8 @@ conformance.
 
 ## Source of truth
 
-- `SPEC.md`: feature milestones and intended behavior.
 - `README.md`: concise user-facing capabilities and examples.
-- `SUPPORT.md` and `doc/xsd-support.rst`: supported, partial, and unsupported
+- `doc/xsd-support.rst`: supported, partial, and unsupported
   XSD features.
 - `include/mxsd.h`: stable public runtime API and resource-limit definitions.
 - `include/mxsd_version.h` and `doc/compatibility.rst`: compatibility epochs,
@@ -61,12 +60,11 @@ documentation together. Do not let these descriptions drift apart.
 - `src/mxsd_xml_mxml.c`: optional Mini-XML 4 adapter.
 - `src/mxsd_internal.h` and `src/mxsd_xml.h`: private runtime contracts.
 - `tests/`: compiler, runtime, conformance, Zephyr Twister, and optional W3C tests.
-- `tests/benchmark/`: opt-in comparisons; `streaming/` is the paired typed-binding
-  protocol, with shared value consumption, memory/latency measurements, and flag audits.
 - `fuzz/`: libFuzzer and Atheris targets with bounded seed corpora.
 - `samples/host/`: cross-platform CMake example.
-- `samples/zephyr/`: Zephyr examples: `basic` ztest suite plus `bindings`, `rest`, and
-  interactive `weather` applications.
+- `samples/zephyr/`: Zephyr examples: minimal `xsd-validation` and `xsd-validation-mxml`
+  plus `bindings`, fragment-based `bindings-stream`, `rest`, and interactive `weather`
+  applications.
 - `zephyr/`: external-module CMake, Kconfig, and metadata.
 - `doc/`: Sphinx guide and Doxygen API configuration.
 - `.github/workflows/`: format, build, conformance, CodeQL, and documentation CI.
@@ -207,7 +205,8 @@ Every behavior change needs focused tests:
 - streaming behavior: test event ordering, sticky errors, and fixed limits;
 - resource-limit behavior: test the exact boundary and the first rejected
   value;
-- Zephyr configuration or integration: build the `samples/zephyr` tests;
+- Zephyr configuration or integration: run `tests/zephyr` and build the `samples/zephyr`
+  applications;
 - public API changes: update Doxygen comments, Sphinx API guidance, and samples.
 
 Do not turn an unsupported W3C case into a pass by reclassifying or skipping it
@@ -247,8 +246,3 @@ pushes to `main` and validates it on pull requests.
 
 Before handing off a change, report which build/test/documentation commands
 were run and call out any platform or optional suite that was not available.
-
-For performance comparisons, keep validation/extracted values, fragment sizes,
-target/compiler options (including external XSD/e runtime options), and common
-resource ceilings aligned. Keep XML measurements separate from HTTP/TLS; do not
-call virtual QEMU rates physical-MCU throughput or ROM payload physical Flash.

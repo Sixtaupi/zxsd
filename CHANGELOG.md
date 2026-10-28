@@ -5,12 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.20.0] - 2026-10-21
-
-Initial public release.
+## [Unreleased]
 
 ### Added
 
+- The Zephyr module builds the Mini-XML backend, with its tree adapter, in
+  place of the built-in backend when a Mini-XML 4 Zephyr module enables
+  `CONFIG_MXML`. The `samples/zephyr/xsd-validation-mxml` sample
+  shows how to validate Mini-XML trees with it.
+- The `samples/zephyr/bindings-stream` sample reads, writes and validates the
+  `bindings` settings document with the fragment-based APIs only.
 - Deterministic `mxsdc` host compiler generating immutable C99 schema
   descriptors and schema-specific validation entry points.
 - Portable `libmxsd` runtime for validating complete XML documents, decoded
@@ -49,8 +53,6 @@ Initial public release.
   `unsupported`, `expected-failure`, and `skipped` classifications.
 - Host, no-heap, shared-library, installed-package, generated-compatibility,
   Zephyr, sanitizer, fuzzing, static-analysis, and documentation CI coverage.
-- Reproducible host and embedded resource reporting and an opt-in comparison
-  benchmark against CodeSynthesis XSD/e.
 
 ### Security
 

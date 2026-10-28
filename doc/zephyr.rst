@@ -20,13 +20,36 @@ In a west workspace, add mxsd to the manifest alongside the application:
 
 After ``west update``, Zephyr discovers the module. For a standalone checkout,
 pass the repository with ``-DZEPHYR_MODULES=/absolute/path/to/mxsd``. The
-supplied sample already appends its repository root, so from an initialized
+supplied samples already append their repository root, so from an initialized
 Zephyr environment this is normally sufficient:
 
 .. code-block:: console
 
-   $ west build -b qemu_x86 samples/zephyr/basic
+   $ west build -b qemu_x86 samples/zephyr/xsd-validation
    $ west build -t run
+
+``samples/zephyr/xsd-validation`` is the minimal application: ``device.xsd`` is
+compiled on the build host with ``mxsd_generate()``, and ``main()`` validates a
+conforming and a non-conforming document with the generated
+``device_validate()``, printing the result. Its console output is checked by
+Twister:
+
+.. code-block:: console
+
+   $ west twister -T samples/zephyr/xsd-validation -p qemu_x86 --inline-logs
+
+``samples/zephyr/xsd-validation-mxml`` is the same application for code that
+already parses XML with Mini-XML 4: it loads each document with
+``mxmlLoadString()`` and validates the tree with ``mxsd_mxml_validate()``.
+``CONFIG_MXML`` comes from a Mini-XML Zephyr module, which must be present in
+the west workspace; when it is enabled, the mxsd module builds its Mini-XML
+backend in place of the built-in one, as host builds do. Validation of XML text
+is unchanged. Mini-XML allocates the tree from the libc heap. Twister skips
+the sample when no ``mxml`` module is available:
+
+.. code-block:: console
+
+   $ west twister -T samples/zephyr/xsd-validation-mxml -p qemu_x86 --inline-logs
 
 Run the tests
 *************
@@ -104,6 +127,16 @@ console output is checked by Twister:
 .. code-block:: console
 
    $ west twister -T samples/zephyr/bindings -p qemu_x86 --inline-logs
+
+``samples/zephyr/bindings-stream`` does the same with the fragment-based APIs
+only, so that no complete document is held in memory: it feeds the received
+document to a ``STREAM_BIND`` reader in fragments, writes through a sink with a
+streaming validator, and validates the written bytes with an
+``mxsd_xml_reader_t`` as they arrive:
+
+.. code-block:: console
+
+   $ west twister -T samples/zephyr/bindings-stream -p qemu_x86 --inline-logs
 
 See :doc:`bindings` for the C representation and memory use.
 

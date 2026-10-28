@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Romain Pelletant
+# Copyright (c) 2026 Sixtaupi
 # SPDX-License-Identifier: Apache-2.0
 
 if(CONFIG_MXSD)
@@ -15,8 +15,15 @@ if(CONFIG_MXSD)
     ${MXSD_MODULE_ROOT}/src/mxsd_unicode.c
     ${MXSD_MODULE_ROOT}/src/mxsd_value.c
     ${MXSD_MODULE_ROOT}/src/mxsd_version.c
-    ${MXSD_MODULE_ROOT}/src/mxsd_xml_stream.c
-    ${MXSD_MODULE_ROOT}/src/mxsd_xml_builtin.c)
+    ${MXSD_MODULE_ROOT}/src/mxsd_xml_stream.c)
+  # CONFIG_MXML is provided by a Mini-XML Zephyr module, when one is present.
+  # As in host builds, the Mini-XML backend replaces the built-in one and adds
+  # the mxsd_mxml_validate() tree adapter.
+  if(CONFIG_MXML)
+    zephyr_library_sources(${MXSD_MODULE_ROOT}/src/mxsd_xml_mxml.c)
+  else()
+    zephyr_library_sources(${MXSD_MODULE_ROOT}/src/mxsd_xml_builtin.c)
+  endif()
   zephyr_library_sources_ifdef(CONFIG_MXSD_BINDINGS ${MXSD_MODULE_ROOT}/src/mxsd_bind.c)
   zephyr_library_sources_ifdef(CONFIG_MXSD_BINDINGS ${MXSD_MODULE_ROOT}/src/mxsd_bind_stream.c)
   zephyr_library_include_directories(${MXSD_MODULE_ROOT}/src)

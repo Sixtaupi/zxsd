@@ -177,12 +177,18 @@ jobs:
       - name: Run Zephyr validation tests
         run: west twister -T mxsd/tests/zephyr -p qemu_x86 --inline-logs
 
+      - name: Run Zephyr XSD validation sample
+        run: west twister -T mxsd/samples/zephyr/xsd-validation -p qemu_x86 --inline-logs
+
+      - name: Run Zephyr streaming bindings sample
+        run: west twister -T mxsd/samples/zephyr/bindings-stream -p qemu_x86 --inline-logs
+
       - name: Build Zephyr REST sample
         run: west twister -T mxsd/samples/zephyr/rest -p qemu_x86 --build-only --inline-logs
 
       - name: Build native_sim resource image
         run: >-
-          west build -b native_sim mxsd/samples/zephyr/basic
+          west build -b native_sim mxsd/samples/zephyr/xsd-validation
           -d build-native -- -DEXTRA_CFLAGS=-fstack-usage
 
       - name: Measure native_sim resources

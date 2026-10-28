@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Romain Pelletant
+ * Copyright (c) 2026 Sixtaupi
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,21 +19,7 @@
 
 #include "settings.bind.h"
 #include "settings.mxsd.h"
-
-/** Settings document as received, for instance from a network or a file. */
-static const char received[] = "<?xml version='1.0' encoding='UTF-8'?>\n"
-			       "<settings xmlns='urn:mxsd:sample:settings' version='3'>\n"
-			       "  <mode>performance</mode>\n"
-			       "  <sensor id='1'>\n"
-			       "    <label>Boiler temperature</label>\n"
-			       "    <period>500</period>\n"
-			       "    <threshold>-20</threshold>\n"
-			       "  </sensor>\n"
-			       "  <sensor id='2' enabled='false'>\n"
-			       "    <label>Room &amp; hallway humidity</label>\n"
-			       "    <period>2000</period>\n"
-			       "  </sensor>\n"
-			       "</settings>\n";
+#include "settings_documents.h"
 
 /*
  * Storage for strings and arrays produced by reading. Size it from the largest
@@ -80,7 +66,7 @@ int main(void)
 
 	/* 1. Validate the received document and convert it to C structures. */
 	mxsd_bind_arena_init(&arena, arena_storage, sizeof(arena_storage));
-	result = settings_settings_read(received, &settings, &arena);
+	result = settings_settings_read(received_document, &settings, &arena);
 	if (result.code != MXSD_OK) {
 		printk("read failed: %s at offset %u\n", result.message,
 		       (unsigned int)result.offset);
@@ -128,10 +114,7 @@ int main(void)
 	 */
 	mxsd_bind_arena_init(&scratch, arena_storage + arena.used,
 			     sizeof(arena_storage) - arena.used);
-	result = settings_settings_read("<settings xmlns='urn:mxsd:sample:settings' version='4'>"
-					"<sensor id='1'><label>x</label><period>1</period></sensor>"
-					"</settings>",
-					&rejected, &scratch);
+	result = settings_settings_read(invalid_document, &rejected, &scratch);
 	printk("rejected: %s (%s)\n", result.message, result.path != NULL ? result.path : "-");
 
 	/* 5. Structural mistakes in C are caught by the writer: a sensor needs a label. */

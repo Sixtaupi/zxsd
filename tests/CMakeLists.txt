@@ -4,8 +4,6 @@ add_test(NAME compatibility-helpers
 add_test(NAME compiler-modules
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_compiler_modules.py
           ${PROJECT_SOURCE_DIR})
-add_test(NAME benchmark-protocol
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_benchmark.py)
 add_executable(mxsd_compatibility_test test_compatibility.c)
 target_link_libraries(mxsd_compatibility_test PRIVATE mxsd)
 add_test(NAME mxsd_compatibility_test COMMAND mxsd_compatibility_test)

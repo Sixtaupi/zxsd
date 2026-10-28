@@ -105,8 +105,9 @@ The runtime is portable C99 and is tested on Linux, macOS, Windows, and Zephyr.
 constraints can use an explicit application allocator. `mxsdc --zephyr-config`
 generates Kconfig recommendations and compile-time limit checks from the schema.
 
-Zephyr uses the allocation-free XML backend. Mini-XML 4 is an optional host
-adapter for validating an existing Mini-XML tree.
+Zephyr uses the allocation-free XML backend by default. Mini-XML 4 is an
+optional adapter for validating an existing Mini-XML tree, on the host or on
+Zephyr when a Mini-XML module provides `CONFIG_MXML`.
 
 See the [host sample](samples/host), [Zephyr samples](samples/zephyr), and
 [resource-usage guide](doc/resource-usage.md) for complete integrations.

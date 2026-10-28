@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Device settings exchanged as XML and handled as C structures on the target. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:s="urn:mxsd:sample:settings"
+           targetNamespace="urn:mxsd:sample:settings"
+           elementFormDefault="qualified">
+
+  <xs:simpleType name="Mode">
+    <xs:restriction base="xs:token">
+      <xs:enumeration value="off"/>
+      <xs:enumeration value="eco"/>
+      <xs:enumeration value="performance"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Label">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+      <xs:maxLength value="32"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Sensor">
+    <xs:sequence>
+      <xs:element name="label" type="s:Label"/>
+      <!-- Sampling period in milliseconds. -->
+      <xs:element name="period" type="xs:unsignedShort"/>
+      <xs:element name="threshold" type="xs:int" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:unsignedByte" use="required"/>
+    <xs:attribute name="enabled" type="xs:boolean" default="true"/>
+  </xs:complexType>
+
+  <xs:element name="settings">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="mode" type="s:Mode"/>
+        <xs:element name="sensor" type="s:Sensor" maxOccurs="8"/>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:unsignedInt" use="required"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

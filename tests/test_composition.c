@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Romain Pelletant
+/* Copyright (c) 2026 Sixtaupi
  * SPDX-License-Identifier: Apache-2.0
  */
 /** @file @brief Runtime tests for composed XML Schema documents. */

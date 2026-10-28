@@ -20,11 +20,29 @@ sample:
 #. shows that an invalid document is rejected before any structure is filled;
 #. shows that the writer refuses a structure with a missing required value.
 
-No heap is used. The stack peak is reached during validation and depends on
-``CONFIG_MXSD_MAX_TEXT_LENGTH``: ``prj.conf`` lowers it to 128 bytes, which
-gives a measured peak of about 15.7 KiB on ``qemu_x86``. Measure your own
-documents with ``CONFIG_INIT_STACKS`` and ``k_thread_stack_space_get()``, and
-keep ``CONFIG_HW_STACK_PROTECTION`` enabled while sizing the stack.
+No heap is used. The stack peak is reached during validation. With the
+default schema limits and ``CONFIG_MXSD_MAX_TEXT_LENGTH`` lowered to 128 bytes,
+it was measured at about 15.7 KiB on ``qemu_x86``; the schema-derived limits
+below lower it. Measure your own documents with ``CONFIG_INIT_STACKS`` and
+``k_thread_stack_space_get()``, and keep ``CONFIG_HW_STACK_PROTECTION`` enabled
+while sizing the stack.
+
+Resource limits
+***************
+
+``prj.conf`` sets the runtime limits in two groups, as recommended in the
+Kconfig reference:
+
+* schema-derived limits (attributes, depth, particles, names, regex and
+  content-model capacities), copied after review from the fragment printed by
+  ``python3 mxsdc settings.xsd --bindings -o generated --zephyr-config``;
+* application budgets that the XSD cannot bound: ``CONFIG_MXSD_MAX_INPUT``
+  and ``CONFIG_MXSD_MAX_TEXT_LENGTH``.
+
+``CMakeLists.txt`` passes ``ZEPHYR_CONFIG`` to ``mxsd_generate()``, so the
+generated validator checks the schema-derived values at compile time: the
+build fails if one of them drops below what ``settings.xsd`` requires. When the
+schema changes, regenerate the fragment and update ``prj.conf``.
 
 Building and running
 ********************

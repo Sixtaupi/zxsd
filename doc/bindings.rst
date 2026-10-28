@@ -280,6 +280,10 @@ attributes or carriage return in text, are written as character references.
 
 The Zephyr application in ``samples/zephyr/bindings`` reads, updates and writes
 a settings document with these functions on ``qemu_x86``.
+``samples/zephyr/bindings-stream`` handles the same document with the
+fragment-based APIs only: a ``--stream-bind`` reader fed in fragments, a
+writer sink with a streaming validator, and a raw ``mxsd_xml_reader_t`` on the
+receiving side.
 
 Zero-heap builds
 ****************

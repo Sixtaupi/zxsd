@@ -160,5 +160,6 @@ Pattern parsing is allocation-free and uses a fixed automatic workspace. With
 the default 512-node capacity, reserve approximately 11 KiB in the validating
 thread in addition to the normal validation stack. Lower
 ``CONFIG_MXSD_MAX_REGEX_NODES`` when the compiled schemas use smaller patterns;
-the repository Zephyr sample reserves a 16 KiB main stack for the defaults.
+the ``samples/zephyr`` validation and bindings samples copy their
+schema-derived values, including this capacity, into ``prj.conf``.
 
