@@ -21,5 +21,5 @@ manifest:
           - tf-psa-crypto
     - name: mxml
       remote: michaelrsweet
-      revision: v4.0.6
+      revision: master
       path: modules/lib/mxml
