@@ -3,7 +3,9 @@ sample:
   description: Read, update and write XML settings through generated C structures
 tests:
   mxsd.bindings:
-    tags: xml bindings
+    tags:
+      - xml
+      - bindings
     platform_allow:
       - qemu_x86
     integration_platforms:
