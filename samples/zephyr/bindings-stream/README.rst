@@ -1,6 +1,6 @@
-.. _mxsd_bindings_stream_sample:
+.. _zxsd_bindings_stream_sample:
 
-mxsd streaming typed bindings
+zxsd streaming typed bindings
 #############################
 
 Overview
@@ -9,7 +9,7 @@ Overview
 This sample handles the same device settings as the ``bindings`` sample, but
 uses only the fragment-based APIs: no complete XML document is ever held in
 memory. ``settings.xsd`` is compiled on the host with
-``mxsd_generate(... BINDINGS STREAM_BIND settings/sensor)``, which generates a
+``zxsd_generate(... BINDINGS STREAM_BIND settings/sensor)``, which generates a
 validator, the C structures, and a streaming reader that delivers each
 ``sensor`` element. On the target, the sample:
 
@@ -22,7 +22,7 @@ validator, the C structures, and a streaming reader that delivers each
 #. writes them with ``settings_settings_write()``, which passes the output to a
    sink callback in fragments and validates each item with a streaming
    validator. The sink forwards every fragment to a receiving
-   ``mxsd_xml_reader_t``, which validates the raw bytes as they arrive;
+   ``zxsd_xml_reader_t``, which validates the raw bytes as they arrive;
 #. shows that an invalid document is rejected while it is being fed, before
    any sensor is delivered;
 #. shows that the writer refuses a structure with a missing required value,
@@ -46,8 +46,8 @@ Fragment-based APIs
      - ``settings_settings_write()`` with a sink and a validator
      - No output buffer; the sink receives each fragment
    * - Validate
-     - ``mxsd_xml_reader_init/feed/finish/dispose()``
-     - One incomplete token, up to ``CONFIG_MXSD_XML_TOKEN_CAPACITY`` bytes
+     - ``zxsd_xml_reader_init/feed/finish/dispose()``
+     - One incomplete token, up to ``CONFIG_ZXSD_XML_TOKEN_CAPACITY`` bytes
 
 Points to keep in mind:
 
@@ -64,7 +64,7 @@ Points to keep in mind:
   part of the document with its own reader.
 * Bytes already passed to the sink cannot be recalled when writing fails. The
   receiver must only use a document for which both the writer and its own
-  ``mxsd_xml_reader_finish()`` succeeded.
+  ``zxsd_xml_reader_finish()`` succeeded.
 
 No heap is used. Readers and validators embed fixed-capacity parsing state and
 are declared ``static``.
@@ -77,13 +77,13 @@ Kconfig reference:
 
 * schema-derived limits (attributes, depth, particles, names, regex and
   content-model capacities), copied after review from the fragment printed by
-  ``python3 mxsdc settings.xsd -o generated --bindings --stream-bind
+  ``python3 zxsdc settings.xsd -o generated --bindings --stream-bind
   settings/sensor --zephyr-config``;
-* application budgets that the XSD cannot bound: ``CONFIG_MXSD_MAX_INPUT``,
+* application budgets that the XSD cannot bound: ``CONFIG_ZXSD_MAX_INPUT``,
   which also limits the total size of a fragmented document,
-  ``CONFIG_MXSD_XML_TOKEN_CAPACITY`` and ``CONFIG_MXSD_MAX_TEXT_LENGTH``.
+  ``CONFIG_ZXSD_XML_TOKEN_CAPACITY`` and ``CONFIG_ZXSD_MAX_TEXT_LENGTH``.
 
-``CMakeLists.txt`` passes ``ZEPHYR_CONFIG`` to ``mxsd_generate()``, so the
+``CMakeLists.txt`` passes ``ZEPHYR_CONFIG`` to ``zxsd_generate()``, so the
 generated validator checks the schema-derived values at compile time: the
 build fails if one of them drops below what ``settings.xsd`` requires. When the
 schema changes, regenerate the fragment and update ``prj.conf``.
@@ -109,7 +109,7 @@ Expected output:
    peer: ok (-)
    rejected after 5 fragment(s), 0 sensor(s) delivered: incorrect element order (settings)
    refused after 422 bytes: missing required element (label)
-   mxsd streaming bindings sample done
+   zxsd streaming bindings sample done
 
 The number of fragments passed to the sink depends on the writer and may
 change between releases.

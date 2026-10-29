@@ -1,7 +1,7 @@
-# mxsd C API
+# zxsd C API
 
-mxsd is a portable C99 validation runtime for schemas compiled by `mxsdc`.
-The public API is declared in `mxsd.h`; `mxsd_mxml.h` provides the optional
+zxsd is a portable C99 validation runtime for schemas compiled by `zxsdc`.
+The public API is declared in `zxsd.h`; `zxsd_mxml.h` provides the optional
 Mini-XML 4 adapter. The Sphinx guide contains usage, support, and conformance
 documentation.
 

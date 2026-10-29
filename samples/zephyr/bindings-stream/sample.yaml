@@ -1,8 +1,8 @@
 sample:
-  name: mxsd streaming typed bindings
+  name: zxsd streaming typed bindings
   description: Read, update and write XML settings in fragments through generated C structures
 tests:
-  mxsd.bindings_stream:
+  zxsd.bindings_stream:
     tags: 
       - xml
       - bindings
@@ -22,4 +22,4 @@ tests:
         - "peer: ok"
         - "rejected after 5 fragment\\(s\\), 0 sensor\\(s\\) delivered: incorrect element order \\(settings\\)"
         - "refused after [0-9]+ bytes: missing required element \\(label\\)"
-        - "mxsd streaming bindings sample done"
+        - "zxsd streaming bindings sample done"

@@ -8,10 +8,10 @@ common:
     - qemu_x86
   harness: ztest
 tests:
-  mxsd.validation: {}
-  mxsd.validation.compact:
+  zxsd.validation: {}
+  zxsd.validation.compact:
     extra_configs:
-      - CONFIG_MXSD_STREAM_CHILD_CAPACITY=1
-  mxsd.validation.history:
+      - CONFIG_ZXSD_STREAM_CHILD_CAPACITY=1
+  zxsd.validation.history:
     extra_configs:
-      - CONFIG_MXSD_STREAM_MODEL_CAPACITY=0
+      - CONFIG_ZXSD_STREAM_MODEL_CAPACITY=0

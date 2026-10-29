@@ -18,12 +18,12 @@
 #include <string.h>
 
 #include "settings.bind.h"
-#include "settings.mxsd.h"
+#include "settings.zxsd.h"
 #include "settings_documents.h"
 
 /*
  * Storage for strings and arrays produced by reading. Size it from the largest
- * accepted document; MXSD_ERR_RESOURCE_LIMIT reports a too-small arena.
+ * accepted document; ZXSD_ERR_RESOURCE_LIMIT reports a too-small arena.
  */
 static unsigned char arena_storage[512];
 
@@ -59,15 +59,15 @@ int main(void)
 	static settings_Sensor_t sensors[3];
 	settings_settings_t settings;
 	settings_settings_t rejected;
-	mxsd_bind_arena_t arena;
-	mxsd_bind_arena_t scratch;
+	zxsd_bind_arena_t arena;
+	zxsd_bind_arena_t scratch;
 	size_t length;
-	mxsd_result_t result;
+	zxsd_result_t result;
 
 	/* 1. Validate the received document and convert it to C structures. */
-	mxsd_bind_arena_init(&arena, arena_storage, sizeof(arena_storage));
+	zxsd_bind_arena_init(&arena, arena_storage, sizeof(arena_storage));
 	result = settings_settings_read(received_document, &settings, &arena);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		printk("read failed: %s at offset %u\n", result.message,
 		       (unsigned int)result.offset);
 		return 0;
@@ -95,7 +95,7 @@ int main(void)
 	/* 3. Serialize; the produced document is validated before it is reported as ok. */
 	result = settings_settings_write_buffer(&settings, output, sizeof(output), &length);
 	printk("write: %s, %u bytes\n%s\n", result.message, (unsigned int)length, output);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		return 0;
 	}
 
@@ -112,7 +112,7 @@ int main(void)
 	 * 4. Invalid input is rejected by validation; the target structure is then
 	 *    zeroed and the arena left unchanged, so use separate ones here.
 	 */
-	mxsd_bind_arena_init(&scratch, arena_storage + arena.used,
+	zxsd_bind_arena_init(&scratch, arena_storage + arena.used,
 			     sizeof(arena_storage) - arena.used);
 	result = settings_settings_read(invalid_document, &rejected, &scratch);
 	printk("rejected: %s (%s)\n", result.message, result.path != NULL ? result.path : "-");
@@ -122,6 +122,6 @@ int main(void)
 	result = settings_settings_write_buffer(&settings, output, sizeof(output), NULL);
 	printk("refused: %s (%s)\n", result.message, result.path != NULL ? result.path : "-");
 
-	printk("mxsd bindings sample done\n");
+	printk("zxsd bindings sample done\n");
 	return 0;
 }

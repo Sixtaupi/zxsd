@@ -2,7 +2,7 @@ API, ABI, and migration
 #######################
 
 This is the compatibility contract for the public C headers, the runtime, and
-``mxsdc`` output. It does not extend the XSD support contract or claim complete
+``zxsdc`` output. It does not extend the XSD support contract or claim complete
 W3C conformance. The project remains experimental.
 
 Release policy
@@ -32,7 +32,7 @@ not check compiler flags, memory limits, or the separately installed compiler.
 Compatibility epochs
 ********************
 
-``include/mxsd_version.h`` defines independent, monotonically increasing integer
+``include/zxsd_version.h`` defines independent, monotonically increasing integer
 epochs. Their initial value is **1**; they are not release numbers.
 
 .. list-table::
@@ -41,12 +41,12 @@ epochs. Their initial value is **1**; they are not release numbers.
 
    * - Identifier
      - Covered contract; increment when incompatible
-   * - ``MXSD_RUNTIME_ABI_VERSION``
+   * - ``ZXSD_RUNTIME_ABI_VERSION``
      - Public function signatures, calling interface, caller-owned state layouts,
        configuration stamp format, and runtime entry points required by generated code.
-   * - ``MXSD_DESCRIPTOR_ABI_VERSION``
+   * - ``ZXSD_DESCRIPTOR_ABI_VERSION``
      - Schema descriptor layouts, enum values, and their interpretation by the runtime.
-   * - ``MXSD_BINDING_ABI_VERSION``
+   * - ``ZXSD_BINDING_ABI_VERSION``
      - Binding descriptors, generic binding state, scalar/storage conventions,
        and the generator/runtime representation contract, including streaming bindings.
 
@@ -55,16 +55,16 @@ an old epoch guard unless the corresponding compatibility adapter is actually
 implemented and tested. A compatible implementation fix does not require an
 epoch change. An incompatible epoch change cannot be shipped in a 0.x patch.
 
-``mxsdc --version`` prints the compiler release; ``mxsdc --abi-info`` prints its
-release and required epochs as JSON. ``MXSD_VERSION`` identifies the including
-headers and ``mxsd_version()`` identifies the linked runtime. Release strings
+``zxsdc --version`` prints the compiler release; ``zxsdc --abi-info`` prints its
+release and required epochs as JSON. ``ZXSD_VERSION`` identifies the including
+headers and ``zxsd_version()`` identifies the linked runtime. Release strings
 are diagnostic metadata, not compatibility predicates.
 
-Generated ``.mxsd.[ch]`` files check the runtime and descriptor epochs at
+Generated ``.zxsd.[ch]`` files check the runtime and descriptor epochs at
 compilation. Generated ``.bind.[ch]`` files additionally check the binding epoch.
 Checks are present in **both** headers and sources: replacing just a generated
 header cannot make a stale source compatible. Entry points also reference
-epoch-specific symbols such as ``mxsd_descriptor_abi_1``. An already compiled
+epoch-specific symbols such as ``zxsd_descriptor_abi_1``. An already compiled
 object therefore fails to link against a runtime exporting only another epoch.
 With dynamic libraries, symbol resolution can happen at load time or first use.
 Do not suppress these errors or edit the checks to force a build through.
@@ -86,15 +86,15 @@ Memory configuration and binary boundaries
 ******************************************
 
 Epochs do not encode the architecture or configured capacities. In particular,
-``mxsd_stream_t``, ``mxsd_xml_reader_t``, and ``mxsd_bind_stream_t`` contain arrays
+``zxsd_stream_t``, ``zxsd_xml_reader_t``, and ``zxsd_bind_stream_t`` contain arrays
 sized by public resource macros. All participating translation units must use
-the same public limits, ``MXSD_NO_HEAP`` mode, architecture, calling convention,
+the same public limits, ``ZXSD_NO_HEAP`` mode, architecture, calling convention,
 compiler ABI, packing, and enum/alignment options. Rebuild all consumers after
 any change. The selected XML backend is private; switching it still requires
 rebuilding the runtime and rerunning the relevant tests.
 
 Zephyr propagates Kconfig-derived definitions globally. With CMake, link
-``mxsd::mxsd`` to inherit its usage requirements; application-specific capacity
+``zxsd::zxsd`` to inherit its usage requirements; application-specific capacity
 overrides must also be applied to the runtime and every generated source, not
 only the application. Generated ``.limits.h`` checks prove minimum capacities,
 not that two translation units have identical layouts.
@@ -104,19 +104,19 @@ initializing any context or calling a validation/binding API:
 
 .. code-block:: c
 
-   #include <mxsd_bind.h>
+   #include <zxsd_bind.h>
 
-   static const mxsd_bind_runtime_config_t expected = MXSD_BIND_RUNTIME_CONFIG_INIT;
+   static const zxsd_bind_runtime_config_t expected = ZXSD_BIND_RUNTIME_CONFIG_INIT;
 
-   mxsd_result_t result = mxsd_bind_check_runtime(&expected);
-   if (result.code != MXSD_OK) {
+   zxsd_result_t result = zxsd_bind_check_runtime(&expected);
+   if (result.code != ZXSD_OK) {
        /* Refuse to use this runtime. No XML context has been touched. */
        return 1;
    }
 
-Without bindings, use ``mxsd_runtime_config_t``, ``MXSD_RUNTIME_CONFIG_INIT``,
-and ``mxsd_check_runtime()`` instead. A mismatch returns
-``MXSD_ERR_INCOMPATIBLE_ABI``. The checks allocate nothing and compare exact
+Without bindings, use ``zxsd_runtime_config_t``, ``ZXSD_RUNTIME_CONFIG_INIT``,
+and ``zxsd_check_runtime()`` instead. A mismatch returns
+``ZXSD_ERR_INCOMPATIBLE_ABI``. The checks allocate nothing and compare exact
 epochs, all public resource limit values, heap mode, and recorded public sizes;
 the binding check also compares binding sizes and its epoch.
 
@@ -161,8 +161,8 @@ Migration checklist
    ``--stream-bind`` paths, and configured limits. Read the target release's
    ``CHANGELOG.md`` before upgrading.
 #. Install the chosen compiler and runtime together. Check ``--abi-info`` and
-   the runtime headers; do not accidentally use another ``mxsdc`` from ``PATH``.
-#. Regenerate all ``.mxsd.[ch]``, ``.bind.[ch]``, and, when requested, ``.conf``
+   the runtime headers; do not accidentally use another ``zxsdc`` from ``PATH``.
+#. Regenerate all ``.zxsd.[ch]``, ``.bind.[ch]``, and, when requested, ``.conf``
    and ``.limits.h`` files with the original explicit options. Review the diff.
 #. Adapt application types and calls. Merge reviewed configuration recommendations
    before Zephyr configuration, keeping application budgets explicit.
@@ -172,7 +172,7 @@ Migration checklist
    tests for relevant targets. Rerun application-specific XML fixtures, resource
    measurements, and selected optional W3C/HIL gates as appropriate.
 
-Compatibility regression tests are ``mxsd_compatibility_test`` (also shared with
+Compatibility regression tests are ``zxsd_compatibility_test`` (also shared with
 Twister) and ``generated-compatibility``. They test matching/mismatched stamps,
 header/source rejection, precompiled-object link rejection, release metadata,
 and CMake package selection. These establish the new baseline, not compatibility

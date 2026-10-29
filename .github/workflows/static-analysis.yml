@@ -19,7 +19,7 @@ jobs:
         id: cppcheck_image
         run: >-
           docker build --target runtime
-          --tag mxsd-cppcheck:ci
+          --tag zxsd-cppcheck:ci
           tools/docker/cppcheck
 
       - name: Analyze C sources
@@ -29,14 +29,14 @@ jobs:
           docker run --rm \
             --volume "${{ github.workspace }}:${{ github.workspace }}" \
             --workdir "${{ github.workspace }}" \
-            mxsd-cppcheck:ci \
+            zxsd-cppcheck:ci \
             sh -c '
               cmake -S . -B build-misra \
                 -DCMAKE_BUILD_TYPE=Debug \
                 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-                -DMXSD_BUILD_TESTS=OFF \
-                -DMXSD_NO_HEAP=ON \
-                -DMXSD_USE_MXML=OFF &&
+                -DZXSD_BUILD_TESTS=OFF \
+                -DZXSD_NO_HEAP=ON \
+                -DZXSD_USE_MXML=OFF &&
               cppcheck \
                 --project=build-misra/compile_commands.json \
                 --dump \
@@ -58,7 +58,7 @@ jobs:
           docker run --rm \
             --volume "${{ github.workspace }}:${{ github.workspace }}:ro" \
             --workdir "${{ github.workspace }}" \
-            mxsd-cppcheck:ci \
+            zxsd-cppcheck:ci \
             flawfinder \
               --columns \
               --context \

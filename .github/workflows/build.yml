@@ -29,7 +29,7 @@ jobs:
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_SHARED_LIBS=${{ matrix.shared }}
-          -DMXSD_USE_MXML=OFF
+          -DZXSD_USE_MXML=OFF
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -45,8 +45,8 @@ jobs:
         env:
           PKG_CONFIG_PATH: ${{ github.workspace }}/install/lib/pkgconfig
         run: |
-          pkg-config --validate mxsd
-          test "$(pkg-config --modversion mxsd)" = "0.20.0"
+          pkg-config --validate zxsd
+          test "$(pkg-config --modversion zxsd)" = "0.20.0"
 
       - name: Configure installed-package consumer
         run: >-
@@ -64,7 +64,7 @@ jobs:
         run: >-
           cmake -S samples/host -B build-sample
           -DCMAKE_BUILD_TYPE=Release
-          -DMXSD_USE_MXML=OFF
+          -DZXSD_USE_MXML=OFF
 
       - name: Build host sample
         run: cmake --build build-sample --config Release --parallel
@@ -84,8 +84,8 @@ jobs:
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DMXSD_USE_MXML=OFF
-          -DMXSD_NO_HEAP=ON
+          -DZXSD_USE_MXML=OFF
+          -DZXSD_NO_HEAP=ON
       - name: Build and test
         run: |
           cmake --build build --parallel
@@ -103,7 +103,7 @@ jobs:
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Debug
-          -DMXSD_USE_MXML=OFF
+          -DZXSD_USE_MXML=OFF
           -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
           -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
           -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
@@ -121,7 +121,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: mxsd
+          path: zxsd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,18 +140,18 @@ jobs:
           make --jobs="$(nproc)"
           make install
 
-      - name: Configure mxsd with the required Mini-XML backend
-        working-directory: mxsd
+      - name: Configure zxsd with the required Mini-XML backend
+        working-directory: zxsd
         run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DMXSD_USE_MXML=ON
-          -DMXSD_REQUIRE_MXML=ON
+          -DZXSD_USE_MXML=ON
+          -DZXSD_REQUIRE_MXML=ON
           -DMXML_INCLUDE_DIR="${RUNNER_TEMP}/mxml/include/libmxml4"
           -DMXML_LIBRARY="${RUNNER_TEMP}/mxml/lib/libmxml4.a"
 
       - name: Build and test
-        working-directory: mxsd
+        working-directory: zxsd
         run: |
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure --timeout 120
@@ -162,7 +162,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: mxsd
+          path: zxsd
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -171,36 +171,36 @@ jobs:
       - name: Set up Zephyr workspace and SDK
         uses: zephyrproject-rtos/action-zephyr-setup@be8136a8bba01580485d98b7ad2d32477c36a49a # v1.0.15
         with:
-          app-path: mxsd
+          app-path: zxsd
           toolchains: x86_64-zephyr-elf
 
       - name: Run Zephyr validation tests
-        run: west twister -T mxsd/tests/zephyr -p qemu_x86 --inline-logs
+        run: west twister -T zxsd/tests/zephyr -p qemu_x86 --inline-logs
 
       - name: Run Zephyr XSD validation sample
-        run: west twister -T mxsd/samples/zephyr/xsd-validation -p qemu_x86 --inline-logs
+        run: west twister -T zxsd/samples/zephyr/xsd-validation -p qemu_x86 --inline-logs
 
       - name: Run Zephyr streaming bindings sample
-        run: west twister -T mxsd/samples/zephyr/bindings-stream -p qemu_x86 --inline-logs
+        run: west twister -T zxsd/samples/zephyr/bindings-stream -p qemu_x86 --inline-logs
 
       - name: Build Zephyr REST sample
-        run: west twister -T mxsd/samples/zephyr/rest -p qemu_x86 --build-only --inline-logs
+        run: west twister -T zxsd/samples/zephyr/rest -p qemu_x86 --build-only --inline-logs
 
       - name: Build native_sim resource image
         run: >-
-          west build -b native_sim mxsd/samples/zephyr/xsd-validation
+          west build -b native_sim zxsd/samples/zephyr/xsd-validation
           -d build-native -- -DEXTRA_CFLAGS=-fstack-usage
 
       - name: Measure native_sim resources
         shell: bash
         run: |
-          runtime_archive=$(find build-native/modules/mxsd -maxdepth 1 -type f -name '*.a' -print -quit)
-          generated_object=$(find build-native -type f -name 'device.mxsd.c.obj' -print -quit)
+          runtime_archive=$(find build-native/modules/zxsd -maxdepth 1 -type f -name '*.a' -print -quit)
+          generated_object=$(find build-native -type f -name 'device.zxsd.c.obj' -print -quit)
           mapfile -t stack_usage < <(find build-native -type f -name '*.su' -print)
           test -n "$runtime_archive"
           test -n "$generated_object"
           test "${#stack_usage[@]}" -gt 0
-          python mxsd/tools/measure_resources.py \
+          python zxsd/tools/measure_resources.py \
             --platform native_sim \
             --size-tool size \
             --runtime-object "$runtime_archive" \

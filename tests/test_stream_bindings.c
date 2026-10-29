@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 mxsd contributors
+ * Copyright (c) 2026 zxsd contributors
  * SPDX-License-Identifier: Apache-2.0
  */
 /** @file @brief Fragmented typed subtree delivery and complete-document validation. */
@@ -23,13 +23,13 @@ static int failures;
 struct received {
 	size_t count;
 	size_t peak;
-	mxsd_bind_arena_t *arena;
-	mxsd_bind_action_t action;
+	zxsd_bind_arena_t *arena;
+	zxsd_bind_action_t action;
 	char label[64];
 };
 
 /** Validate every C representation as soon as one complete row is delivered. */
-static mxsd_bind_action_t row_received(void *context, const stream_bindings_Row_t *row)
+static zxsd_bind_action_t row_received(void *context, const stream_bindings_Row_t *row)
 {
 	struct received *received = context;
 
@@ -86,26 +86,26 @@ static void arbitrary_splits(void)
 	size_t split;
 
 	for (split = 0u; split <= sizeof(document) - 1u; ++split) {
-		mxsd_bind_arena_t arena;
+		zxsd_bind_arena_t arena;
 		struct received received = {0};
-		mxsd_result_t result;
+		zxsd_result_t result;
 
-		mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+		zxsd_bind_arena_init(&arena, storage, sizeof(storage));
 		arena.used = 3u;
 		received.arena = &arena;
 		result = stream_bindings_doc_row_reader_init(&reader, &row, &arena, row_received,
 							     &received, NULL);
-		if (result.code == MXSD_OK) {
+		if (result.code == ZXSD_OK) {
 			result = stream_bindings_doc_row_reader_feed(&reader, document, split);
 		}
-		if (result.code == MXSD_OK) {
+		if (result.code == ZXSD_OK) {
 			result = stream_bindings_doc_row_reader_feed(&reader, document + split,
 								     sizeof(document) - 1u - split);
 		}
-		if (result.code == MXSD_OK) {
+		if (result.code == ZXSD_OK) {
 			result = stream_bindings_doc_row_reader_finish(&reader);
 		}
-		CHECK(result.code == MXSD_OK);
+		CHECK(result.code == ZXSD_OK);
 		CHECK(received.count == 1u);
 		CHECK(strcmp(received.label, "été & 🌡 & sun") == 0);
 		CHECK(arena.used == 3u && row.label == NULL);
@@ -114,27 +114,27 @@ static void arbitrary_splits(void)
 }
 
 /** Return a one-byte-at-a-time result, checking sticky errors and rollback. */
-static mxsd_result_t read_document(const char *xml, size_t capacity, struct received *received)
+static zxsd_result_t read_document(const char *xml, size_t capacity, struct received *received)
 {
 	static stream_bindings_doc_row_reader_t reader;
 	static unsigned char storage[4096];
 	stream_bindings_Row_t row;
-	mxsd_bind_arena_t arena;
-	mxsd_result_t result;
+	zxsd_bind_arena_t arena;
+	zxsd_result_t result;
 	size_t index;
 
-	mxsd_bind_arena_init(&arena, storage, capacity);
+	zxsd_bind_arena_init(&arena, storage, capacity);
 	received->arena = &arena;
 	result = stream_bindings_doc_row_reader_init(&reader, &row, &arena, row_received, received,
 						     NULL);
-	for (index = 0u; xml[index] != '\0' && result.code == MXSD_OK; ++index) {
+	for (index = 0u; xml[index] != '\0' && result.code == ZXSD_OK; ++index) {
 		result = stream_bindings_doc_row_reader_feed(&reader, xml + index, 1u);
 	}
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		result = stream_bindings_doc_row_reader_finish(&reader);
 	}
-	if (result.code != MXSD_OK) {
-		mxsd_result_t later = stream_bindings_doc_row_reader_feed(&reader, "<", 1u);
+	if (result.code != ZXSD_OK) {
+		zxsd_result_t later = stream_bindings_doc_row_reader_feed(&reader, "<", 1u);
 
 		CHECK(later.code == result.code && later.offset == result.offset &&
 		      later.path == result.path);
@@ -156,43 +156,43 @@ static void validation_and_limits(void)
 	const char *invalid =
 		"<doc xmlns='urn:stream'><row id='7'><label/></row><check>256</check></doc>";
 	struct received received = {0};
-	mxsd_result_t result;
+	zxsd_result_t result;
 	size_t capacity;
 
 	result = read_document(invalid, 256u, &received);
-	CHECK(result.code != MXSD_OK && received.count == 1u);
+	CHECK(result.code != ZXSD_OK && received.count == 1u);
 	CHECK(strcmp(received.label, "unknown") == 0);
-	received = (struct received){.action = MXSD_BIND_VALIDATE_ONLY};
+	received = (struct received){.action = ZXSD_BIND_VALIDATE_ONLY};
 	result = read_document(invalid, 256u, &received);
-	CHECK(result.code != MXSD_OK && received.count == 1u);
-	received = (struct received){.action = MXSD_BIND_CALLBACK_ERROR};
+	CHECK(result.code != ZXSD_OK && received.count == 1u);
+	received = (struct received){.action = ZXSD_BIND_CALLBACK_ERROR};
 	result = read_document(valid, 256u, &received);
-	CHECK(result.code == MXSD_ERR_OUTPUT && received.count == 1u);
+	CHECK(result.code == ZXSD_ERR_OUTPUT && received.count == 1u);
 	for (capacity = 0u; capacity < 256u; ++capacity) {
 		received = (struct received){0};
 		result = read_document(valid, capacity, &received);
-		if (result.code == MXSD_OK) {
+		if (result.code == ZXSD_OK) {
 			CHECK(received.count == 1u && capacity > 0u);
 			break;
 		}
-		CHECK(result.code == MXSD_ERR_RESOURCE_LIMIT && received.count == 0u);
+		CHECK(result.code == ZXSD_ERR_RESOURCE_LIMIT && received.count == 0u);
 	}
 	CHECK(capacity < 256u);
 	received = (struct received){0};
 	CHECK(read_document("<doc xmlns='urn:stream'><check>0</check></doc>", 0u, &received).code ==
-	      MXSD_OK);
+	      ZXSD_OK);
 	CHECK(received.count == 0u);
 }
 
 /** A scalar selection is delivered as a generated structure with a value member. */
-static mxsd_bind_action_t label_received(void *context,
+static zxsd_bind_action_t label_received(void *context,
 					 const stream_bindings_doc_row_label_t *label)
 {
 	size_t *count = context;
 
 	CHECK(strcmp(label->value, "a & b") == 0);
 	(*count)++;
-	return MXSD_BIND_CONTINUE;
+	return ZXSD_BIND_CONTINUE;
 }
 
 /** Skip unsupported ancestor layouts, but reject a derived selected complex type. */
@@ -201,25 +201,25 @@ static void scalar_and_dynamic(void)
 	static stream_bindings_doc_row_label_reader_t scalar;
 	static unsigned char storage[256];
 	stream_bindings_doc_row_label_t label;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 	size_t count = 0u;
 	const char *xml =
 		"<doc xmlns='urn:stream' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
 		"xmlns:s='urn:stream'><row id='7' xsi:type='s:Derived'>"
 		"<label> a &amp; b </label><extra>ignored</extra></row><check>0</check></doc>";
-	mxsd_result_t result;
+	zxsd_result_t result;
 	struct received received = {0};
 
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
 	result = stream_bindings_doc_row_label_reader_init(&scalar, &label, &arena, label_received,
 							   &count, NULL);
-	CHECK(result.code == MXSD_OK);
+	CHECK(result.code == ZXSD_OK);
 	result = stream_bindings_doc_row_label_reader_feed(&scalar, xml, strlen(xml));
-	CHECK(result.code == MXSD_OK);
-	CHECK(stream_bindings_doc_row_label_reader_finish(&scalar).code == MXSD_OK);
+	CHECK(result.code == ZXSD_OK);
+	CHECK(stream_bindings_doc_row_label_reader_finish(&scalar).code == ZXSD_OK);
 	CHECK(count == 1u && arena.used == 0u);
 	stream_bindings_doc_row_label_reader_dispose(&scalar);
-	CHECK(read_document(xml, 256u, &received).code == MXSD_ERR_UNSUPPORTED);
+	CHECK(read_document(xml, 256u, &received).code == ZXSD_ERR_UNSUPPORTED);
 	CHECK(received.count == 0u);
 }
 
@@ -253,25 +253,25 @@ static void identities(void)
 	static stream_bindings_uniqueDoc_row_reader_t reader;
 	static unsigned char storage[256];
 	stream_bindings_Row_t row;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 	struct scratch_usage usage = {0};
-	mxsd_allocator_t scratch = {scratch_allocate, scratch_release, &usage};
-	struct received received = {.action = MXSD_BIND_VALIDATE_ONLY, .arena = &arena};
+	zxsd_allocator_t scratch = {scratch_allocate, scratch_release, &usage};
+	struct received received = {.action = ZXSD_BIND_VALIDATE_ONLY, .arena = &arena};
 	const char *xml = "<uniqueDoc xmlns='urn:stream'><row id='7'><label/></row>"
 			  "<row id='7'><label/></row><check>0</check></uniqueDoc>";
 
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
 	CHECK(stream_bindings_uniqueDoc_row_reader_init(&reader, &row, &arena, row_received,
 							&received, NULL)
-		      .code == MXSD_ERR_RESOURCE_LIMIT);
+		      .code == ZXSD_ERR_RESOURCE_LIMIT);
 	stream_bindings_uniqueDoc_row_reader_dispose(&reader);
 	CHECK(stream_bindings_uniqueDoc_row_reader_init(&reader, &row, &arena, row_received,
 							&received, &scratch)
-		      .code == MXSD_OK);
-	CHECK(stream_bindings_uniqueDoc_row_reader_feed(&reader, xml, strlen(xml)).code == MXSD_OK);
+		      .code == ZXSD_OK);
+	CHECK(stream_bindings_uniqueDoc_row_reader_feed(&reader, xml, strlen(xml)).code == ZXSD_OK);
 	CHECK(received.count == 1u);
 	CHECK(stream_bindings_uniqueDoc_row_reader_finish(&reader).code ==
-	      MXSD_ERR_IDENTITY_CONSTRAINT);
+	      ZXSD_ERR_IDENTITY_CONSTRAINT);
 	CHECK(arena.used == 0u && row.label == NULL);
 	stream_bindings_uniqueDoc_row_reader_dispose(&reader);
 	CHECK(usage.allocations >= 1u && usage.releases == usage.allocations);
@@ -283,43 +283,43 @@ static void reuse_and_equivalence(void)
 	static stream_bindings_doc_row_reader_t reader;
 	static unsigned char storage[256];
 	stream_bindings_Row_t row;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 	struct received received = {.arena = &arena};
 	const char *item = "<row id='7'><label/></row>";
 	size_t index;
-	size_t iterations = MXSD_MAX_INPUT > 65536u ? 2048u : 32u;
+	size_t iterations = ZXSD_MAX_INPUT > 65536u ? 2048u : 32u;
 
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
 	CHECK(stream_bindings_doc_row_reader_init(&reader, &row, &arena, row_received, &received,
 						  NULL)
-		      .code == MXSD_OK);
+		      .code == ZXSD_OK);
 	CHECK(stream_bindings_doc_row_reader_feed(&reader, "<doc xmlns='urn:stream'>", 24u).code ==
-	      MXSD_OK);
+	      ZXSD_OK);
 	for (index = 0u; index < iterations; ++index) {
 		CHECK(stream_bindings_doc_row_reader_feed(&reader, item, strlen(item)).code ==
-		      MXSD_OK);
+		      ZXSD_OK);
 		CHECK(arena.used == 0u);
 	}
 	CHECK(stream_bindings_doc_row_reader_feed(&reader, "<check>0</check></doc>", 22u).code ==
-	      MXSD_OK);
-	CHECK(stream_bindings_doc_row_reader_finish(&reader).code == MXSD_OK);
+	      ZXSD_OK);
+	CHECK(stream_bindings_doc_row_reader_finish(&reader).code == ZXSD_OK);
 	CHECK(received.count == iterations);
 	stream_bindings_doc_row_reader_dispose(&reader);
 	{
 		static stream_bindings_row_reader_t whole;
 		static unsigned char expected_storage[256];
 		stream_bindings_Row_t expected;
-		mxsd_bind_arena_t expected_arena;
+		zxsd_bind_arena_t expected_arena;
 		const char *root = "<row xmlns='urn:stream' id='7'><label/></row>";
 
-		mxsd_bind_arena_init(&expected_arena, expected_storage, sizeof(expected_storage));
-		CHECK(stream_bindings_row_read(root, &expected, &expected_arena).code == MXSD_OK);
+		zxsd_bind_arena_init(&expected_arena, expected_storage, sizeof(expected_storage));
+		CHECK(stream_bindings_row_read(root, &expected, &expected_arena).code == ZXSD_OK);
 		received = (struct received){.arena = &arena};
 		CHECK(stream_bindings_row_reader_init(&whole, &row, &arena, row_received, &received,
 						      NULL)
-			      .code == MXSD_OK);
-		CHECK(stream_bindings_row_reader_feed(&whole, root, strlen(root)).code == MXSD_OK);
-		CHECK(stream_bindings_row_reader_finish(&whole).code == MXSD_OK);
+			      .code == ZXSD_OK);
+		CHECK(stream_bindings_row_reader_feed(&whole, root, strlen(root)).code == ZXSD_OK);
+		CHECK(stream_bindings_row_reader_finish(&whole).code == ZXSD_OK);
 		CHECK(expected.id == 7u && expected.enabled &&
 		      expected.kind == STREAM_BINDINGS_KIND_LIVE);
 		CHECK(received.count == 1u && strcmp(received.label, expected.label) == 0);
@@ -328,7 +328,7 @@ static void reuse_and_equivalence(void)
 }
 
 /** Run portable binding-stream tests, also callable by the Zephyr extern wrapper. */
-int mxsd_test_stream_bindings(void)
+int zxsd_test_stream_bindings(void)
 {
 	failures = 0;
 	arbitrary_splits();
@@ -339,9 +339,9 @@ int mxsd_test_stream_bindings(void)
 	return failures != 0;
 }
 
-#ifndef MXSD_TEST_NO_MAIN
+#ifndef ZXSD_TEST_NO_MAIN
 int main(void)
 {
-	return mxsd_test_stream_bindings();
+	return zxsd_test_stream_bindings();
 }
 #endif

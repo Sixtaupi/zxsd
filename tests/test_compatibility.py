@@ -85,28 +85,28 @@ def main():
     args.project = args.project.resolve()
     args.build = args.build.resolve()
     compiler_env = msvc_environment(args.cc) if args.compiler_id == "MSVC" else None
-    compiler = [sys.executable, str(args.project / "mxsdc")]
+    compiler = [sys.executable, str(args.project / "zxsdc")]
     info = json.loads(run(compiler + ["--abi-info"]))
-    version_header = (args.project / "include/mxsd_version.h").read_text(encoding="utf-8")
+    version_header = (args.project / "include/zxsd_version.h").read_text(encoding="utf-8")
     cmake = (args.project / "CMakeLists.txt").read_text(encoding="utf-8")
-    version = re.search(r"project\(mxsd VERSION ([0-9.]+)", cmake).group(1)
+    version = re.search(r"project\(zxsd VERSION ([0-9.]+)", cmake).group(1)
     assert info["compiler_version"] == version
-    assert run(compiler + ["--version"]).strip() == "mxsdc " + version
-    assert re.search(r'^#define MXSD_VERSION\s+"%s"$' % re.escape(version), version_header, re.M)
+    assert run(compiler + ["--version"]).strip() == "zxsdc " + version
+    assert re.search(r'^#define ZXSD_VERSION\s+"%s"$' % re.escape(version), version_header, re.M)
     for kind in ("runtime", "descriptor", "binding"):
         assert re.search(
-            r"^#define MXSD_%s_ABI_VERSION\s+%d$" % (kind.upper(), info[kind]),
+            r"^#define ZXSD_%s_ABI_VERSION\s+%d$" % (kind.upper(), info[kind]),
             version_header,
             re.M,
         )
 
     # A new resource macro must not silently escape the configuration stamp.
-    public = (args.project / "include/mxsd.h").read_text(encoding="utf-8")
-    limits = re.findall(r"^#ifndef (MXSD_(?:MAX_|STREAM_|XML_)\w+)", public, re.M)
-    initializer = public.split("#define MXSD_RUNTIME_CONFIG_INIT", 1)[1].split("/**", 1)[0]
+    public = (args.project / "include/zxsd.h").read_text(encoding="utf-8")
+    limits = re.findall(r"^#ifndef (ZXSD_(?:MAX_|STREAM_|XML_)\w+)", public, re.M)
+    initializer = public.split("#define ZXSD_RUNTIME_CONFIG_INIT", 1)[1].split("/**", 1)[0]
     assert len(limits) == 22 and all(name in initializer for name in limits)
 
-    with tempfile.TemporaryDirectory(prefix="mxsd-compatibility-", dir=args.build) as directory:
+    with tempfile.TemporaryDirectory(prefix="zxsd-compatibility-", dir=args.build) as directory:
         work = pathlib.Path(directory)
         headers = work / "include"
         headers.mkdir()
@@ -137,7 +137,7 @@ def main():
                 + [str(args.project / "tests" / (schema + ".xsd")), "-o", str(work)]
                 + options
             )
-            for suffix in ("mxsd", "bind"):
+            for suffix in ("zxsd", "bind"):
                 source = work / (schema + "." + suffix + ".c")
                 obj = work / (schema + "." + suffix + ".obj")
                 compile_file(source, obj)
@@ -148,7 +148,7 @@ def main():
                     else ("runtime", "descriptor")
                 )
                 for kind in required:
-                    macro = "MXSD_%s_ABI_VERSION" % kind.upper()
+                    macro = "ZXSD_%s_ABI_VERSION" % kind.upper()
                     # Header-only clients must fail, not merely generated .c files.
                     probe = work / "probe.c"
                     probe.write_text('#include "%s.%s.h"\n' % (schema, suffix), encoding="utf-8")
@@ -157,9 +157,9 @@ def main():
                         "/* missing epoch */",
                     ):
                         bad = re.sub(r"#define %s\s+\d+" % macro, replacement, version_header)
-                        (headers / "mxsd_version.h").write_text(bad, encoding="utf-8")
-                        compile_file(probe, work / "bad.obj", False, "mxsdc requires " + macro)
-                    (headers / "mxsd_version.h").write_text(version_header, encoding="utf-8")
+                        (headers / "zxsd_version.h").write_text(bad, encoding="utf-8")
+                        compile_file(probe, work / "bad.obj", False, "zxsdc requires " + macro)
+                    (headers / "zxsd_version.h").write_text(version_header, encoding="utf-8")
                     # Include the valid generated header first, then alter the
                     # epoch: its include guard cannot hide the .c's own check.
                     probe.write_text(
@@ -167,46 +167,46 @@ def main():
                         % (schema, suffix, macro, macro, source.name),
                         encoding="utf-8",
                     )
-                    compile_file(probe, work / "bad.obj", False, "mxsdc requires " + macro)
+                    compile_file(probe, work / "bad.obj", False, "zxsdc requires " + macro)
 
         # Releases are diagnostic metadata; unchanged epochs do not pin the
         # compiler to an exact patch release.
-        (headers / "mxsd_version.h").write_text(
+        (headers / "zxsd_version.h").write_text(
             version_header.replace('"%s"' % version, '"0.20.999"'), encoding="utf-8"
         )
-        compile_file(work / "device.mxsd.c", work / "other-release.obj")
-        (headers / "mxsd_version.h").write_text(version_header, encoding="utf-8")
+        compile_file(work / "device.zxsd.c", work / "other-release.obj")
+        (headers / "zxsd_version.h").write_text(version_header, encoding="utf-8")
 
         # Stub only the ordinary runtime calls: link checks must fail because
         # the epoch symbol is missing, not because of some unrelated API.
         stub = """
-#include <mxsd_bind.h>
-#include "device.mxsd.h"
+#include <zxsd_bind.h>
+#include "device.zxsd.h"
 #include "device.bind.h"
 #include "stream_bindings.bind.h"
-static mxsd_result_t ok(void) { mxsd_result_t r = {MXSD_OK, 0, NULL, NULL}; return r; }
-mxsd_result_t mxsd_validate(const mxsd_schema_t *s, const char *x) { return ok(); }
-mxsd_result_t mxsd_stream_init(mxsd_stream_t *s, const mxsd_schema_t *d) { return ok(); }
-mxsd_result_t mxsd_bind_read(const mxsd_bind_root_t *r, const char *x, void *o,
-                           mxsd_bind_arena_t *a) { return ok(); }
-mxsd_result_t mxsd_bind_write(const mxsd_bind_root_t *r, const void *o, mxsd_bind_sink_fn s,
-                            void *c, mxsd_stream_t *v) { return ok(); }
-mxsd_result_t mxsd_bind_write_buffer(const mxsd_bind_root_t *r, const void *o, char *b,
+static zxsd_result_t ok(void) { zxsd_result_t r = {ZXSD_OK, 0, NULL, NULL}; return r; }
+zxsd_result_t zxsd_validate(const zxsd_schema_t *s, const char *x) { return ok(); }
+zxsd_result_t zxsd_stream_init(zxsd_stream_t *s, const zxsd_schema_t *d) { return ok(); }
+zxsd_result_t zxsd_bind_read(const zxsd_bind_root_t *r, const char *x, void *o,
+                           zxsd_bind_arena_t *a) { return ok(); }
+zxsd_result_t zxsd_bind_write(const zxsd_bind_root_t *r, const void *o, zxsd_bind_sink_fn s,
+                            void *c, zxsd_stream_t *v) { return ok(); }
+zxsd_result_t zxsd_bind_write_buffer(const zxsd_bind_root_t *r, const void *o, char *b,
                                    size_t c, size_t *l) { return ok(); }
-mxsd_result_t mxsd_bind_stream_init(mxsd_bind_stream_t *r, const mxsd_bind_selection_t *s,
-    void *o, mxsd_bind_arena_t *a, mxsd_bind_item_fn c, void *u,
-    const mxsd_allocator_t *alloc) { return ok(); }
-mxsd_result_t mxsd_bind_stream_feed(mxsd_bind_stream_t *r, const void *d, size_t n) { return ok(); }
-mxsd_result_t mxsd_bind_stream_finish(mxsd_bind_stream_t *r) { return ok(); }
-void mxsd_bind_stream_dispose(mxsd_bind_stream_t *r) {}
+zxsd_result_t zxsd_bind_stream_init(zxsd_bind_stream_t *r, const zxsd_bind_selection_t *s,
+    void *o, zxsd_bind_arena_t *a, zxsd_bind_item_fn c, void *u,
+    const zxsd_allocator_t *alloc) { return ok(); }
+zxsd_result_t zxsd_bind_stream_feed(zxsd_bind_stream_t *r, const void *d, size_t n) { return ok(); }
+zxsd_result_t zxsd_bind_stream_finish(zxsd_bind_stream_t *r) { return ok(); }
+void zxsd_bind_stream_dispose(zxsd_bind_stream_t *r) {}
 int main(void) {
     return device_schema() == NULL || device_device_binding() == NULL ||
-        stream_bindings_doc_row_reader_init(NULL, NULL, NULL, NULL, NULL, NULL).code != MXSD_OK;
+        stream_bindings_doc_row_reader_init(NULL, NULL, NULL, NULL, NULL, NULL).code != ZXSD_OK;
 }
 """
         for missing in (None, "runtime", "descriptor", "binding"):
             definitions = "".join(
-                "void mxsd_%s_abi_%d(void) {}\n"
+                "void zxsd_%s_abi_%d(void) {}\n"
                 % (kind, info[kind] if kind != missing else info[kind] + 1)
                 for kind in ("runtime", "descriptor", "binding")
             )
@@ -220,7 +220,7 @@ int main(void) {
                 if args.compiler_id == "MSVC"
                 else ["-o", str(executable)]
             )
-            diagnostic = None if missing is None else "mxsd_%s_abi_%d" % (missing, info[missing])
+            diagnostic = None if missing is None else "zxsd_%s_abi_%d" % (missing, info[missing])
             run(
                 [args.cc] + link_flags + [str(p) for p in objects + [stub_object]],
                 missing is None,
@@ -248,7 +248,7 @@ int main(void) {
                     for name, value in zip(("MAJOR", "MINOR", "PATCH"), parts)
                 )
                 + "set(PACKAGE_FIND_VERSION_COUNT 3)\n"
-                + 'include("%s")\n' % (args.build / "mxsdConfigVersion.cmake").as_posix()
+                + 'include("%s")\n' % (args.build / "zxsdConfigVersion.cmake").as_posix()
                 + 'if(NOT "${PACKAGE_VERSION_COMPATIBLE}" STREQUAL "%s")\n'
                 % ("TRUE" if compatible else "FALSE")
                 + '  message(FATAL_ERROR "Unexpected package compatibility")\nendif()\n',

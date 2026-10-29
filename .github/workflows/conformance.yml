@@ -21,10 +21,10 @@ jobs:
           python-version: "3.13"
       - name: Configure and build
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMXSD_USE_MXML=OFF
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DZXSD_USE_MXML=OFF
           cmake --build build --parallel
       - name: Run conformance gate
-        run: ctest --test-dir build -R '^mxsd_conformance_report$' --output-on-failure
+        run: ctest --test-dir build -R '^zxsd_conformance_report$' --output-on-failure
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:

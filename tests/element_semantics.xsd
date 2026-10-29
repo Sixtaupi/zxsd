@@ -1,6 +1,6 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           xmlns:e="urn:mxsd:elements"
-           targetNamespace="urn:mxsd:elements" elementFormDefault="qualified">
+           xmlns:e="urn:zxsd:elements"
+           targetNamespace="urn:zxsd:elements" elementFormDefault="qualified">
   <xs:complexType name="Base" abstract="true">
     <xs:sequence><xs:element name="name" type="xs:string"/></xs:sequence>
   </xs:complexType>

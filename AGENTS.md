@@ -6,14 +6,14 @@ and repository layout when those change.
 
 ## Project purpose
 
-mxsd is an Apache-2.0, C99 XML Schema validator aimed at embedded systems.
-`mxsdc` compiles the supported XSD 1.0 subset on the host into immutable C
+zxsd is an Apache-2.0, C99 XML Schema validator aimed at embedded systems.
+`zxsdc` compiles the supported XSD 1.0 subset on the host into immutable C
 descriptor tables. A generic C runtime interprets those descriptors on Linux,
 macOS, Windows, and Zephyr.
 
 The project does **not** claim complete XSD 1.0 support. `README.md`,
 `SUPPORT.md`, and `doc/xsd-support.rst` are the public support contract.
-Unsupported schema constructs must fail explicitly in `mxsdc`; never accept a
+Unsupported schema constructs must fail explicitly in `zxsdc`; never accept a
 construct by silently ignoring it or describe compiler acceptance alone as
 conformance.
 
@@ -22,15 +22,15 @@ conformance.
 - `README.md`: concise user-facing capabilities and examples.
 - `doc/xsd-support.rst`: supported, partial, and unsupported
   XSD features.
-- `include/mxsd.h`: stable public runtime API and resource-limit definitions.
-- `include/mxsd_version.h` and `doc/compatibility.rst`: compatibility epochs,
+- `include/zxsd.h`: stable public runtime API and resource-limit definitions.
+- `include/zxsd_version.h` and `doc/compatibility.rst`: compatibility epochs,
   release guarantees, and migration rules.
 - `tests/conformance/manifest.json`: feature-to-test conformance mapping.
 - `zephyr/Kconfig`: Zephyr configuration contract.
 
-`mxsdc --zephyr-config` derives sizing recommendations from the compiler model.
+`zxsdc --zephyr-config` derives sizing recommendations from the compiler model.
 Keep its Kconfig ranges and incremental-model classification synchronized with
-`zephyr/Kconfig`, `stream_incremental_model()`, and `mxsd_model_supported()` when
+`zephyr/Kconfig`, `stream_incremental_model()`, and `zxsd_model_supported()` when
 any changes. Input
 budgets must remain explicitly distinct from schema-derived requirements.
 
@@ -39,26 +39,26 @@ documentation together. Do not let these descriptions drift apart.
 
 ## Repository layout
 
-- `mxsdc`: extensionless host-compiler launcher retained for source-tree and CMake use.
-- `mxsdc_lib/`: modular Python compiler implementation: schema loading/compilation,
+- `zxsdc`: extensionless host-compiler launcher retained for source-tree and CMake use.
+- `zxsdc_lib/`: modular Python compiler implementation: schema loading/compilation,
   regular expressions, descriptor generation, bindings, Zephyr sizing, and the CLI.
 - `include/`: public, installed C headers.
-- `src/mxsd.c`: public validation facade and resource checks.
-- `src/mxsd_version.c`: runtime version, configuration checks, and ABI link guards.
-- `src/mxsd_dom.c`: document parsing, namespaces, elements, and content models.
-- `src/mxsd_value.c`: simple datatypes, whitespace, and facets.
-- `src/mxsd_regex.c`: bounded XSD regular-expression parser and matcher.
-- `src/mxsd_unicode.c`: generated Unicode category and block tables.
-- `src/mxsd_identity.c`: `unique`, `key`, `keyref`, and restricted XPath.
-- `src/mxsd_stream.c`: bounded event-driven validator.
-- `src/mxsd_model.c`: shared bounded continuation pool for nested content models.
-- `src/mxsd_xml_stream.c`: incremental raw-XML tokenizer feeding the streaming validator.
-- `src/mxsd_bind.c`: typed binding reader and writer for `mxsdc --bindings`.
-- `src/mxsd_bind_stream.c`: single-pass typed subtree callbacks for `--stream-bind`.
-- `src/mxsd_bind_internal.h`: shared private arena and scalar-conversion helpers.
-- `src/mxsd_xml_builtin.c`: portable allocation-free XML backend.
-- `src/mxsd_xml_mxml.c`: optional Mini-XML 4 adapter.
-- `src/mxsd_internal.h` and `src/mxsd_xml.h`: private runtime contracts.
+- `src/zxsd.c`: public validation facade and resource checks.
+- `src/zxsd_version.c`: runtime version, configuration checks, and ABI link guards.
+- `src/zxsd_dom.c`: document parsing, namespaces, elements, and content models.
+- `src/zxsd_value.c`: simple datatypes, whitespace, and facets.
+- `src/zxsd_regex.c`: bounded XSD regular-expression parser and matcher.
+- `src/zxsd_unicode.c`: generated Unicode category and block tables.
+- `src/zxsd_identity.c`: `unique`, `key`, `keyref`, and restricted XPath.
+- `src/zxsd_stream.c`: bounded event-driven validator.
+- `src/zxsd_model.c`: shared bounded continuation pool for nested content models.
+- `src/zxsd_xml_stream.c`: incremental raw-XML tokenizer feeding the streaming validator.
+- `src/zxsd_bind.c`: typed binding reader and writer for `zxsdc --bindings`.
+- `src/zxsd_bind_stream.c`: single-pass typed subtree callbacks for `--stream-bind`.
+- `src/zxsd_bind_internal.h`: shared private arena and scalar-conversion helpers.
+- `src/zxsd_xml_builtin.c`: portable allocation-free XML backend.
+- `src/zxsd_xml_mxml.c`: optional Mini-XML 4 adapter.
+- `src/zxsd_internal.h` and `src/zxsd_xml.h`: private runtime contracts.
 - `tests/`: compiler, runtime, conformance, Zephyr Twister, and optional W3C tests.
 - `fuzz/`: libFuzzer and Atheris targets with bounded seed corpora.
 - `samples/host/`: cross-platform CMake example.
@@ -84,7 +84,7 @@ Use an out-of-tree build. The portable backend is the deterministic default
 for local validation and CI-style checks:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DMXSD_USE_MXML=OFF
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DZXSD_USE_MXML=OFF
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
@@ -95,8 +95,8 @@ constraints, parsing, limits, or generated descriptors:
 ```sh
 cmake -S . -B build-no-heap \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DMXSD_USE_MXML=OFF \
-  -DMXSD_NO_HEAP=ON
+  -DZXSD_USE_MXML=OFF \
+  -DZXSD_NO_HEAP=ON
 cmake --build build-no-heap --parallel
 ctest --test-dir build-no-heap --output-on-failure
 ```
@@ -104,7 +104,7 @@ ctest --test-dir build-no-heap --output-on-failure
 Build the host sample with:
 
 ```sh
-cmake -S samples/host -B build-sample -DMXSD_USE_MXML=OFF
+cmake -S samples/host -B build-sample -DZXSD_USE_MXML=OFF
 cmake --build build-sample --parallel
 ctest --test-dir build-sample --output-on-failure
 ```
@@ -121,7 +121,7 @@ The installed-package consumer stages the imported runtime DLL beside its execut
 on Windows shared builds. Preserve configuration-aware target paths and the test's
 timeout; linking an import library alone does not make the installed DLL discoverable.
 
-The host `mxsd_model_limits_test` compiles its own `mxsd_model.c` with the private
+The host `zxsd_model_limits_test` compiles its own `zxsd_model.c` with the private
 force-included `tests/model_limits_config.h` (eight pool slots). Keep that override
 on both test translation units, independent of global flags and the normal runtime;
 do not replace it with an order-sensitive MSVC `/U`/`/D` pair.
@@ -141,7 +141,7 @@ licensed separately; follow `tests/w3c/README.md` when a change needs it.
 Generate a validator with:
 
 ```sh
-python3 mxsdc schema.xsd -o generated
+python3 zxsdc schema.xsd -o generated
 ```
 
 Generation must be deterministic. `tests/test_compiler.py` runs the compiler
@@ -152,10 +152,10 @@ from `tests/device.xsd`, inspect the complete diff, and commit the compiler,
 tests, and golden outputs together:
 
 ```sh
-python3 mxsdc tests/device.xsd -o tests/expected --bindings
+python3 zxsdc tests/device.xsd -o tests/expected --bindings
 ```
 
-Never hand-edit `tests/expected/*.mxsd.[ch]` or `*.bind.[ch]` to conceal a
+Never hand-edit `tests/expected/*.zxsd.[ch]` or `*.bind.[ch]` to conceal a
 generator bug. Generated files in build directories are disposable and must not be
 committed.
 
@@ -169,7 +169,7 @@ Follow `.editorconfig` and `.clang-format`.
   filesystem/network access, and assumptions that exclude Windows.
 - Keep resource use bounded. Do not allocate in proportion to untrusted
   `maxOccurs` or input values without an explicit configured ceiling.
-- Return an existing structured `mxsd_error_t` result for malformed input and
+- Return an existing structured `zxsd_error_t` result for malformed input and
   limit violations. Do not abort or print from the library.
 - Preserve the first-error/sticky-result behavior of the streaming API.
 - Treat namespace URI plus local name as the identity of XML names; prefixes
@@ -177,7 +177,7 @@ Follow `.editorconfig` and `.clang-format`.
 - Public C declarations and all non-obvious internal functions need Doxygen
   comments in the existing Zephyr-like style.
 - Python uses four spaces, a 100-column limit, type-oriented data structures
-  where helpful, and Black formatting. Keep `mxsdc` deterministic and free of
+  where helpful, and Black formatting. Keep `zxsdc` deterministic and free of
   implicit network access.
 - CMake, Kconfig, YAML, reStructuredText, and Markdown must follow the
   indentation rules in `.editorconfig`.
@@ -233,7 +233,7 @@ pushes to `main` and validates it on pull requests.
 
 - Preserve API and generated-code compatibility unless the task explicitly
   requires a breaking change.
-- Keep `mxsd.c` as a small public facade; place implementation logic in the
+- Keep `zxsd.c` as a small public facade; place implementation logic in the
   focused runtime module that owns it.
 - Do not add a full DOM, regex, XPath, network, or filesystem dependency to the
   target runtime.

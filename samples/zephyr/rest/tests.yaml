@@ -1,8 +1,8 @@
 sample:
-  name: mxsd REST XML client
+  name: zxsd REST XML client
   description: Exchange validated XML with a REST API using generated typed bindings
 tests:
-  mxsd.rest.build:
+  zxsd.rest.build:
     tags: 
       - xml
       - bindings

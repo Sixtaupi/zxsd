@@ -19,7 +19,7 @@
 #include <string.h>
 
 #include "settings.bind.h"
-#include "settings.mxsd.h"
+#include "settings.zxsd.h"
 #include "settings_documents.h"
 
 /** Fragment size used to simulate data arriving from a network or a file. */
@@ -45,7 +45,7 @@ struct app_settings {
 
 /** Receiving side of the written document, validating each fragment. */
 struct peer {
-	mxsd_xml_reader_t reader;
+	zxsd_xml_reader_t reader;
 	size_t bytes;
 	size_t fragments;
 };
@@ -55,7 +55,7 @@ struct peer {
  * the stack.
  */
 static settings_settings_sensor_reader_t sensor_reader;
-static mxsd_stream_t write_validator;
+static zxsd_stream_t write_validator;
 static struct peer peer;
 static struct app_settings received;
 
@@ -69,20 +69,20 @@ static unsigned char arena_storage[64];
 static const char *const mode_names[] = {"off", "eco", "performance"};
 
 /** Copy one delivered sensor; its pointers expire when this callback returns. */
-static mxsd_bind_action_t on_sensor(void *user_data, const settings_Sensor_t *sensor)
+static zxsd_bind_action_t on_sensor(void *user_data, const settings_Sensor_t *sensor)
 {
 	struct app_settings *settings = user_data;
 	struct app_sensor *copy;
 
 	if (settings->sensor_count >= SENSOR_CAPACITY) {
-		return MXSD_BIND_CALLBACK_ERROR;
+		return ZXSD_BIND_CALLBACK_ERROR;
 	}
 	copy = &settings->sensor[settings->sensor_count++];
 	copy->value = *sensor;
 	strncpy(copy->label, sensor->label, sizeof(copy->label) - 1u);
 	copy->label[sizeof(copy->label) - 1u] = '\0';
 	copy->value.label = copy->label;
-	return MXSD_BIND_CONTINUE;
+	return ZXSD_BIND_CONTINUE;
 }
 
 /**
@@ -93,20 +93,20 @@ static mxsd_bind_action_t on_sensor(void *user_data, const settings_Sensor_t *se
  * @param[out] fragments Number of fragments fed before the result was known.
  * @return The final document result.
  */
-static mxsd_result_t read_in_fragments(const char *xml, struct app_settings *settings,
+static zxsd_result_t read_in_fragments(const char *xml, struct app_settings *settings,
 				       size_t *fragments)
 {
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 	settings_Sensor_t sensor;
 	size_t remaining = strlen(xml);
-	mxsd_result_t result;
+	zxsd_result_t result;
 
 	settings->sensor_count = 0u;
 	*fragments = 0u;
-	mxsd_bind_arena_init(&arena, arena_storage, sizeof(arena_storage));
+	zxsd_bind_arena_init(&arena, arena_storage, sizeof(arena_storage));
 	result = settings_settings_sensor_reader_init(&sensor_reader, &sensor, &arena, on_sensor,
 						      settings, NULL);
-	while (result.code == MXSD_OK && remaining > 0u) {
+	while (result.code == ZXSD_OK && remaining > 0u) {
 		size_t length = MIN(remaining, FRAGMENT_SIZE);
 
 		/* The first error is sticky: later feeds and finish return it again. */
@@ -115,7 +115,7 @@ static mxsd_result_t read_in_fragments(const char *xml, struct app_settings *set
 		remaining -= length;
 		++*fragments;
 	}
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		/* Deliveries are provisional until the whole document is validated. */
 		result = settings_settings_sensor_reader_finish(&sensor_reader);
 	}
@@ -127,12 +127,12 @@ static mxsd_result_t read_in_fragments(const char *xml, struct app_settings *set
 static int send_to_peer(void *context, const char *data, size_t length)
 {
 	struct peer *receiver = context;
-	mxsd_result_t result = mxsd_xml_reader_feed(&receiver->reader, data, length);
+	zxsd_result_t result = zxsd_xml_reader_feed(&receiver->reader, data, length);
 
 	receiver->bytes += length;
 	receiver->fragments++;
-	/* A nonzero return stops the writer with MXSD_ERR_OUTPUT. */
-	return result.code == MXSD_OK ? 0 : -1;
+	/* A nonzero return stops the writer with ZXSD_ERR_OUTPUT. */
+	return result.code == ZXSD_OK ? 0 : -1;
 }
 
 /** Count written fragments without forwarding them. */
@@ -146,7 +146,7 @@ static int count_only(void *context, const char *data, size_t length)
 }
 
 /** Print the outcome of a step, with the schema item involved when known. */
-static void print_result(const char *step, mxsd_result_t result)
+static void print_result(const char *step, zxsd_result_t result)
 {
 	printk("%s: %s (%s)\n", step, result.message, result.path != NULL ? result.path : "-");
 }
@@ -158,11 +158,11 @@ int main(void)
 	size_t fragments;
 	size_t bytes;
 	size_t index;
-	mxsd_result_t result;
+	zxsd_result_t result;
 
 	/* 1. Read the received document fragment by fragment, one sensor at a time. */
 	result = read_in_fragments(received_document, &received, &fragments);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		print_result("read failed", result);
 		return 0;
 	}
@@ -203,21 +203,21 @@ int main(void)
 	 *    streaming validator and stops at the first error; the peer validates
 	 *    the raw bytes it receives, fragment by fragment.
 	 */
-	result = mxsd_xml_reader_init(&peer.reader, settings_settings_schema());
-	if (result.code == MXSD_OK) {
+	result = zxsd_xml_reader_init(&peer.reader, settings_settings_schema());
+	if (result.code == ZXSD_OK) {
 		result = settings_settings_stream_init(&write_validator);
 	}
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		result = settings_settings_write(&settings, send_to_peer, &peer, &write_validator);
 	}
-	mxsd_stream_dispose(&write_validator);
+	zxsd_stream_dispose(&write_validator);
 	printk("write: %s, mode %s, %u bytes in %u fragments\n", result.message,
 	       mode_names[settings.mode], (unsigned int)peer.bytes, (unsigned int)peer.fragments);
-	if (result.code == MXSD_OK) {
-		result = mxsd_xml_reader_finish(&peer.reader);
+	if (result.code == ZXSD_OK) {
+		result = zxsd_xml_reader_finish(&peer.reader);
 		print_result("peer", result);
 	}
-	mxsd_xml_reader_dispose(&peer.reader);
+	zxsd_xml_reader_dispose(&peer.reader);
 
 	/* 4. Invalid input is rejected while it is fed; no sensor is delivered. */
 	result = read_in_fragments(invalid_document, &received, &fragments);
@@ -236,6 +236,6 @@ int main(void)
 	printk("refused after %u bytes: %s (%s)\n", (unsigned int)bytes, result.message,
 	       result.path != NULL ? result.path : "-");
 
-	printk("mxsd streaming bindings sample done\n");
+	printk("zxsd streaming bindings sample done\n");
 	return 0;
 }

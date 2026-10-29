@@ -1,4 +1,4 @@
-mxsd documentation
+zxsd documentation
 ==================
 
 The documentation uses Doxygen for the C API and Sphinx/Breathe for the guide.

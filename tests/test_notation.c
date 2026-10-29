@@ -5,12 +5,12 @@
 
 /** @file @brief Tests for XSD 1.0 notation declarations and NOTATION values. */
 
-#include "notation.mxsd.h"
+#include "notation.zxsd.h"
 
 #include <stdio.h>
 #include <string.h>
 
-static int expect(mxsd_result_t result, mxsd_error_t expected)
+static int expect(zxsd_result_t result, zxsd_error_t expected)
 {
 	if (result.code != expected) {
 		fprintf(stderr, "wanted %d, got %d (%s)\n", (int)expected, (int)result.code,
@@ -20,27 +20,27 @@ static int expect(mxsd_result_t result, mxsd_error_t expected)
 	return 0;
 }
 
-int mxsd_test_notation(void)
+int zxsd_test_notation(void)
 {
-	const mxsd_schema_t *schema = notation_format_schema();
+	const zxsd_schema_t *schema = notation_format_schema();
 	int failures = 0;
 
 	failures += expect(
-		notation_format_validate("<f:format xmlns:f='urn:mxsd:notation-test' "
-					 "xmlns:value='urn:mxsd:formats'>value:jpeg</f:format>"),
-		MXSD_OK);
+		notation_format_validate("<f:format xmlns:f='urn:zxsd:notation-test' "
+					 "xmlns:value='urn:zxsd:formats'>value:jpeg</f:format>"),
+		ZXSD_OK);
 	failures += expect(
-		notation_format_validate("<f:format xmlns:f='urn:mxsd:notation-test' "
-					 "xmlns:value='urn:mxsd:formats'>value:png</f:format>"),
-		MXSD_OK);
+		notation_format_validate("<f:format xmlns:f='urn:zxsd:notation-test' "
+					 "xmlns:value='urn:zxsd:formats'>value:png</f:format>"),
+		ZXSD_OK);
 	failures += expect(
-		notation_format_validate("<f:format xmlns:f='urn:mxsd:notation-test' "
-					 "xmlns:value='urn:mxsd:formats'>value:gif</f:format>"),
-		MXSD_ERR_INVALID_VALUE);
+		notation_format_validate("<f:format xmlns:f='urn:zxsd:notation-test' "
+					 "xmlns:value='urn:zxsd:formats'>value:gif</f:format>"),
+		ZXSD_ERR_INVALID_VALUE);
 	failures += expect(
 		notation_format_validate(
-			"<f:format xmlns:f='urn:mxsd:notation-test'>missing:jpeg</f:format>"),
-		MXSD_ERR_INVALID_VALUE);
+			"<f:format xmlns:f='urn:zxsd:notation-test'>missing:jpeg</f:format>"),
+		ZXSD_ERR_INVALID_VALUE);
 
 	if (schema->notation_count != 2u || strcmp(schema->notations[0].name, "jpeg") != 0 ||
 	    strcmp(schema->notations[0].public_identifier, "image/jpeg") != 0 ||
@@ -52,9 +52,9 @@ int mxsd_test_notation(void)
 	return failures ? 1 : 0;
 }
 
-#ifndef MXSD_TEST_NO_MAIN
+#ifndef ZXSD_TEST_NO_MAIN
 int main(void)
 {
-	return mxsd_test_notation();
+	return zxsd_test_notation();
 }
 #endif

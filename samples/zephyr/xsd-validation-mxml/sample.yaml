@@ -1,8 +1,8 @@
 sample:
-  name: mxsd Mini-XML validation
+  name: zxsd Mini-XML validation
   description: Validate Mini-XML trees against a schema compiled on the build host
 tests:
-  mxsd.xsd_validation_mxml:
+  zxsd.xsd_validation_mxml:
     tags:
       - xml
       - validation
@@ -20,4 +20,4 @@ tests:
       regex:
         - "valid document: valid"
         - "invalid document: invalid, incorrect element order \\(device\\)"
-        - "mxsd Mini-XML validation sample done"
+        - "zxsd Mini-XML validation sample done"

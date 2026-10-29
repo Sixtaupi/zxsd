@@ -4,11 +4,11 @@
  */
 
 /** @file @brief Positive and negative tests for XSD type derivation. */
-#include "derivation.mxsd.h"
+#include "derivation.zxsd.h"
 #include <stdio.h>
 
 /** Check one result and report a mismatch. */
-static int expect(mxsd_result_t result, mxsd_error_t wanted)
+static int expect(zxsd_result_t result, zxsd_error_t wanted)
 {
 	if (result.code == wanted) {
 		return 0;
@@ -18,50 +18,50 @@ static int expect(mxsd_result_t result, mxsd_error_t wanted)
 }
 
 /** Exercise restriction, extension, inheritance, abstract and anonymous types. */
-int mxsd_test_derivation(void)
+int zxsd_test_derivation(void)
 {
 	int failures = 0;
 	failures +=
 		expect(derivation_extended_validate("<extended id='7' tag='ok'><name> abc "
 						    "</name><enabled>true</enabled></extended>"),
-		       MXSD_OK);
+		       ZXSD_OK);
 	failures += expect(
 		derivation_extended_validate(
 			"<extended tag='ok'><name>abc</name><enabled>true</enabled></extended>"),
-		MXSD_ERR_MISSING_ATTRIBUTE);
+		ZXSD_ERR_MISSING_ATTRIBUTE);
 	failures +=
 		expect(derivation_extended_validate(
 			       "<extended id='7' "
 			       "tag='ok'><name>toolong</name><enabled>true</enabled></extended>"),
-		       MXSD_ERR_INVALID_VALUE);
+		       ZXSD_ERR_INVALID_VALUE);
 	failures += expect(
 		derivation_restricted_validate("<restricted id='1'><name>abc</name></restricted>"),
-		MXSD_OK);
+		ZXSD_OK);
 	failures +=
 		expect(derivation_restricted_validate("<restricted><name>abc</name></restricted>"),
-		       MXSD_ERR_MISSING_ATTRIBUTE);
+		       ZXSD_ERR_MISSING_ATTRIBUTE);
 	failures +=
-		expect(derivation_label_validate("<label lang='fr-FR'> hello </label>"), MXSD_OK);
+		expect(derivation_label_validate("<label lang='fr-FR'> hello </label>"), ZXSD_OK);
 	failures += expect(derivation_label_validate("<label>hello</label>"),
-			   MXSD_ERR_MISSING_ATTRIBUTE);
+			   ZXSD_ERR_MISSING_ATTRIBUTE);
 	failures +=
 		expect(derivation_shortLabel_validate("<shortLabel lang='fr'> abc </shortLabel>"),
-		       MXSD_OK);
+		       ZXSD_OK);
 	failures +=
 		expect(derivation_shortLabel_validate("<shortLabel lang='fr'>abcd</shortLabel>"),
-		       MXSD_ERR_INVALID_VALUE);
+		       ZXSD_ERR_INVALID_VALUE);
 	failures += expect(derivation_abstractRecord_validate(
 				   "<abstractRecord><value>x</value></abstractRecord>"),
-			   MXSD_ERR_INVALID_VALUE);
-	failures += expect(derivation_anonymous_validate("<anonymous>2</anonymous>"), MXSD_OK);
+			   ZXSD_ERR_INVALID_VALUE);
+	failures += expect(derivation_anonymous_validate("<anonymous>2</anonymous>"), ZXSD_OK);
 	failures += expect(derivation_anonymous_validate("<anonymous>0</anonymous>"),
-			   MXSD_ERR_INVALID_VALUE);
+			   ZXSD_ERR_INVALID_VALUE);
 	return failures ? 1 : 0;
 }
 
-#ifndef MXSD_TEST_NO_MAIN
+#ifndef ZXSD_TEST_NO_MAIN
 int main(void)
 {
-	return mxsd_test_derivation();
+	return zxsd_test_derivation();
 }
 #endif

@@ -1,7 +1,7 @@
 Kconfig reference
 #################
 
-``CONFIG_MXSD`` enables the descriptor-driven runtime. Schemas are compiled on
+``CONFIG_ZXSD`` enables the descriptor-driven runtime. Schemas are compiled on
 the host and are never parsed on the target.
 
 .. list-table:: Resource limits
@@ -11,61 +11,61 @@ the host and are never parsed on the target.
    * - Option
      - Default
      - Meaning
-   * - ``CONFIG_MXSD_MAX_INPUT``
+   * - ``CONFIG_ZXSD_MAX_INPUT``
      - 1048576
      - Maximum bytes in a NUL-terminated document.
-   * - ``CONFIG_MXSD_MAX_DEPTH``
+   * - ``CONFIG_ZXSD_MAX_DEPTH``
      - 32
      - Maximum nested elements; affects parser and streaming stack storage.
-   * - ``CONFIG_MXSD_MAX_PARTICLES``
+   * - ``CONFIG_ZXSD_MAX_PARTICLES``
      - 32
      - Maximum direct-term counters or interned history particles per frame.
-   * - ``CONFIG_MXSD_STREAM_CHILD_CAPACITY``
+   * - ``CONFIG_ZXSD_STREAM_CHILD_CAPACITY``
      - 64
      - Child tokens retained by models requiring history; incremental models
        do not consume this capacity.
-   * - ``CONFIG_MXSD_STREAM_MODEL_CAPACITY``
+   * - ``CONFIG_ZXSD_STREAM_MODEL_CAPACITY``
      - 128
      - Shared continuation/frontier slots for nested models. Zero removes
        the pool and selects bounded child history for non-flat models.
-   * - ``CONFIG_MXSD_STREAM_NAME_CAPACITY``
+   * - ``CONFIG_ZXSD_STREAM_NAME_CAPACITY``
      - 128
      - Bytes for a local name, namespace URI, or prefix, including the NUL.
-   * - ``CONFIG_MXSD_MAX_ATTRIBUTES``
+   * - ``CONFIG_ZXSD_MAX_ATTRIBUTES``
      - 32
      - Maximum non-namespace attributes and descriptors per type.
-   * - ``CONFIG_MXSD_MAX_NAMESPACES``
+   * - ``CONFIG_ZXSD_MAX_NAMESPACES``
      - 16
      - Maximum simultaneously active namespace bindings.
-   * - ``CONFIG_MXSD_MAX_IDENTITY_VALUES``
+   * - ``CONFIG_ZXSD_MAX_IDENTITY_VALUES``
      - 64
      - Maximum key, unique, or keyref tuples retained per constraint.
-   * - ``CONFIG_MXSD_MAX_TEXT_LENGTH``
+   * - ``CONFIG_ZXSD_MAX_TEXT_LENGTH``
      - 1024
      - Maximum decoded lexical value and per-frame streaming text buffer.
-   * - ``CONFIG_MXSD_XML_TOKEN_CAPACITY``
+   * - ``CONFIG_ZXSD_XML_TOKEN_CAPACITY``
      - 4096
      - Maximum incomplete raw-XML token retained across input fragments.
-   * - ``CONFIG_MXSD_MAX_PATTERN_LENGTH``
+   * - ``CONFIG_ZXSD_MAX_PATTERN_LENGTH``
      - 256
      - Maximum UTF-8 byte length of one XSD regular expression.
-   * - ``CONFIG_MXSD_MAX_REGEX_NODES``
+   * - ``CONFIG_ZXSD_MAX_REGEX_NODES``
      - 512
      - Fixed parser capacity and principal pattern-validation stack cost.
-   * - ``CONFIG_MXSD_MAX_REGEX_DEPTH``
+   * - ``CONFIG_ZXSD_MAX_REGEX_DEPTH``
      - 32
      - Maximum group and character-class subtraction nesting.
-   * - ``CONFIG_MXSD_MAX_SCHEMA_COMPLEXITY``
+   * - ``CONFIG_ZXSD_MAX_SCHEMA_COMPLEXITY``
      - 4096
      - Maximum aggregate runtime-visible descriptor count.
 
-``CONFIG_MXSD_NO_HEAP`` defaults to enabled. Schemas without identity
+``CONFIG_ZXSD_NO_HEAP`` defaults to enabled. Schemas without identity
 constraints remain fully usable. A schema requiring identity tuple storage
-returns :c:enumerator:`MXSD_ERR_RESOURCE_LIMIT` unless validation is invoked
+returns :c:enumerator:`ZXSD_ERR_RESOURCE_LIMIT` unless validation is invoked
 with an application allocator.
 
-``CONFIG_MXSD_BINDINGS`` builds the reader and writer for structures generated
-with ``mxsdc --bindings``; see :doc:`bindings`. It is disabled by default and
+``CONFIG_ZXSD_BINDINGS`` builds the reader and writer for structures generated
+with ``zxsdc --bindings``; see :doc:`bindings`. It is disabled by default and
 adds no RAM: reading uses a caller-provided arena and writing streams to a
 caller-provided sink.
 
@@ -80,15 +80,15 @@ Run the host compiler before configuring Zephyr:
 
 .. code-block:: console
 
-   $ python3 mxsdc device.xsd -o generated --zephyr-config
+   $ python3 zxsdc device.xsd -o generated --zephyr-config
    $ west build -b qemu_cortex_a53 path/to/application -- \
        -DEXTRA_CONF_FILE=/absolute/path/generated/device.conf
 
 The option retains the ordinary validator output and additionally writes
 ``device.conf`` and ``device.limits.h``. The generated validator source includes
-the limits header. It emits a compile-time error when active ``MXSD_*`` macros
+the limits header. It emits a compile-time error when active ``ZXSD_*`` macros
 are below the known schema requirements. On Zephyr, those macros are defined
-from the corresponding ``CONFIG_MXSD_*`` values for the library and application.
+from the corresponding ``CONFIG_ZXSD_*`` values for the library and application.
 
 The fragment contains active assignments for descriptor sizes: particles,
 attributes, runtime schema complexity, name storage, regex AST nodes, pattern
@@ -106,7 +106,7 @@ its size as a commented application budget (default 128 slots). Size it for
 simultaneously active nested models and alternative occurrence partitions,
 then test representative documents and exhaustion. The pool is shared across
 XML depths, not reserved per frame. Its per-event epsilon-work budget is the
-square of its capacity. Exhaustion returns ``MXSD_ERR_STREAM_LIMIT``.
+square of its capacity. Exhaustion returns ``ZXSD_ERR_STREAM_LIMIT``.
 
 Commented assignments are budgets to review and uncomment as appropriate:
 
@@ -133,7 +133,7 @@ For multiple top-level schemas, generate one combined profile:
 
 .. code-block:: console
 
-   $ python3 mxsdc samples/zephyr/weather/nominatim.xsd \
+   $ python3 zxsdc samples/zephyr/weather/nominatim.xsd \
        samples/zephyr/weather/met_weather.xsd -o generated --zephyr-config
 
 This writes ``generated/nominatim.conf`` using the combined model: currently
@@ -147,19 +147,19 @@ Build-time generation can retain the checks with:
 
 .. code-block:: cmake
 
-   mxsd_generate(TARGET app SCHEMA device.xsd ZEPHYR_CONFIG)
+   zxsd_generate(TARGET app SCHEMA device.xsd ZEPHYR_CONFIG)
 
 This helper runs after Zephyr's Kconfig evaluation. It generates the fragment
 as a build artifact but does not apply it to the current configuration.
 Regenerate the reviewed profile before reconfiguring when schemas change;
 the compile-time checks catch known settings that have become insufficient.
 Add ``BINDINGS`` to both invocations when typed bindings are needed; the
-fragment then also enables ``CONFIG_MXSD_BINDINGS``.
+fragment then also enables ``CONFIG_ZXSD_BINDINGS``.
 
 Pattern parsing is allocation-free and uses a fixed automatic workspace. With
 the default 512-node capacity, reserve approximately 11 KiB in the validating
 thread in addition to the normal validation stack. Lower
-``CONFIG_MXSD_MAX_REGEX_NODES`` when the compiled schemas use smaller patterns;
+``CONFIG_ZXSD_MAX_REGEX_NODES`` when the compiled schemas use smaller patterns;
 the ``samples/zephyr`` validation and bindings samples copy their
 schema-derived values, including this capacity, into ``prj.conf``.
 

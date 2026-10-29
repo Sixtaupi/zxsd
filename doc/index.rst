@@ -1,15 +1,15 @@
-mxsd
+zxsd
 ####
 
-.. container:: mxsd-hero
+.. container:: zxsd-hero
 
    **Compile XML Schema on the host. Validate XML on constrained C targets.**
 
-   mxsd turns an XSD 1.0 schema into constant C descriptors and a small,
+   zxsd turns an XSD 1.0 schema into constant C descriptors and a small,
    portable validator. The target never parses a schema and can validate a
    complete XML document or consume parser events with bounded storage.
 
-Why mxsd?
+Why zxsd?
 *********
 
 * **Embedded first:** C99, configurable limits, no operating-system dependency,
@@ -24,7 +24,7 @@ Why mxsd?
 
    .. grid-item-card:: Start here
 
-      Build mxsd, compile a schema, and validate a first document.
+      Build zxsd, compile a schema, and validate a first document.
 
       :doc:`getting-started`
 

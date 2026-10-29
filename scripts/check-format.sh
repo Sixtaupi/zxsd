@@ -58,15 +58,15 @@ c_files=()
 while IFS= read -r -d '' file; do
     [[ -f "$file" ]] || continue
     case "$file" in
-        src/mxsd_unicode.c) continue ;;
-        tests/expected/*.mxsd.c|tests/expected/*.mxsd.h) continue ;;
+        src/zxsd_unicode.c) continue ;;
+        tests/expected/*.zxsd.c|tests/expected/*.zxsd.h) continue ;;
         tests/expected/*.bind.c|tests/expected/*.bind.h) continue ;;
     esac
     c_files+=("$file")
 done < <(git ls-files --cached --others --exclude-standard -z -- \
     '*.c' '*.h' 'tests/w3c/runner.c.in')
 
-python_files=(mxsdc)
+python_files=(zxsdc)
 while IFS= read -r -d '' file; do
     [[ -f "$file" ]] || continue
     python_files+=("$file")

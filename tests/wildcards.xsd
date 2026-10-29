@@ -1,5 +1,5 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           xmlns:w="urn:mxsd:wildcards" targetNamespace="urn:mxsd:wildcards"
+           xmlns:w="urn:zxsd:wildcards" targetNamespace="urn:zxsd:wildcards"
            elementFormDefault="qualified">
   <xs:element name="known" type="xs:int"/>
   <xs:attribute name="externalFlag" type="xs:int"/>

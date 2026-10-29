@@ -1,18 +1,18 @@
 /*
- * Copyright (c) 2026 mxsd contributors
+ * Copyright (c) 2026 zxsd contributors
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /** @file @brief Incremental content models, occurrence boundaries, and fallback limits. */
 
-#include "stream_models.mxsd.h"
+#include "stream_models.zxsd.h"
 
 #include <stdio.h>
 #include <string.h>
 
 /** Check one result and include the failing root or case in diagnostics. */
-static int expect(mxsd_result_t result, mxsd_error_t wanted, const char *context)
+static int expect(zxsd_result_t result, zxsd_error_t wanted, const char *context)
 {
 	if (result.code == wanted) {
 		return 0;
@@ -23,31 +23,31 @@ static int expect(mxsd_result_t result, mxsd_error_t wanted, const char *context
 }
 
 /** Feed small fragments so cursor transitions also cross raw-input boundaries. */
-static mxsd_result_t read_xml(const mxsd_schema_t *schema, const char *xml)
+static zxsd_result_t read_xml(const zxsd_schema_t *schema, const char *xml)
 {
-	static mxsd_xml_reader_t reader;
+	static zxsd_xml_reader_t reader;
 	size_t offset = 0u;
 	size_t length = strlen(xml);
-	mxsd_result_t result = mxsd_xml_reader_init(&reader, schema);
+	zxsd_result_t result = zxsd_xml_reader_init(&reader, schema);
 
-	while (result.code == MXSD_OK && offset < length) {
+	while (result.code == ZXSD_OK && offset < length) {
 		size_t count = length - offset;
 
 		if (count > 7u) {
 			count = 7u;
 		}
-		result = mxsd_xml_reader_feed(&reader, xml + offset, count);
+		result = zxsd_xml_reader_feed(&reader, xml + offset, count);
 		offset += count;
 	}
-	if (result.code == MXSD_OK) {
-		result = mxsd_xml_reader_finish(&reader);
+	if (result.code == ZXSD_OK) {
+		result = zxsd_xml_reader_finish(&reader);
 	}
-	mxsd_xml_reader_dispose(&reader);
+	zxsd_xml_reader_dispose(&reader);
 	return result;
 }
 
 /** Compare all words of up to six children with the independent document validator. */
-static int compare_words(const mxsd_schema_t *schema)
+static int compare_words(const zxsd_schema_t *schema)
 {
 	char xml[256];
 	size_t length;
@@ -61,8 +61,8 @@ static int compare_words(const mxsd_schema_t *schema)
 			size_t offset =
 				(size_t)snprintf(xml, sizeof(xml), "<%s>", schema->root_name);
 			size_t index;
-			mxsd_result_t document;
-			mxsd_result_t stream;
+			zxsd_result_t document;
+			zxsd_result_t stream;
 
 			for (index = 0u; index < length; ++index) {
 				xml[offset++] = '<';
@@ -73,9 +73,9 @@ static int compare_words(const mxsd_schema_t *schema)
 			}
 			(void)snprintf(xml + offset, sizeof(xml) - offset, "</%s>",
 				       schema->root_name);
-			document = mxsd_validate(schema, xml);
+			document = zxsd_validate(schema, xml);
 			stream = read_xml(schema, xml);
-			if ((document.code == MXSD_OK) != (stream.code == MXSD_OK)) {
+			if ((document.code == ZXSD_OK) != (stream.code == ZXSD_OK)) {
 				fprintf(stderr,
 					"content-model disagreement: %s (DOM %d, stream %d)\n", xml,
 					(int)document.code, (int)stream.code);
@@ -87,102 +87,102 @@ static int compare_words(const mxsd_schema_t *schema)
 }
 
 /** Emit an empty string element, optionally in a foreign namespace. */
-static mxsd_result_t child(mxsd_stream_t *stream, const char *ns, const char *name)
+static zxsd_result_t child(zxsd_stream_t *stream, const char *ns, const char *name)
 {
-	mxsd_result_t result = mxsd_start_element(stream, ns, name);
+	zxsd_result_t result = zxsd_start_element(stream, ns, name);
 
-	return result.code == MXSD_OK ? mxsd_end_element(stream, ns, name) : result;
+	return result.code == ZXSD_OK ? zxsd_end_element(stream, ns, name) : result;
 }
 
 /** Exercise repetitions larger than history capacity, including substitution and skip. */
-static int long_stream(const mxsd_schema_t *schema, const char *ns, const char *name)
+static int long_stream(const zxsd_schema_t *schema, const char *ns, const char *name)
 {
-	static mxsd_stream_t stream;
-	mxsd_result_t result = mxsd_stream_init(&stream, schema);
+	static zxsd_stream_t stream;
+	zxsd_result_t result = zxsd_stream_init(&stream, schema);
 	size_t index;
 
-	if (result.code == MXSD_OK) {
-		result = mxsd_start_element(&stream, NULL, schema->root_name);
+	if (result.code == ZXSD_OK) {
+		result = zxsd_start_element(&stream, NULL, schema->root_name);
 	}
-	for (index = 0u; index < 2048u && result.code == MXSD_OK; ++index) {
+	for (index = 0u; index < 2048u && result.code == ZXSD_OK; ++index) {
 		result = child(&stream, ns, name != NULL ? name : (index % 2u ? "b" : "a"));
 	}
-	if (result.code == MXSD_OK) {
-		result = mxsd_end_element(&stream, NULL, schema->root_name);
+	if (result.code == ZXSD_OK) {
+		result = zxsd_end_element(&stream, NULL, schema->root_name);
 	}
-	if (result.code == MXSD_OK) {
-		result = mxsd_stream_finish(&stream);
+	if (result.code == ZXSD_OK) {
+		result = zxsd_stream_finish(&stream);
 	}
-	mxsd_stream_dispose(&stream);
-	return expect(result, MXSD_OK, schema->root_name);
+	zxsd_stream_dispose(&stream);
+	return expect(result, ZXSD_OK, schema->root_name);
 }
 
 /** Verify rejection on the first forbidden event and sticky code, path, and offset. */
 static int sticky_order(void)
 {
-	static mxsd_stream_t stream;
-	mxsd_result_t result = stream_models_repeated_stream_init(&stream);
-	mxsd_result_t first;
-	mxsd_result_t later;
+	static zxsd_stream_t stream;
+	zxsd_result_t result = stream_models_repeated_stream_init(&stream);
+	zxsd_result_t first;
+	zxsd_result_t later;
 
-	if (result.code == MXSD_OK) {
-		result = mxsd_start_element(&stream, NULL, "repeated");
+	if (result.code == ZXSD_OK) {
+		result = zxsd_start_element(&stream, NULL, "repeated");
 	}
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		result = child(&stream, NULL, "a");
 	}
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		result = child(&stream, NULL, "b");
 	}
-	if (expect(result, MXSD_OK, "valid prefix")) {
+	if (expect(result, ZXSD_OK, "valid prefix")) {
 		return 1;
 	}
-	first = mxsd_start_element(&stream, NULL, "a");
-	later = mxsd_end_element(&stream, NULL, "repeated");
-	if (expect(first, MXSD_ERR_ELEMENT_ORDER, "backwards sequence") ||
+	first = zxsd_start_element(&stream, NULL, "a");
+	later = zxsd_end_element(&stream, NULL, "repeated");
+	if (expect(first, ZXSD_ERR_ELEMENT_ORDER, "backwards sequence") ||
 	    later.code != first.code || later.path != first.path || later.offset != first.offset) {
 		return 1;
 	}
-	later = mxsd_stream_finish(&stream);
-	mxsd_stream_dispose(&stream);
+	later = zxsd_stream_finish(&stream);
+	zxsd_stream_dispose(&stream);
 	return later.code != first.code || later.path != first.path || later.offset != first.offset;
 }
 
 /** Check the history fallback at its exact capacity and its first rejected token. */
 static int history_boundary(void)
 {
-#if MXSD_STREAM_MODEL_CAPACITY == 0
-	static mxsd_stream_t stream;
-	mxsd_result_t result;
+#if ZXSD_STREAM_MODEL_CAPACITY == 0
+	static zxsd_stream_t stream;
+	zxsd_result_t result;
 	size_t index;
 	int overflow;
 
 	for (overflow = 0; overflow <= 1; ++overflow) {
 		result = stream_models_nested_stream_init(&stream);
-		if (result.code == MXSD_OK) {
-			result = mxsd_start_element(&stream, NULL, "nested");
+		if (result.code == ZXSD_OK) {
+			result = zxsd_start_element(&stream, NULL, "nested");
 		}
-		for (index = 0u; index < MXSD_STREAM_CHILD_CAPACITY && result.code == MXSD_OK;
+		for (index = 0u; index < ZXSD_STREAM_CHILD_CAPACITY && result.code == ZXSD_OK;
 		     ++index) {
 			result = child(&stream, NULL, "a");
 		}
-		if (expect(result, MXSD_OK, "history exact capacity")) {
+		if (expect(result, ZXSD_OK, "history exact capacity")) {
 			return 1;
 		}
 		if (overflow) {
-			result = mxsd_start_element(&stream, NULL, "a");
-			if (expect(result, MXSD_ERR_STREAM_LIMIT, "history first rejected child")) {
+			result = zxsd_start_element(&stream, NULL, "a");
+			if (expect(result, ZXSD_ERR_STREAM_LIMIT, "history first rejected child")) {
 				return 1;
 			}
 		} else {
-			result = mxsd_end_element(&stream, NULL, "nested");
-			if (expect(result, MXSD_OK, "history close at capacity")) {
+			result = zxsd_end_element(&stream, NULL, "nested");
+			if (expect(result, ZXSD_OK, "history close at capacity")) {
 				return 1;
 			}
 		}
-		result = mxsd_stream_finish(&stream);
-		mxsd_stream_dispose(&stream);
-		if (expect(result, overflow ? MXSD_ERR_STREAM_LIMIT : MXSD_OK, "history finish")) {
+		result = zxsd_stream_finish(&stream);
+		zxsd_stream_dispose(&stream);
+		if (expect(result, overflow ? ZXSD_ERR_STREAM_LIMIT : ZXSD_OK, "history finish")) {
 			return 1;
 		}
 	}
@@ -190,61 +190,61 @@ static int history_boundary(void)
 	return 0;
 }
 
-#if MXSD_STREAM_MODEL_CAPACITY > 0
+#if ZXSD_STREAM_MODEL_CAPACITY > 0
 /** Check independently specified occurrence boundaries, not greedy DOM partitioning. */
 static int nested_cases(void)
 {
 	const struct {
-		const mxsd_schema_t *schema;
+		const zxsd_schema_t *schema;
 		const char *xml;
-		mxsd_error_t result;
+		zxsd_error_t result;
 	} cases[] = {
 		{stream_models_partitioned_schema(), "<partitioned><a/></partitioned>",
-		 MXSD_ERR_ELEMENT_ORDER},
+		 ZXSD_ERR_ELEMENT_ORDER},
 		{stream_models_partitioned_schema(), "<partitioned><a/><a/></partitioned>",
-		 MXSD_OK},
+		 ZXSD_OK},
 		{stream_models_partitioned_schema(), "<partitioned><a/><a/><a/></partitioned>",
-		 MXSD_OK},
+		 ZXSD_OK},
 		{stream_models_partitioned_schema(), "<partitioned><a/><a/><a/><a/></partitioned>",
-		 MXSD_OK},
+		 ZXSD_OK},
 		{stream_models_partitioned_schema(),
-		 "<partitioned><a/><a/><a/><a/><a/></partitioned>", MXSD_OK},
+		 "<partitioned><a/><a/><a/><a/><a/></partitioned>", ZXSD_OK},
 		{stream_models_partitioned_schema(),
-		 "<partitioned><a/><a/><a/><a/><a/><a/></partitioned>", MXSD_OK},
+		 "<partitioned><a/><a/><a/><a/><a/><a/></partitioned>", ZXSD_OK},
 		{stream_models_partitioned_schema(),
-		 "<partitioned><a/><a/><a/><a/><a/><a/><a/></partitioned>", MXSD_ERR_ELEMENT_ORDER},
+		 "<partitioned><a/><a/><a/><a/><a/><a/><a/></partitioned>", ZXSD_ERR_ELEMENT_ORDER},
 		{stream_models_nested_schema(), "<nested><b/><a/></nested>",
-		 MXSD_ERR_ELEMENT_ORDER},
-		{stream_models_nested_schema(), "<nested><b/></nested>", MXSD_ERR_ELEMENT_ORDER},
-		{stream_models_nested_schema(), "<nested><b/><c/><b/><c/><a/></nested>", MXSD_OK},
+		 ZXSD_ERR_ELEMENT_ORDER},
+		{stream_models_nested_schema(), "<nested><b/></nested>", ZXSD_ERR_ELEMENT_ORDER},
+		{stream_models_nested_schema(), "<nested><b/><c/><b/><c/><a/></nested>", ZXSD_OK},
 		{stream_models_complexRepeated_schema(), "<complexRepeated><a/></complexRepeated>",
-		 MXSD_ERR_ELEMENT_ORDER},
+		 ZXSD_ERR_ELEMENT_ORDER},
 		{stream_models_complexRepeated_schema(),
-		 "<complexRepeated><a/><a/></complexRepeated>", MXSD_OK},
+		 "<complexRepeated><a/><a/></complexRepeated>", ZXSD_OK},
 		{stream_models_complexRepeated_schema(),
-		 "<complexRepeated><a/><a/><b/><c/></complexRepeated>", MXSD_OK},
+		 "<complexRepeated><a/><a/><b/><c/></complexRepeated>", ZXSD_OK},
 		{stream_models_complexRepeated_schema(), "<complexRepeated><c/></complexRepeated>",
-		 MXSD_ERR_ELEMENT_ORDER},
-		{stream_models_nullableHuge_schema(), "<nullableHuge/>", MXSD_OK},
+		 ZXSD_ERR_ELEMENT_ORDER},
+		{stream_models_nullableHuge_schema(), "<nullableHuge/>", ZXSD_OK},
 		{stream_models_nullableHuge_schema(), "<nullableHuge><a/><b/></nullableHuge>",
-		 MXSD_OK},
+		 ZXSD_OK},
 		{stream_models_nestedTree_schema(),
 		 "<nestedTree><b/><node><b/><node><a/></node><c/></node><c/></nestedTree>",
-		 MXSD_OK},
+		 ZXSD_OK},
 		{stream_models_nestedTree_schema(),
-		 "<nestedTree><b/><node><a/></node></nestedTree>", MXSD_ERR_ELEMENT_ORDER},
+		 "<nestedTree><b/><node><a/></node></nestedTree>", ZXSD_ERR_ELEMENT_ORDER},
 		{stream_models_nestedDynamic_schema(),
 		 "<nestedDynamic xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
 		 "xsi:type='NestedDerived'><b/><c/><a/></nestedDynamic>",
-		 MXSD_OK},
+		 ZXSD_OK},
 		{stream_models_nestedDynamic_schema(),
 		 "<nestedDynamic xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
 		 "xsi:type='NestedDerived'><a/><a/><a/></nestedDynamic>",
-		 MXSD_ERR_ELEMENT_ORDER},
+		 ZXSD_ERR_ELEMENT_ORDER},
 		{stream_models_nestedDynamic_schema(),
 		 "<nestedDynamic xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' "
 		 "xsi:nil='true'/>",
-		 MXSD_OK},
+		 ZXSD_OK},
 	};
 	size_t index;
 	int failures = 0;
@@ -259,31 +259,31 @@ static int nested_cases(void)
 /** Repeated groups use a constant pool, release every frame, and never use history. */
 static int nested_long_stream(void)
 {
-	static mxsd_stream_t stream;
-	mxsd_result_t result = stream_models_nested_stream_init(&stream);
+	static zxsd_stream_t stream;
+	zxsd_result_t result = stream_models_nested_stream_init(&stream);
 	size_t index;
 
-	if (result.code == MXSD_OK) {
-		result = mxsd_start_element(&stream, NULL, "nested");
+	if (result.code == ZXSD_OK) {
+		result = zxsd_start_element(&stream, NULL, "nested");
 	}
-	for (index = 0u; index < 2048u && result.code == MXSD_OK; ++index) {
+	for (index = 0u; index < 2048u && result.code == ZXSD_OK; ++index) {
 		result = child(&stream, NULL, "b");
-		if (result.code == MXSD_OK) {
+		if (result.code == ZXSD_OK) {
 			result = child(&stream, NULL, "c");
 		}
 	}
-	if (result.code == MXSD_OK) {
-		result = mxsd_end_element(&stream, NULL, "nested");
+	if (result.code == ZXSD_OK) {
+		result = zxsd_end_element(&stream, NULL, "nested");
 	}
-	if (result.code == MXSD_OK) {
-		result = mxsd_stream_finish(&stream);
+	if (result.code == ZXSD_OK) {
+		result = zxsd_stream_finish(&stream);
 	}
-	if (expect(result, MXSD_OK, "long nested repetition")) {
-		mxsd_stream_dispose(&stream);
+	if (expect(result, ZXSD_OK, "long nested repetition")) {
+		zxsd_stream_dispose(&stream);
 		return 1;
 	}
-#if MXSD_STREAM_MODEL_CAPACITY > 0
-	for (index = 0u; index < MXSD_STREAM_MODEL_CAPACITY; ++index) {
+#if ZXSD_STREAM_MODEL_CAPACITY > 0
+	for (index = 0u; index < ZXSD_STREAM_MODEL_CAPACITY; ++index) {
 		if (stream.model_nodes[index].references != 0u) {
 			fprintf(stderr, "nested model pool retained a closed frame\n");
 			return 1;
@@ -293,12 +293,12 @@ static int nested_long_stream(void)
 		return 1;
 	}
 #endif
-	mxsd_stream_dispose(&stream);
+	zxsd_stream_dispose(&stream);
 	return 0;
 }
 
 /** Enumerate a small regular language independently of either runtime matcher. */
-static int compare_language(const mxsd_schema_t *schema, const char *const *terms,
+static int compare_language(const zxsd_schema_t *schema, const char *const *terms,
 			    size_t term_count, size_t minimum, size_t maximum)
 {
 	size_t length;
@@ -316,7 +316,7 @@ static int compare_language(const mxsd_schema_t *schema, const char *const *term
 			size_t offset =
 				(size_t)snprintf(xml, sizeof(xml), "<%s>", schema->root_name);
 			int accepted = 0;
-			mxsd_result_t result;
+			zxsd_result_t result;
 
 			for (index = 0u; index < length; ++index) {
 				text[index] = (char)('a' + value % 3u);
@@ -349,7 +349,7 @@ static int compare_language(const mxsd_schema_t *schema, const char *const *term
 				}
 			}
 			result = read_xml(schema, xml);
-			if ((result.code == MXSD_OK) != accepted) {
+			if ((result.code == ZXSD_OK) != accepted) {
 				fprintf(stderr,
 					"nested language disagreement: %s (wanted %d, got %d)\n",
 					xml, accepted, (int)result.code);
@@ -364,26 +364,26 @@ static int compare_language(const mxsd_schema_t *schema, const char *const *term
 /** Check the direct-leaf descriptor form without a surrounding sequence group. */
 static int direct_leaf(void)
 {
-	mxsd_schema_t schema = *stream_models_repeated_schema();
-	mxsd_complex_t complex = *schema.root_complex;
-	mxsd_particle_t particle = complex.particle->children[0];
+	zxsd_schema_t schema = *stream_models_repeated_schema();
+	zxsd_complex_t complex = *schema.root_complex;
+	zxsd_particle_t particle = complex.particle->children[0];
 	int failures = 0;
 
 	particle.min_occurs = 1u;
 	particle.max_occurs = 2u;
 	complex.particle = &particle;
 	schema.root_complex = &complex;
-	failures += expect(read_xml(&schema, "<repeated><a/><a/></repeated>"), MXSD_OK,
+	failures += expect(read_xml(&schema, "<repeated><a/><a/></repeated>"), ZXSD_OK,
 			   "direct leaf exact max");
 	failures += expect(read_xml(&schema, "<repeated><a/><a/><a/></repeated>"),
-			   MXSD_ERR_ELEMENT_ORDER, "direct leaf first rejected occurrence");
-	failures += expect(read_xml(&schema, "<repeated/>"), MXSD_ERR_MISSING_ELEMENT,
+			   ZXSD_ERR_ELEMENT_ORDER, "direct leaf first rejected occurrence");
+	failures += expect(read_xml(&schema, "<repeated/>"), ZXSD_ERR_MISSING_ELEMENT,
 			   "direct leaf minimum");
 	return failures;
 }
 
 /** Count accepted starts to verify an early cursor failure does not notify its observer. */
-static void count_start(void *user_data, mxsd_xml_event_t event, const char *namespace_uri,
+static void count_start(void *user_data, zxsd_xml_event_t event, const char *namespace_uri,
 			const char *local_name, const char *value, size_t value_length)
 {
 	size_t *starts = user_data;
@@ -392,7 +392,7 @@ static void count_start(void *user_data, mxsd_xml_event_t event, const char *nam
 	(void)local_name;
 	(void)value;
 	(void)value_length;
-	if (event == MXSD_XML_EVENT_START_ELEMENT) {
+	if (event == ZXSD_XML_EVENT_START_ELEMENT) {
 		(*starts)++;
 	}
 }
@@ -401,35 +401,35 @@ static void count_start(void *user_data, mxsd_xml_event_t event, const char *nam
 static int observer_order(void)
 {
 	static const char xml[] = "<repeated><a/><b/><a/></repeated>";
-	static mxsd_xml_reader_t reader;
+	static zxsd_xml_reader_t reader;
 	size_t starts = 0u;
-	mxsd_result_t result = mxsd_xml_reader_init(&reader, stream_models_repeated_schema());
+	zxsd_result_t result = zxsd_xml_reader_init(&reader, stream_models_repeated_schema());
 
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		return 1;
 	}
-	mxsd_xml_reader_set_event_callback(&reader, count_start, &starts);
-	result = mxsd_xml_reader_feed(&reader, xml, sizeof(xml) - 1u);
-	mxsd_xml_reader_dispose(&reader);
-	if (expect(result, MXSD_ERR_ELEMENT_ORDER, "observer order") || starts != 3u ||
+	zxsd_xml_reader_set_event_callback(&reader, count_start, &starts);
+	result = zxsd_xml_reader_feed(&reader, xml, sizeof(xml) - 1u);
+	zxsd_xml_reader_dispose(&reader);
+	if (expect(result, ZXSD_ERR_ELEMENT_ORDER, "observer order") || starts != 3u ||
 	    result.offset != strlen("<repeated><a/><b/>")) {
 		return 1;
 	}
-#if MXSD_STREAM_MODEL_CAPACITY > 0
+#if ZXSD_STREAM_MODEL_CAPACITY > 0
 	{
 		static const char nested[] = "<nested><b/><a/></nested>";
-		mxsd_result_t later;
+		zxsd_result_t later;
 
 		starts = 0u;
-		result = mxsd_xml_reader_init(&reader, stream_models_nested_schema());
-		if (result.code != MXSD_OK) {
+		result = zxsd_xml_reader_init(&reader, stream_models_nested_schema());
+		if (result.code != ZXSD_OK) {
 			return 1;
 		}
-		mxsd_xml_reader_set_event_callback(&reader, count_start, &starts);
-		result = mxsd_xml_reader_feed(&reader, nested, sizeof(nested) - 1u);
-		later = mxsd_xml_reader_finish(&reader);
-		mxsd_xml_reader_dispose(&reader);
-		if (expect(result, MXSD_ERR_ELEMENT_ORDER, "nested observer order") ||
+		zxsd_xml_reader_set_event_callback(&reader, count_start, &starts);
+		result = zxsd_xml_reader_feed(&reader, nested, sizeof(nested) - 1u);
+		later = zxsd_xml_reader_finish(&reader);
+		zxsd_xml_reader_dispose(&reader);
+		if (expect(result, ZXSD_ERR_ELEMENT_ORDER, "nested observer order") ||
 		    starts != 2u || result.offset != strlen("<nested><b/>") ||
 		    later.code != result.code || later.path != result.path ||
 		    later.offset != result.offset) {
@@ -441,9 +441,9 @@ static int observer_order(void)
 }
 
 /** Run cursor, fragment, repetition, dynamic-type, and bounded-history regressions. */
-int mxsd_test_stream_models(void)
+int zxsd_test_stream_models(void)
 {
-	const mxsd_schema_t *schemas[] = {
+	const zxsd_schema_t *schemas[] = {
 		stream_models_sequence_schema(),
 		stream_models_optionalSequence_schema(),
 		stream_models_repeatingSequence_schema(),
@@ -474,7 +474,7 @@ int mxsd_test_stream_models(void)
 	failures += history_boundary();
 	failures += direct_leaf();
 	failures += observer_order();
-#if MXSD_STREAM_MODEL_CAPACITY > 0
+#if ZXSD_STREAM_MODEL_CAPACITY > 0
 	static const char *const complex_terms[] = {"a", "aa", "b", "bc"};
 	static const char *const nullable_terms[] = {"a", "b", "c", "ac", "bc"};
 
@@ -492,40 +492,40 @@ int mxsd_test_stream_models(void)
 	failures += expect(read_xml(stream_models_wildcard_schema(),
 				    "<wildcard xmlns:p='urn:foreign' xmlns:q='urn:foreign'>"
 				    "<p:item/><q:item><q:nested/></q:item></wildcard>"),
-			   MXSD_OK, "wildcard namespace aliases and nested skip");
+			   ZXSD_OK, "wildcard namespace aliases and nested skip");
 	failures += expect(read_xml(stream_models_strictWildcard_schema(),
 				    "<strictWildcard><number>7</number></strictWildcard>"),
-			   MXSD_OK, "strict wildcard known declaration");
+			   ZXSD_OK, "strict wildcard known declaration");
 	failures += expect(read_xml(stream_models_strictWildcard_schema(),
 				    "<strictWildcard><unknown/></strictWildcard>"),
-			   MXSD_ERR_UNEXPECTED_ELEMENT, "strict wildcard unknown declaration");
+			   ZXSD_ERR_UNEXPECTED_ELEMENT, "strict wildcard unknown declaration");
 	failures += expect(read_xml(stream_models_laxWildcard_schema(),
 				    "<laxWildcard><unknown><nested/></unknown></laxWildcard>"),
-			   MXSD_OK, "lax wildcard unknown declaration");
+			   ZXSD_OK, "lax wildcard unknown declaration");
 	failures += expect(read_xml(stream_models_laxWildcard_schema(),
 				    "<laxWildcard><number>bad</number></laxWildcard>"),
-			   MXSD_ERR_INVALID_VALUE, "lax wildcard invalid known declaration");
+			   ZXSD_ERR_INVALID_VALUE, "lax wildcard invalid known declaration");
 	failures +=
 		expect(read_xml(stream_models_repeated_schema(),
 				"<repeated xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
 				" xsi:type='Derived'><a/><a/><b/></repeated>"),
-		       MXSD_OK, "dynamic type valid");
+		       ZXSD_OK, "dynamic type valid");
 	failures +=
 		expect(read_xml(stream_models_repeated_schema(),
 				"<repeated xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
 				" xsi:type='Derived'><a/><a/><a/></repeated>"),
-		       MXSD_ERR_ELEMENT_ORDER, "dynamic type maxOccurs");
+		       ZXSD_ERR_ELEMENT_ORDER, "dynamic type maxOccurs");
 	failures +=
 		expect(read_xml(stream_models_repeated_schema(),
 				"<repeated xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
 				" xsi:nil='true'/>"),
-		       MXSD_OK, "nilled required model");
+		       ZXSD_OK, "nilled required model");
 	return failures ? 1 : 0;
 }
 
-#ifndef MXSD_TEST_NO_MAIN
+#ifndef ZXSD_TEST_NO_MAIN
 int main(void)
 {
-	return mxsd_test_stream_models();
+	return zxsd_test_stream_models();
 }
 #endif

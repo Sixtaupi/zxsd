@@ -2,7 +2,7 @@
 
 This harness inventories every case in the W3C XML Schema 1.0 Test Suite
 release `xsts-2007-06-20`. It then tests schema acceptance and, for schemas
-that mxsd supports, compiles a C validator and executes every instance case.
+that zxsd supports, compiles a C validator and executes every instance case.
 Results distinguish `passed`, `failed`, `unsupported`, `expected-failure`, and
 `skipped`; an unsupported feature is never reported as a pass. A reviewed JSON
 array of exact case identifiers can be supplied with `--expected-failures`.
@@ -43,13 +43,13 @@ Two reviewed rules keep the categories honest:
 
 * An instance case whose `xsi:schemaLocation` hint names a local file that is
   not a well-formed schema document is marked as requiring instance-driven
-  schema discovery. mxsd never loads schemas from instance hints, so a
+  schema discovery. zxsd never loads schemas from instance hints, so a
   mismatch on such a case is `unsupported` (for example `addB063.i`).
 * `DISPUTED_CASES` in `run.py` lists accepted cases whose published expectation
   encodes one processor's implementation limit instead of an XSD 1.0 rule
   (`particlesZ036_b1.i` and `particlesZ036_b2.i`). Each entry records the
   result the Recommendation requires and the reason. Such a case is still
-  executed and becomes `skipped` with that reason only when mxsd produces the
+  executed and becomes `skipped` with that reason only when zxsd produces the
   recorded result; any other outcome remains `failed`.
 
 The W3C describes this suite as comprehensive rather than complete. Therefore

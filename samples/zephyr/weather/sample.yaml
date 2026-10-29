@@ -1,8 +1,8 @@
 sample:
-  name: mxsd interactive weather client
+  name: zxsd interactive weather client
   description: Validate live Nominatim and MET Norway XML responses on Zephyr
 tests:
-  mxsd.weather.build:
+  zxsd.weather.build:
     tags:
       - xml
       - net

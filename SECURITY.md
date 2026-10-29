@@ -1,6 +1,6 @@
 # Security policy
 
-mxsd processes untrusted XML on resource-constrained targets and compiles
+zxsd processes untrusted XML on resource-constrained targets and compiles
 potentially untrusted schemas on the host. Reports involving memory safety,
 resource-limit bypasses, validation bypasses, crashes, or unintended file or
 network access are treated as security issues.
@@ -14,7 +14,7 @@ are not maintained unless explicitly stated in their release notes.
 ## Reporting a vulnerability
 
 Do not open a public issue for a suspected vulnerability. Use GitHub's
-[private vulnerability reporting](https://github.com/Sixtaupi/mxsd/security/advisories/new)
+[private vulnerability reporting](https://github.com/Sixtaupi/zxsd/security/advisories/new)
 to send the report to the maintainers.
 
 Include, when possible:
@@ -39,7 +39,7 @@ Security-relevant behavior includes:
 - bypasses of configured input, depth, occurrence, text, regex, schema, or
   identity-constraint limits;
 - unexpected target-side heap allocation in a zero-heap configuration;
-- implicit filesystem or network access by `mxsdc`;
+- implicit filesystem or network access by `zxsdc`;
 - generated C containing attacker-controlled code rather than data;
 - denial of service that escapes documented and configured bounds.
 

@@ -7,7 +7,7 @@ requests:
 * Nominatim resolves the city to latitude and longitude;
 * MET Norway's Locationforecast ``classic`` endpoint returns the forecast based on the coordinates.
 
-Both XML responses are validated through generated mxsd schema descriptors
+Both XML responses are validated through generated zxsd schema descriptors
 before the sample displays values. Typed callbacks are provisional until the
 complete response passes validation.
 
@@ -24,7 +24,7 @@ It uses ``nominatim.xsd`` to generate binding code and validation.
 MET Norway (coordinates to forecast)
 *******************************
 
-``mxsd_generate(... STREAM_BIND weatherdata/product/time)`` generates a typed
+``zxsd_generate(... STREAM_BIND weatherdata/product/time)`` generates a typed
 reader for one forecast at a time. The HTTP callback feeds body fragments to
 ``met_weather_weatherdata_product_time_reader_feed()``. A callback receives a
 ``met_weather_timeType_t`` with typed locations and measurements; application

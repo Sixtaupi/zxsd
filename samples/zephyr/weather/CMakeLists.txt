@@ -3,15 +3,15 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-set(MXSD_ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
-list(APPEND EXTRA_ZEPHYR_MODULES ${MXSD_ROOT})
+set(ZXSD_ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
+list(APPEND EXTRA_ZEPHYR_MODULES ${ZXSD_ROOT})
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(mxsd_weather)
+project(zxsd_weather)
 
-include(${MXSD_ROOT}/cmake/mxsdGenerate.cmake)
+include(${ZXSD_ROOT}/cmake/zxsdGenerate.cmake)
 
 target_sources(app PRIVATE src/main.c src/weather_summary.c)
-mxsd_generate(TARGET app SCHEMA nominatim.xsd BINDINGS)
-mxsd_generate(TARGET app SCHEMA met_weather.xsd STREAM_BIND weatherdata/product/time)
+zxsd_generate(TARGET app SCHEMA nominatim.xsd BINDINGS)
+zxsd_generate(TARGET app SCHEMA met_weather.xsd STREAM_BIND weatherdata/product/time)
 

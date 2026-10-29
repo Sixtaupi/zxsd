@@ -1,35 +1,35 @@
-# mxsd — XSD compiler and bounded C validator
+# zxsd — XSD compiler and bounded C validator
 
 [![Build and test][build-badge]][build-workflow]
 [![Documentation][docs-badge]][documentation]
 [![OpenSSF Scorecard][scorecard-badge]][scorecard-report]
-[![PyPI](https://img.shields.io/pypi/v/mxsdc.svg)](https://pypi.org/project/mxsdc/)
-[![License](https://img.shields.io/github/license/Sixtaupi/mxsd.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/zxsdc.svg)](https://pypi.org/project/zxsdc/)
+[![License](https://img.shields.io/github/license/Sixtaupi/zxsd.svg)](LICENSE)
 
-[build-badge]: https://github.com/Sixtaupi/mxsd/actions/workflows/build.yml/badge.svg
-[build-workflow]: https://github.com/Sixtaupi/mxsd/actions/workflows/build.yml
-[docs-badge]: https://github.com/Sixtaupi/mxsd/actions/workflows/documentation.yml/badge.svg
-[documentation]: https://sixtaupi.github.io/mxsd/
-[scorecard-badge]: https://api.scorecard.dev/projects/github.com/Sixtaupi/mxsd/badge
-[scorecard-report]: https://scorecard.dev/viewer/?uri=github.com/Sixtaupi/mxsd
+[build-badge]: https://github.com/Sixtaupi/zxsd/actions/workflows/build.yml/badge.svg
+[build-workflow]: https://github.com/Sixtaupi/zxsd/actions/workflows/build.yml
+[docs-badge]: https://github.com/Sixtaupi/zxsd/actions/workflows/documentation.yml/badge.svg
+[documentation]: https://sixtaupi.github.io/zxsd/
+[scorecard-badge]: https://api.scorecard.dev/projects/github.com/Sixtaupi/zxsd/badge
+[scorecard-report]: https://scorecard.dev/viewer/?uri=github.com/Sixtaupi/zxsd
 
-mxsd compiles a supported XML Schema (XSD) subset into immutable C descriptors.
+zxsd compiles a supported XML Schema (XSD) subset into immutable C descriptors.
 The target application links those descriptors with a portable C99 runtime to
 validate XML without parsing the schema at runtime.
 
-- `mxsdc` runs on the build host and generates deterministic C source and headers.
-- `libmxsd` validates complete documents, raw byte fragments, or parser events.
+- `zxsdc` runs on the build host and generates deterministic C source and headers.
+- `libzxsd` validates complete documents, raw byte fragments, or parser events.
 - Optional generated bindings read and write typed C structures using caller-owned storage.
 - Resource limits are fixed at compile time; zero-heap builds are supported.
 
 Python, filesystem access, networking, and an XSD parser are never required on
 the target.
 
-> **Status:** draft/experimental. mxsd implements a documented XSD 1.0 subset,
+> **Status:** draft/experimental. zxsd implements a documented XSD 1.0 subset,
 > not the complete specification. Unsupported schema constructs fail explicitly.
 > During 0.x, upgrades require rebuilding the runtime and generated code.
 
-[Documentation](https://sixtaupi.github.io/mxsd/) ·
+[Documentation](https://sixtaupi.github.io/zxsd/) ·
 [XSD support matrix](SUPPORT.md) ·
 [Getting started](doc/getting-started.rst) ·
 [Typed bindings](doc/bindings.rst) ·
@@ -41,16 +41,16 @@ the target.
 Generate a schema-specific validator:
 
 ```sh
-python3 mxsdc tests/device.xsd -o generated
+python3 zxsdc tests/device.xsd -o generated
 ```
 
 The generated header exposes a validation entry point:
 
 ```c
-#include "device.mxsd.h"
+#include "device.zxsd.h"
 
-mxsd_result_t result = device_validate(xml);
-if (result.code != MXSD_OK) {
+zxsd_result_t result = device_validate(xml);
+if (result.code != ZXSD_OK) {
     /* result.message, result.offset and result.path describe the error. */
 }
 ```
@@ -59,16 +59,16 @@ The installed CMake package can generate and compile the validator as part of
 the application build:
 
 ```cmake
-find_package(mxsd CONFIG REQUIRED)
+find_package(zxsd CONFIG REQUIRED)
 
 add_executable(application main.c)
-mxsd_generate(TARGET application SCHEMA device.xsd)
-target_link_libraries(application PRIVATE mxsd::mxsd)
+zxsd_generate(TARGET application SCHEMA device.xsd)
+target_link_libraries(application PRIVATE zxsd::zxsd)
 ```
 
-Add `BINDINGS` to `mxsd_generate()` to generate typed C structures and
+Add `BINDINGS` to `zxsd_generate()` to generate typed C structures and
 read/write functions. The host compiler is also available as
-`python -m pip install mxsdc`. See [Getting started](doc/getting-started.rst)
+`python -m pip install zxsdc`. See [Getting started](doc/getting-started.rst)
 for source builds, installation, and non-CMake integration.
 
 ## What it validates
@@ -101,8 +101,8 @@ error instead of growing memory without a bound.
 ## Embedded use
 
 The runtime is portable C99 and is tested on Linux, macOS, Windows, and Zephyr.
-`MXSD_NO_HEAP=ON` removes standard-library allocation; schemas with identity
-constraints can use an explicit application allocator. `mxsdc --zephyr-config`
+`ZXSD_NO_HEAP=ON` removes standard-library allocation; schemas with identity
+constraints can use an explicit application allocator. `zxsdc --zephyr-config`
 generates Kconfig recommendations and compile-time limit checks from the schema.
 
 Zephyr uses the allocation-free XML backend by default. Mini-XML 4 is an
@@ -121,4 +121,8 @@ results distinct.
 
 See [Conformance and test coverage](doc/conformance.rst).
 
-mxsd is licensed under [Apache-2.0](LICENSE).
+zxsd is licensed under [Apache-2.0](LICENSE).
+
+## Assistance
+
+Development assisted by GPT-5.6 Sol.

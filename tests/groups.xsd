@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           xmlns:g="urn:mxsd:groups"
-           targetNamespace="urn:mxsd:groups"
+           xmlns:g="urn:zxsd:groups"
+           targetNamespace="urn:zxsd:groups"
            elementFormDefault="qualified">
   <xs:attribute name="code" type="xs:token" fixed="A"/>
 

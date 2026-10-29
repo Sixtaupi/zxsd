@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 mxsd contributors
+ * Copyright (c) 2026 zxsd contributors
  * SPDX-License-Identifier: Apache-2.0
  */
 /** @file @brief Typed forecast selection without XML names, attributes, or parser events. */
@@ -23,13 +23,13 @@ static int copy_measurement(char *destination, const char *value)
 	return 1;
 }
 
-mxsd_bind_action_t weather_summary_capture(void *user_data, const met_weather_timeType_t *forecast)
+zxsd_bind_action_t weather_summary_capture(void *user_data, const met_weather_timeType_t *forecast)
 {
 	struct weather_summary *summary = user_data;
 	size_t index;
 
 	if (summary->complete) {
-		return MXSD_BIND_VALIDATE_ONLY;
+		return ZXSD_BIND_VALIDATE_ONLY;
 	}
 	for (index = 0u; index < forecast->location_count; ++index) {
 		const met_weather_locationType_t *location = &forecast->location[index];
@@ -50,11 +50,11 @@ mxsd_bind_action_t weather_summary_capture(void *user_data, const met_weather_ti
 		    !copy_measurement(candidate.pressure, location->pressure[0].value) ||
 		    !copy_measurement(candidate.pressure_unit, location->pressure[0].unit) ||
 		    !copy_measurement(candidate.cloudiness, location->cloudiness[0].percent)) {
-			return MXSD_BIND_CALLBACK_ERROR;
+			return ZXSD_BIND_CALLBACK_ERROR;
 		}
 		candidate.complete = true;
 		*summary = candidate;
-		return MXSD_BIND_VALIDATE_ONLY;
+		return ZXSD_BIND_VALIDATE_ONLY;
 	}
-	return MXSD_BIND_CONTINUE;
+	return ZXSD_BIND_CONTINUE;
 }

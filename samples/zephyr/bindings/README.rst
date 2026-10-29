@@ -1,6 +1,6 @@
-.. _mxsd_bindings_sample:
+.. _zxsd_bindings_sample:
 
-mxsd typed bindings
+zxsd typed bindings
 ###################
 
 Overview
@@ -8,7 +8,7 @@ Overview
 
 This sample handles device settings exchanged as XML without touching XML text
 in the application. ``settings.xsd`` is compiled on the host with
-the ``mxsd_generate(... BINDINGS)`` CMake helper, which runs ``mxsdc`` on the
+the ``zxsd_generate(... BINDINGS)`` CMake helper, which runs ``zxsdc`` on the
 build host and generates a validator and C structures. On the target, the
 sample:
 
@@ -21,7 +21,7 @@ sample:
 #. shows that the writer refuses a structure with a missing required value.
 
 No heap is used. The stack peak is reached during validation. With the
-default schema limits and ``CONFIG_MXSD_MAX_TEXT_LENGTH`` lowered to 128 bytes,
+default schema limits and ``CONFIG_ZXSD_MAX_TEXT_LENGTH`` lowered to 128 bytes,
 it was measured at about 15.7 KiB on ``qemu_x86``; the schema-derived limits
 below lower it. Measure your own documents with ``CONFIG_INIT_STACKS`` and
 ``k_thread_stack_space_get()``, and keep ``CONFIG_HW_STACK_PROTECTION`` enabled
@@ -35,11 +35,11 @@ Kconfig reference:
 
 * schema-derived limits (attributes, depth, particles, names, regex and
   content-model capacities), copied after review from the fragment printed by
-  ``python3 mxsdc settings.xsd --bindings -o generated --zephyr-config``;
-* application budgets that the XSD cannot bound: ``CONFIG_MXSD_MAX_INPUT``
-  and ``CONFIG_MXSD_MAX_TEXT_LENGTH``.
+  ``python3 zxsdc settings.xsd --bindings -o generated --zephyr-config``;
+* application budgets that the XSD cannot bound: ``CONFIG_ZXSD_MAX_INPUT``
+  and ``CONFIG_ZXSD_MAX_TEXT_LENGTH``.
 
-``CMakeLists.txt`` passes ``ZEPHYR_CONFIG`` to ``mxsd_generate()``, so the
+``CMakeLists.txt`` passes ``ZEPHYR_CONFIG`` to ``zxsd_generate()``, so the
 generated validator checks the schema-derived values at compile time: the
 build fails if one of them drops below what ``settings.xsd`` requires. When the
 schema changes, regenerate the fragment and update ``prj.conf``.
@@ -64,10 +64,10 @@ Expected output (the written document is shown on one line):
    arena: 91 of 512 bytes used
    write: ok, 519 bytes
    <?xml version="1.0" encoding="UTF-8"?>
-   <ns1:settings xmlns:ns1="urn:mxsd:sample:settings" version="4">...</ns1:settings>
+   <ns1:settings xmlns:ns1="urn:zxsd:sample:settings" version="4">...</ns1:settings>
    validate: ok
    rejected: incorrect element order (settings)
    refused: missing required element (label)
-   mxsd bindings sample done
+   zxsd bindings sample done
 
 The arena usage depends on pointer size and alignment of the target.

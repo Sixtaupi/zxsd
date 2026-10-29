@@ -108,10 +108,10 @@ class CompatibilityHelpersTest(unittest.TestCase):
         result = subprocess.CompletedProcess([], 1, "fatal error C1083: stddef.h not found")
         with mock.patch.object(compatibility.subprocess, "run", return_value=result):
             with self.assertRaises(AssertionError):
-                compatibility.run(["cl.exe"], False, "mxsdc requires MXSD_RUNTIME_ABI_VERSION")
-        result = subprocess.CompletedProcess([], 1, "mxsdc requires MXSD_RUNTIME_ABI_VERSION=1")
+                compatibility.run(["cl.exe"], False, "zxsdc requires ZXSD_RUNTIME_ABI_VERSION")
+        result = subprocess.CompletedProcess([], 1, "zxsdc requires ZXSD_RUNTIME_ABI_VERSION=1")
         with mock.patch.object(compatibility.subprocess, "run", return_value=result):
-            compatibility.run(["cl.exe"], False, "mxsdc requires MXSD_RUNTIME_ABI_VERSION")
+            compatibility.run(["cl.exe"], False, "zxsdc requires ZXSD_RUNTIME_ABI_VERSION")
 
 
 if __name__ == "__main__":

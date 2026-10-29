@@ -1,8 +1,8 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           xmlns:c="urn:mxsd:composition" xmlns:f="urn:mxsd:foreign"
-           targetNamespace="urn:mxsd:composition" elementFormDefault="qualified">
+           xmlns:c="urn:zxsd:composition" xmlns:f="urn:zxsd:foreign"
+           targetNamespace="urn:zxsd:composition" elementFormDefault="qualified">
   <xs:include schemaLocation="composition_include.xsd"/>
-  <xs:import namespace="urn:mxsd:foreign" schemaLocation="composition_foreign.xsd"/>
+  <xs:import namespace="urn:zxsd:foreign" schemaLocation="composition_foreign.xsd"/>
   <xs:redefine schemaLocation="composition_base.xsd">
     <xs:group name="RecordFields">
       <xs:sequence>

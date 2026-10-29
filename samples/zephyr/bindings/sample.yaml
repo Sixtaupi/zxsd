@@ -1,8 +1,8 @@
 sample:
-  name: mxsd typed bindings
+  name: zxsd typed bindings
   description: Read, update and write XML settings through generated C structures
 tests:
-  mxsd.bindings:
+  zxsd.bindings:
     tags:
       - xml
       - bindings
@@ -22,4 +22,4 @@ tests:
         - "validate: ok"
         - "rejected: incorrect element order \\(settings\\)"
         - "refused: missing required element \\(label\\)"
-        - "mxsd bindings sample done"
+        - "zxsd bindings sample done"

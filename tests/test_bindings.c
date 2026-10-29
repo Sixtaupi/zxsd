@@ -10,7 +10,7 @@
  */
 
 #include "bindings.bind.h"
-#include "bindings.mxsd.h"
+#include "bindings.zxsd.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -30,10 +30,10 @@ static int failures;
 
 #define CHECK_CODE(result, wanted)                                                                 \
 	do {                                                                                       \
-		mxsd_result_t check_result_ = (result);                                            \
+		zxsd_result_t check_result_ = (result);                                            \
 		if (check_result_.code != (wanted)) {                                              \
 			fprintf(stderr, "%s:%d: wanted %s, got %s (path %s, offset %lu)\n",        \
-				__FILE__, __LINE__, mxsd_error_string(wanted),                     \
+				__FILE__, __LINE__, zxsd_error_string(wanted),                     \
 				check_result_.message,                                             \
 				check_result_.path != NULL ? check_result_.path : "-",             \
 				(unsigned long)check_result_.offset);                              \
@@ -68,21 +68,21 @@ static void test_deallocate(void *context, void *pointer)
 	free(pointer);
 }
 
-static const mxsd_allocator_t test_allocator = {test_allocate, test_deallocate, NULL};
+static const zxsd_allocator_t test_allocator = {test_allocate, test_deallocate, NULL};
 
 /** Read an inventory document, validating with @ref test_allocator. */
-static mxsd_result_t read_inventory(const char *xml, bindings_inventory_t *inventory,
-				    mxsd_bind_arena_t *arena)
+static zxsd_result_t read_inventory(const char *xml, bindings_inventory_t *inventory,
+				    zxsd_bind_arena_t *arena)
 {
-	return mxsd_bind_read_with_allocator(bindings_inventory_binding(), xml, inventory, arena,
+	return zxsd_bind_read_with_allocator(bindings_inventory_binding(), xml, inventory, arena,
 					     &test_allocator);
 }
 
 /** Write an inventory document, validating with @ref test_allocator. */
-static mxsd_result_t write_inventory(const bindings_inventory_t *inventory, char *buffer,
+static zxsd_result_t write_inventory(const bindings_inventory_t *inventory, char *buffer,
 				     size_t capacity, size_t *length)
 {
-	return mxsd_bind_write_buffer_with_allocator(bindings_inventory_binding(), inventory,
+	return zxsd_bind_write_buffer_with_allocator(bindings_inventory_binding(), inventory,
 						     buffer, capacity, length, &test_allocator);
 }
 
@@ -90,7 +90,7 @@ static mxsd_result_t write_inventory(const bindings_inventory_t *inventory, char
 static const char full_document[] =
 	"<?xml version='1.0'?>\n"
 	"<!-- inventory -->\n"
-	"<inv:inventory xmlns:inv='urn:mxsd:inventory' version='  2.1  '>\n"
+	"<inv:inventory xmlns:inv='urn:zxsd:inventory' version='  2.1  '>\n"
 	"  <inv:owner name='A &amp; B&#9;tab' int='-7'/>\n"
 	"  <inv:item id='1' rank='-3' note='line&#10;break'>\n"
 	"    <inv:code> AB123 </inv:code>\n"
@@ -128,7 +128,7 @@ static const char full_document[] =
 /** Canonical serialization of @ref full_document after reading it. */
 static const char full_canonical[] =
 	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-	"<ns1:inventory xmlns:ns1=\"urn:mxsd:inventory\" version=\"2.1\">"
+	"<ns1:inventory xmlns:ns1=\"urn:zxsd:inventory\" version=\"2.1\">"
 	"<ns1:owner name=\"A &amp; B&#9;tab\" int=\"-7\"/>"
 	"<ns1:item id=\"1\" rank=\"-3\" note=\"line&#10;break\" kind=\"stock\">"
 	"<ns1:code>AB123</ns1:code><ns1:status>on-hold</ns1:status>"
@@ -163,9 +163,9 @@ static union {
 } arena_storage;
 
 /** Read @ref full_document into @p inventory using the shared arena. */
-static mxsd_result_t read_full(bindings_inventory_t *inventory, mxsd_bind_arena_t *arena)
+static zxsd_result_t read_full(bindings_inventory_t *inventory, zxsd_bind_arena_t *arena)
 {
-	mxsd_bind_arena_init(arena, arena_storage.bytes, sizeof(arena_storage.bytes));
+	zxsd_bind_arena_init(arena, arena_storage.bytes, sizeof(arena_storage.bytes));
 	return read_inventory(full_document, inventory, arena);
 }
 
@@ -173,11 +173,11 @@ static mxsd_result_t read_full(bindings_inventory_t *inventory, mxsd_bind_arena_
 static void test_read_values(void)
 {
 	bindings_inventory_t inventory;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 	const bindings_Item_t *item;
 	const bindings_Part_t *part;
 
-	CHECK_CODE(read_full(&inventory, &arena), MXSD_OK);
+	CHECK_CODE(read_full(&inventory, &arena), ZXSD_OK);
 	if (failures != 0) {
 		return;
 	}
@@ -249,20 +249,20 @@ static void test_round_trip(void)
 	static char second[4096];
 	bindings_inventory_t inventory;
 	bindings_inventory_t again;
-	mxsd_bind_arena_t arena;
-	mxsd_bind_arena_t again_arena;
+	zxsd_bind_arena_t arena;
+	zxsd_bind_arena_t again_arena;
 	static unsigned char again_storage[16384];
 	size_t length = 0u;
 	size_t second_length = 0u;
 
-	CHECK_CODE(read_full(&inventory, &arena), MXSD_OK);
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), &length), MXSD_OK);
+	CHECK_CODE(read_full(&inventory, &arena), ZXSD_OK);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), &length), ZXSD_OK);
 	CHECK(length == strlen(output));
 	CHECK_STRING(output, full_canonical);
 
-	mxsd_bind_arena_init(&again_arena, again_storage, sizeof(again_storage));
-	CHECK_CODE(read_inventory(output, &again, &again_arena), MXSD_OK);
-	CHECK_CODE(write_inventory(&again, second, sizeof(second), &second_length), MXSD_OK);
+	zxsd_bind_arena_init(&again_arena, again_storage, sizeof(again_storage));
+	CHECK_CODE(read_inventory(output, &again, &again_arena), ZXSD_OK);
+	CHECK_CODE(write_inventory(&again, second, sizeof(second), &second_length), ZXSD_OK);
 	CHECK(second_length == length);
 	CHECK_STRING(second, output);
 }
@@ -291,57 +291,57 @@ static int collect(void *context, const char *data, size_t length)
 /** Streaming validation while writing matches buffered output and validation. */
 static void test_stream_write(void)
 {
-	static mxsd_stream_t validator;
+	static zxsd_stream_t validator;
 	static collector_t collector;
 	bindings_inventory_t inventory;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 
-	CHECK_CODE(read_full(&inventory, &arena), MXSD_OK);
+	CHECK_CODE(read_full(&inventory, &arena), ZXSD_OK);
 	memset(&collector, 0, sizeof(collector));
 	collector.budget = sizeof(collector.data);
-	CHECK_CODE(mxsd_stream_init_with_allocator(&validator, bindings_inventory_schema(),
+	CHECK_CODE(zxsd_stream_init_with_allocator(&validator, bindings_inventory_schema(),
 						   &test_allocator),
-		   MXSD_OK);
-	CHECK_CODE(bindings_inventory_write(&inventory, collect, &collector, &validator), MXSD_OK);
+		   ZXSD_OK);
+	CHECK_CODE(bindings_inventory_write(&inventory, collect, &collector, &validator), ZXSD_OK);
 	CHECK_STRING(collector.data, full_canonical);
-	mxsd_stream_dispose(&validator);
+	zxsd_stream_dispose(&validator);
 
 	/* Without a validator, the same bytes are produced. */
 	memset(&collector, 0, sizeof(collector));
 	collector.budget = sizeof(collector.data);
-	CHECK_CODE(bindings_inventory_write(&inventory, collect, &collector, NULL), MXSD_OK);
+	CHECK_CODE(bindings_inventory_write(&inventory, collect, &collector, NULL), ZXSD_OK);
 	CHECK_STRING(collector.data, full_canonical);
 
 	/* A validator for another schema is rejected before writing anything. */
 	memset(&collector, 0, sizeof(collector));
 	collector.budget = sizeof(collector.data);
-	CHECK_CODE(mxsd_stream_init_with_allocator(&validator, bindings_inventory_schema(),
+	CHECK_CODE(zxsd_stream_init_with_allocator(&validator, bindings_inventory_schema(),
 						   &test_allocator),
-		   MXSD_OK);
+		   ZXSD_OK);
 	validator.finished = 1;
 	CHECK_CODE(bindings_inventory_write(&inventory, collect, &collector, &validator),
-		   MXSD_ERR_ARGUMENT);
+		   ZXSD_ERR_ARGUMENT);
 	CHECK(collector.length == 0u);
-	mxsd_stream_dispose(&validator);
+	zxsd_stream_dispose(&validator);
 
 	/* A validator that already failed is rejected as well. */
 	memset(&collector, 0, sizeof(collector));
 	collector.budget = sizeof(collector.data);
-	CHECK_CODE(mxsd_stream_init_with_allocator(&validator, bindings_inventory_schema(),
+	CHECK_CODE(zxsd_stream_init_with_allocator(&validator, bindings_inventory_schema(),
 						   &test_allocator),
-		   MXSD_OK);
-	CHECK_CODE(mxsd_start_element(&validator, NULL, "wrong"), MXSD_ERR_WRONG_ROOT);
+		   ZXSD_OK);
+	CHECK_CODE(zxsd_start_element(&validator, NULL, "wrong"), ZXSD_ERR_WRONG_ROOT);
 	validator.depth = 0u;
 	CHECK_CODE(bindings_inventory_write(&inventory, collect, &collector, &validator),
-		   MXSD_ERR_ARGUMENT);
+		   ZXSD_ERR_ARGUMENT);
 	CHECK(collector.length == 0u);
-	mxsd_stream_dispose(&validator);
+	zxsd_stream_dispose(&validator);
 
-	/* A sink failure stops writing with MXSD_ERR_OUTPUT. */
+	/* A sink failure stops writing with ZXSD_ERR_OUTPUT. */
 	memset(&collector, 0, sizeof(collector));
 	collector.budget = 100u;
 	CHECK_CODE(bindings_inventory_write(&inventory, collect, &collector, NULL),
-		   MXSD_ERR_OUTPUT);
+		   ZXSD_ERR_OUTPUT);
 	CHECK(collector.length <= 100u);
 }
 
@@ -376,72 +376,72 @@ static void test_write_errors(void)
 	size_t length;
 
 	minimal_inventory(&inventory, &item);
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), &length), MXSD_OK);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), &length), ZXSD_OK);
 	CHECK_STRING(output,
 		     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-		     "<ns1:inventory xmlns:ns1=\"urn:mxsd:inventory\" version=\"1\">"
+		     "<ns1:inventory xmlns:ns1=\"urn:zxsd:inventory\" version=\"1\">"
 		     "<ns1:owner name=\"owner\"/><ns1:item id=\"7\"><ns1:code>AB001</ns1:code>"
 		     "<ns1:status>active</ns1:status><ns1:quantity>1</ns1:quantity>"
 		     "<ns1:free>false</ns1:free><ns1:location><ns1:site>here</ns1:site>"
 		     "</ns1:location></ns1:item></ns1:inventory>");
 
 	/* Exact buffer boundary: the document and its NUL fit, one byte less does not. */
-	CHECK_CODE(write_inventory(&inventory, output, length + 1u, NULL), MXSD_OK);
-	CHECK_CODE(write_inventory(&inventory, output, length, NULL), MXSD_ERR_OUTPUT);
+	CHECK_CODE(write_inventory(&inventory, output, length + 1u, NULL), ZXSD_OK);
+	CHECK_CODE(write_inventory(&inventory, output, length, NULL), ZXSD_ERR_OUTPUT);
 	CHECK(strlen(output) < length);
 
 	item.code = NULL;
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_MISSING_ELEMENT);
+		   ZXSD_ERR_MISSING_ELEMENT);
 	item.code = "AB001";
 
 	inventory.owner.name = NULL;
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_MISSING_ATTRIBUTE);
+		   ZXSD_ERR_MISSING_ATTRIBUTE);
 	inventory.owner.name = "owner";
 
 	inventory.item_count = 0u;
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), MXSD_ERR_OCCURRENCE);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), ZXSD_ERR_OCCURRENCE);
 	inventory.item_count = 1u;
 
 	item.tag = too_many_tags;
 	item.tag_count = 4u;
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), MXSD_ERR_OCCURRENCE);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), ZXSD_ERR_OCCURRENCE);
 	item.tag_count = 3u;
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), MXSD_OK);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), ZXSD_OK);
 	item.tag = null_tag;
 	item.tag_count = 2u;
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_MISSING_ELEMENT);
+		   ZXSD_ERR_MISSING_ELEMENT);
 	item.tag = NULL;
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), MXSD_ERR_ARGUMENT);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), ZXSD_ERR_ARGUMENT);
 	item.tag_count = 0u;
 
 	item.status = (bindings_Status_t)3;
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_INVALID_VALUE);
+		   ZXSD_ERR_INVALID_VALUE);
 	item.status = BINDINGS_STATUS_RETIRED;
 
 	/* Invalid UTF-8 and characters outside XML 1.0 are never written. */
 	item.location.site_elem = "bad\xff";
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_INVALID_VALUE);
+		   ZXSD_ERR_INVALID_VALUE);
 	item.location.site_elem = "bell\a";
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_INVALID_VALUE);
+		   ZXSD_ERR_INVALID_VALUE);
 	item.location.site_elem = "caf\xc3\xa9 \xf0\x9f\x93\xa6";
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), MXSD_OK);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), ZXSD_OK);
 
 	/* Facets are enforced by validating the produced document. */
 	item.code = "lowercase";
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_INVALID_VALUE);
+		   ZXSD_ERR_INVALID_VALUE);
 	item.code = "AB001";
 
 	/* A choice with both alternatives is rejected by validation. */
 	item.price = "1.0";
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_ELEMENT_ORDER);
+		   ZXSD_ERR_ELEMENT_ORDER);
 	item.price = NULL;
 
 	/* Identity constraints apply to written documents. */
@@ -451,13 +451,13 @@ static void test_write_errors(void)
 	inventory.item = items;
 	inventory.item_count = 2u;
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_IDENTITY_CONSTRAINT);
+		   ZXSD_ERR_IDENTITY_CONSTRAINT);
 	items[1].id = 8u;
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), MXSD_OK);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), ZXSD_OK);
 	inventory.item = &item;
 	inventory.item_count = 1u;
 
-	/* A cyclic object graph is bounded by MXSD_MAX_DEPTH instead of recursing forever. */
+	/* A cyclic object graph is bounded by ZXSD_MAX_DEPTH instead of recursing forever. */
 	memset(&cycle, 0, sizeof(cycle));
 	cycle.ref = "loop";
 	cycle.label = "loop";
@@ -465,13 +465,13 @@ static void test_write_errors(void)
 	cycle.part_count = 1u;
 	item.part = &cycle;
 	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL),
-		   MXSD_ERR_EXCESSIVE_NESTING);
+		   ZXSD_ERR_EXCESSIVE_NESTING);
 	item.part = NULL;
 
-	CHECK_CODE(write_inventory(NULL, output, sizeof(output), NULL), MXSD_ERR_ARGUMENT);
-	CHECK_CODE(write_inventory(&inventory, NULL, sizeof(output), NULL), MXSD_ERR_ARGUMENT);
-	CHECK_CODE(write_inventory(&inventory, output, 0u, NULL), MXSD_ERR_ARGUMENT);
-	CHECK_CODE(bindings_inventory_write(&inventory, NULL, NULL, NULL), MXSD_ERR_ARGUMENT);
+	CHECK_CODE(write_inventory(NULL, output, sizeof(output), NULL), ZXSD_ERR_ARGUMENT);
+	CHECK_CODE(write_inventory(&inventory, NULL, sizeof(output), NULL), ZXSD_ERR_ARGUMENT);
+	CHECK_CODE(write_inventory(&inventory, output, 0u, NULL), ZXSD_ERR_ARGUMENT);
+	CHECK_CODE(bindings_inventory_write(&inventory, NULL, NULL, NULL), ZXSD_ERR_ARGUMENT);
 }
 
 /** Escaping preserves every significant character through a round trip. */
@@ -482,17 +482,17 @@ static void test_escaping(void)
 	bindings_inventory_t inventory;
 	bindings_inventory_t decoded;
 	bindings_Item_t item;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 
 	minimal_inventory(&inventory, &item);
 	item.note = "quote\" apos' amp& lt< gt> tab\t lf\n cr\r end";
 	item.location.site_elem = "text & <markup> ]]> cr\r lf\n tab\t";
-	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), MXSD_OK);
+	CHECK_CODE(write_inventory(&inventory, output, sizeof(output), NULL), ZXSD_OK);
 	CHECK(strstr(output, "note=\"quote&quot; apos' amp&amp; lt&lt; gt&gt; tab&#9; lf&#10; "
 			     "cr&#13; end\"") != NULL);
 	CHECK(strstr(output, "text &amp; &lt;markup&gt; ]]&gt; cr&#13; lf\n tab\t") != NULL);
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
-	CHECK_CODE(read_inventory(output, &decoded, &arena), MXSD_OK);
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	CHECK_CODE(read_inventory(output, &decoded, &arena), ZXSD_OK);
 	CHECK_STRING(decoded.item[0].note, item.note);
 	CHECK_STRING(decoded.item[0].location.site_elem, item.location.site_elem);
 }
@@ -502,19 +502,19 @@ static void test_read_errors(void)
 {
 	static unsigned char storage[16384];
 	bindings_inventory_t inventory;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 	size_t needed;
 	size_t capacity;
 
 	/* Invalid documents report the validation error and zero the structure. */
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
 	memset(&inventory, 0xa5, sizeof(inventory));
-	CHECK_CODE(read_inventory("<inv:inventory xmlns:inv='urn:mxsd:inventory'/>", &inventory,
+	CHECK_CODE(read_inventory("<inv:inventory xmlns:inv='urn:zxsd:inventory'/>", &inventory,
 				  &arena),
-		   MXSD_ERR_MISSING_ATTRIBUTE);
+		   ZXSD_ERR_MISSING_ATTRIBUTE);
 	CHECK(inventory.version == NULL && inventory.item == NULL && arena.used == 0u);
-	CHECK_CODE(read_inventory("<inventory/>", &inventory, &arena), MXSD_ERR_WRONG_ROOT);
-	CHECK_CODE(read_inventory("<inv:inventory", &inventory, &arena), MXSD_ERR_MALFORMED_XML);
+	CHECK_CODE(read_inventory("<inventory/>", &inventory, &arena), ZXSD_ERR_WRONG_ROOT);
+	CHECK_CODE(read_inventory("<inv:inventory", &inventory, &arena), ZXSD_ERR_MALFORMED_XML);
 
 	/*
 	 * Find the smallest sufficient arena by bisection: temporary numeric text can
@@ -526,8 +526,8 @@ static void test_read_errors(void)
 
 		while (working - failing > 1u) {
 			capacity = failing + (working - failing) / 2u;
-			mxsd_bind_arena_init(&arena, storage, capacity);
-			if (read_inventory(full_document, &inventory, &arena).code == MXSD_OK) {
+			zxsd_bind_arena_init(&arena, storage, capacity);
+			if (read_inventory(full_document, &inventory, &arena).code == ZXSD_OK) {
 				working = capacity;
 			} else {
 				failing = capacity;
@@ -535,25 +535,25 @@ static void test_read_errors(void)
 		}
 		needed = working;
 	}
-	mxsd_bind_arena_init(&arena, storage, needed);
-	CHECK_CODE(read_inventory(full_document, &inventory, &arena), MXSD_OK);
+	zxsd_bind_arena_init(&arena, storage, needed);
+	CHECK_CODE(read_inventory(full_document, &inventory, &arena), ZXSD_OK);
 	CHECK(arena.used <= needed);
-	mxsd_bind_arena_init(&arena, storage, needed - 1u);
-	CHECK_CODE(read_inventory(full_document, &inventory, &arena), MXSD_ERR_RESOURCE_LIMIT);
+	zxsd_bind_arena_init(&arena, storage, needed - 1u);
+	CHECK_CODE(read_inventory(full_document, &inventory, &arena), ZXSD_ERR_RESOURCE_LIMIT);
 	CHECK(arena.used == 0u && inventory.item == NULL && inventory.version == NULL);
 
 	/* The arena keeps earlier allocations and only grows on success. */
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
 	arena.used = 3u;
-	CHECK_CODE(read_inventory(full_document, &inventory, &arena), MXSD_OK);
+	CHECK_CODE(read_inventory(full_document, &inventory, &arena), ZXSD_OK);
 	CHECK(arena.used > 3u);
 	CHECK(((size_t)((const unsigned char *)inventory.item - storage)) % sizeof(void *) == 0u);
 
-	mxsd_bind_arena_init(&arena, NULL, 0u);
-	CHECK_CODE(read_inventory(full_document, &inventory, &arena), MXSD_ERR_RESOURCE_LIMIT);
-	CHECK_CODE(read_inventory(NULL, &inventory, &arena), MXSD_ERR_ARGUMENT);
-	CHECK_CODE(read_inventory(full_document, NULL, &arena), MXSD_ERR_ARGUMENT);
-	CHECK_CODE(read_inventory(full_document, &inventory, NULL), MXSD_ERR_ARGUMENT);
+	zxsd_bind_arena_init(&arena, NULL, 0u);
+	CHECK_CODE(read_inventory(full_document, &inventory, &arena), ZXSD_ERR_RESOURCE_LIMIT);
+	CHECK_CODE(read_inventory(NULL, &inventory, &arena), ZXSD_ERR_ARGUMENT);
+	CHECK_CODE(read_inventory(full_document, NULL, &arena), ZXSD_ERR_ARGUMENT);
+	CHECK_CODE(read_inventory(full_document, &inventory, NULL), ZXSD_ERR_ARGUMENT);
 }
 
 /** Valid documents using xsi:type substitution cannot be represented. */
@@ -561,7 +561,7 @@ static void test_unsupported_substitution(void)
 {
 	static unsigned char storage[4096];
 	static const char substituted[] =
-		"<inv:inventory xmlns:inv='urn:mxsd:inventory' "
+		"<inv:inventory xmlns:inv='urn:zxsd:inventory' "
 		"xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' version='1'>"
 		"<inv:owner name='o'/>"
 		"<inv:item id='1' xsi:type='inv:PerishableItem'><inv:code>AB001</inv:code>"
@@ -569,7 +569,7 @@ static void test_unsupported_substitution(void)
 		"<inv:free>true</inv:free><inv:location><inv:site>s</inv:site></inv:location>"
 		"<inv:expires>2026-01-01</inv:expires></inv:item></inv:inventory>";
 	static const char redundant[] =
-		"<inv:inventory xmlns:inv='urn:mxsd:inventory' "
+		"<inv:inventory xmlns:inv='urn:zxsd:inventory' "
 		"xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' version='1'>"
 		"<inv:owner name='o'/>"
 		"<inv:item id='1' xsi:type='inv:Item'><inv:code>AB001</inv:code>"
@@ -577,15 +577,15 @@ static void test_unsupported_substitution(void)
 		"<inv:free>true</inv:free><inv:location><inv:site>s</inv:site></inv:location>"
 		"</inv:item></inv:inventory>";
 	bindings_inventory_t inventory;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 
-	CHECK_CODE(mxsd_validate_with_allocator(bindings_inventory_schema(), substituted,
+	CHECK_CODE(zxsd_validate_with_allocator(bindings_inventory_schema(), substituted,
 						&test_allocator),
-		   MXSD_OK);
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
-	CHECK_CODE(read_inventory(substituted, &inventory, &arena), MXSD_ERR_UNSUPPORTED);
+		   ZXSD_OK);
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	CHECK_CODE(read_inventory(substituted, &inventory, &arena), ZXSD_ERR_UNSUPPORTED);
 	CHECK(arena.used == 0u && inventory.item == NULL);
-	CHECK_CODE(read_inventory(redundant, &inventory, &arena), MXSD_OK);
+	CHECK_CODE(read_inventory(redundant, &inventory, &arena), ZXSD_OK);
 	CHECK(inventory.item_count == 1u && inventory.item[0].id == 1u);
 }
 
@@ -595,14 +595,14 @@ static void test_second_root(void)
 	static unsigned char storage[1024];
 	static char output[512];
 	static const char document[] =
-		"<p:part xmlns:p='urn:mxsd:inventory' ref='r1'>"
+		"<p:part xmlns:p='urn:zxsd:inventory' ref='r1'>"
 		"<p:label>a<!-- comment --><![CDATA[<b&c>]]>&#x1F4E6;<?pi data?>\td</p:label>"
 		"<p:part ref='r2'><p:label/></p:part></p:part>";
 	bindings_Part_t part;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
-	CHECK_CODE(bindings_part_read(document, &part, &arena), MXSD_OK);
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	CHECK_CODE(bindings_part_read(document, &part, &arena), ZXSD_OK);
 	CHECK_STRING(part.ref, "r1");
 	CHECK_STRING(part.label, "a<b&c>\xf0\x9f\x93\xa6 d"); /* normalizedString replaces tab. */
 	CHECK(part.part_count == 1u);
@@ -610,13 +610,13 @@ static void test_second_root(void)
 		return;
 	}
 	CHECK_STRING(part.part[0].label, "");
-	CHECK_CODE(bindings_part_write_buffer(&part, output, sizeof(output), NULL), MXSD_OK);
+	CHECK_CODE(bindings_part_write_buffer(&part, output, sizeof(output), NULL), ZXSD_OK);
 	CHECK_STRING(output, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-			     "<ns1:part xmlns:ns1=\"urn:mxsd:inventory\" ref=\"r1\">"
+			     "<ns1:part xmlns:ns1=\"urn:zxsd:inventory\" ref=\"r1\">"
 			     "<ns1:label>a&lt;b&amp;c&gt;\xf0\x9f\x93\xa6 d</ns1:label>"
 			     "<ns1:part ref=\"r2\"><ns1:label/></ns1:part></ns1:part>");
 	/* Each root reads only its own document element. */
-	CHECK_CODE(bindings_part_read(full_document, &part, &arena), MXSD_ERR_WRONG_ROOT);
+	CHECK_CODE(bindings_part_read(full_document, &part, &arena), ZXSD_ERR_WRONG_ROOT);
 }
 
 /** Generated entry points use the library's default validation policy. */
@@ -625,42 +625,42 @@ static void test_generated_wrappers(void)
 	static char output[4096];
 	static unsigned char storage[16384];
 	bindings_inventory_t inventory;
-	mxsd_bind_arena_t arena;
+	zxsd_bind_arena_t arena;
 
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
-#ifdef MXSD_NO_HEAP
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
+#ifdef ZXSD_NO_HEAP
 	/* Zero-heap builds cannot validate identity constraints without an allocator. */
 	CHECK_CODE(bindings_inventory_read(full_document, &inventory, &arena),
-		   MXSD_ERR_RESOURCE_LIMIT);
+		   ZXSD_ERR_RESOURCE_LIMIT);
 	CHECK(arena.used == 0u);
 	(void)output;
 #else
-	CHECK_CODE(bindings_inventory_read(full_document, &inventory, &arena), MXSD_OK);
+	CHECK_CODE(bindings_inventory_read(full_document, &inventory, &arena), ZXSD_OK);
 	CHECK_CODE(bindings_inventory_write_buffer(&inventory, output, sizeof(output), NULL),
-		   MXSD_OK);
+		   ZXSD_OK);
 	CHECK_STRING(output, full_canonical);
 #endif
 	/* A NULL allocator selects zero-heap validation explicitly. */
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
-	CHECK_CODE(mxsd_bind_read_with_allocator(bindings_inventory_binding(), full_document,
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	CHECK_CODE(zxsd_bind_read_with_allocator(bindings_inventory_binding(), full_document,
 						 &inventory, &arena, NULL),
-		   MXSD_ERR_RESOURCE_LIMIT);
+		   ZXSD_ERR_RESOURCE_LIMIT);
 }
 
 /** The binding descriptor exposes the generated schema. */
 static void test_descriptor(void)
 {
-	const mxsd_bind_root_t *root = bindings_inventory_binding();
+	const zxsd_bind_root_t *root = bindings_inventory_binding();
 
 	CHECK(root != NULL && root->schema() == bindings_inventory_schema());
 	CHECK_STRING(root->name, "inventory");
-	CHECK_STRING(root->namespace_uri, "urn:mxsd:inventory");
+	CHECK_STRING(root->namespace_uri, "urn:zxsd:inventory");
 	CHECK(root->type->size == sizeof(bindings_inventory_t));
-	CHECK_STRING(mxsd_error_string(MXSD_ERR_OUTPUT), "output failure");
-	CHECK_STRING(mxsd_error_string(MXSD_ERR_UNSUPPORTED), "unsupported by binding");
+	CHECK_STRING(zxsd_error_string(ZXSD_ERR_OUTPUT), "output failure");
+	CHECK_STRING(zxsd_error_string(ZXSD_ERR_UNSUPPORTED), "unsupported by binding");
 }
 
-int mxsd_test_bindings(void)
+int zxsd_test_bindings(void)
 {
 	failures = 0;
 	test_read_values();
@@ -680,9 +680,9 @@ int mxsd_test_bindings(void)
 	return 0;
 }
 
-#ifndef MXSD_TEST_NO_MAIN
+#ifndef ZXSD_TEST_NO_MAIN
 int main(void)
 {
-	return mxsd_test_bindings();
+	return zxsd_test_bindings();
 }
 #endif

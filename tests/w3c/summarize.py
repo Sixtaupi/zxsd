@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize actionable gaps from an mxsd W3C XSD report."""
+"""Summarize actionable gaps from an zxsd W3C XSD report."""
 
 import argparse
 import collections

@@ -9,12 +9,12 @@
  * @brief Validate XML documents against a schema compiled on the build host.
  *
  * device.xsd is converted to C descriptors at build time, so the target only
- * links the generated validator and the mxsd runtime. No heap is used.
+ * links the generated validator and the zxsd runtime. No heap is used.
  */
 
 #include <zephyr/kernel.h>
 
-#include "device.mxsd.h"
+#include "device.zxsd.h"
 
 /** Document that conforms to device.xsd. */
 static const char valid_document[] = "<device id='7'>"
@@ -30,9 +30,9 @@ static const char invalid_document[] = "<device id='7'><name>node</name></device
 /** Validate one document and print the outcome. */
 static void validate(const char *label, const char *xml)
 {
-	mxsd_result_t result = device_validate(xml);
+	zxsd_result_t result = device_validate(xml);
 
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		printk("%s: valid\n", label);
 		return;
 	}
@@ -48,7 +48,7 @@ int main(void)
 {
 	validate("valid document", valid_document);
 	validate("invalid document", invalid_document);
-	printk("mxsd XSD validation sample done\n");
+	printk("zxsd XSD validation sample done\n");
 
 	return 0;
 }

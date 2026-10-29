@@ -43,13 +43,13 @@ The seven remaining failures comprise:
 
 Invalid instances that depend on runtime ``xsi:schemaLocation`` discovery,
 including hints that name a local file that is not a well-formed schema, are
-classified as unsupported: mxsd never loads schemas from instance hints.
+classified as unsupported: zxsd never loads schemas from instance hints.
 
 ``particlesZ036_b1.i`` and ``particlesZ036_b2.i`` are skipped as disputed suite
 expectations. Their documentation describes a Microsoft engine behavior for
 ``maxOccurs`` values above 4096. XSD 1.0 defines no such limit, and both
 instances are valid against ``particlesZ036_b.xsd``. The harness records the
-required result and reason, and reports a failure if mxsd's result changes.
+required result and reason, and reports a failure if zxsd's result changes.
 
 The compiler now applies the order-preserving XSD 1.0 *Recurse* rule to
 ``xs:all`` restrictions of ``xs:all`` content, including ``xs:redefine`` group

@@ -1,15 +1,15 @@
 # Host example
 
 This example uses one source tree on Linux, macOS, and Windows. The
-`mxsd_generate()` CMake helper runs `mxsdc` with the host Python interpreter,
-compiles the generated validator, and links it with `libmxsd`.
+`zxsd_generate()` CMake helper runs `zxsdc` with the host Python interpreter,
+compiles the generated validator, and links it with `libzxsd`.
 
 ## Linux and macOS
 
 ```sh
-cmake -S samples/host -B build-example -DMXSD_USE_MXML=OFF
+cmake -S samples/host -B build-example -DZXSD_USE_MXML=OFF
 cmake --build build-example
-./build-example/mxsd_example
+./build-example/zxsd_example
 ```
 
 ## Windows
@@ -17,9 +17,9 @@ cmake --build build-example
 From PowerShell with Visual Studio Build Tools installed:
 
 ```powershell
-cmake -S samples/host -B build-example -DMXSD_USE_MXML=OFF
+cmake -S samples/host -B build-example -DZXSD_USE_MXML=OFF
 cmake --build build-example --config Release
-.\build-example\Release\mxsd_example.exe
+.\build-example\Release\zxsd_example.exe
 ```
 
 With Ninja, the executable is instead located directly in `build-example`, as

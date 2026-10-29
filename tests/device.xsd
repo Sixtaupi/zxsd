@@ -2,7 +2,7 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <xs:annotation>
     <xs:documentation xml:lang="fr">Schéma utilisé par les tests.</xs:documentation>
-    <xs:appinfo source="urn:mxsd:test"><meta xmlns="urn:test">ignored</meta></xs:appinfo>
+    <xs:appinfo source="urn:zxsd:test"><meta xmlns="urn:test">ignored</meta></xs:appinfo>
   </xs:annotation>
   <xs:complexType name="Device">
     <xs:annotation><xs:documentation>Un périphérique.</xs:documentation></xs:annotation>

@@ -1,4 +1,4 @@
-name: mxsd
+name: zxsd
 
 build:
   cmake: zephyr

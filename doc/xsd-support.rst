@@ -3,7 +3,7 @@ XSD 1.0 support
 
 **Supported** means positive and negative behavior is covered by project
 tests. **Partial** means only the documented subset is implemented.
-**Unsupported** means ``mxsdc`` rejects the construct instead of ignoring it.
+**Unsupported** means ``zxsdc`` rejects the construct instead of ignoring it.
 
 The :doc:`compatibility` contract separately defines API/ABI epochs, generated
 format checks, memory configuration requirements, and migration rules. It does
@@ -61,7 +61,7 @@ Schema structure and types
    * - recursive type definitions
      - Supported
      - Direct and mutual named complex types plus guarded recursive global element
-       references, bounded at runtime by ``MXSD_MAX_DEPTH``.
+       references, bounded at runtime by ``ZXSD_MAX_DEPTH``.
    * - ``xs:anyType`` and mixed content
      - Supported
      - Interleaved text, lax arbitrary content, implicit element types, and restrictions.
@@ -105,10 +105,10 @@ Instance validation
 Streaming validation uses occurrence counters for eligible flat models and a
 shared, bounded continuation pool for nested sequences/choices and complex
 repetitions. Alternative occurrence partitions are retained and merged, not
-chosen greedily. ``MXSD_STREAM_MODEL_CAPACITY`` bounds this shared workspace;
-exhaustion or excessive epsilon work reports ``MXSD_ERR_STREAM_LIMIT``.
+chosen greedily. ``ZXSD_STREAM_MODEL_CAPACITY`` bounds this shared workspace;
+exhaustion or excessive epsilon work reports ``ZXSD_ERR_STREAM_LIMIT``.
 Setting it to zero selects the old bounded-history matcher for non-flat
-models. ``MXSD_STREAM_CHILD_CAPACITY`` limits only that fallback's child
+models. ``ZXSD_STREAM_CHILD_CAPACITY`` limits only that fallback's child
 history, not repetitions processed by an incremental model.
 
 .. list-table::
@@ -156,12 +156,12 @@ history, not repetitions processed by an incremental model.
      - Optional adapter selected when Mini-XML is available.
    * - XSD 1.1
      - Unsupported
-     - mxsd targets XSD 1.0.
+     - zxsd targets XSD 1.0.
 
 Typed bindings
 **************
 
-``mxsdc --bindings`` generates C structures with read and write functions for
+``zxsdc --bindings`` generates C structures with read and write functions for
 global elements with a complex type. Bindings cover a subset of the constructs
 above: wildcards, mixed content, ``xs:anyType``, repeating model groups,
 nillable and abstract elements, substitution-group heads, abstract types, and

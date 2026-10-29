@@ -8,122 +8,122 @@
 
 #include <zephyr/ztest.h>
 
-extern int mxsd_test_compatibility(void);
+extern int zxsd_test_compatibility(void);
 
-extern int mxsd_test_runtime(void);
-extern int mxsd_test_advanced(void);
-extern int mxsd_test_derivation(void);
-extern int mxsd_test_simple_types(void);
-extern int mxsd_test_wildcards(void);
-extern int mxsd_test_identity(void);
-extern int mxsd_test_composition(void);
-extern int mxsd_test_element_semantics(void);
-extern int mxsd_test_groups(void);
-extern int mxsd_test_stream_models(void);
-extern int mxsd_test_mixed_any(void);
-extern int mxsd_test_recursive(void);
-extern int mxsd_test_regex(void);
-extern int mxsd_test_notation(void);
-extern int mxsd_test_declarations(void);
-extern int mxsd_test_bindings(void);
-extern int mxsd_test_stream_bindings(void);
-extern int mxsd_test_weather_binding(void);
+extern int zxsd_test_runtime(void);
+extern int zxsd_test_advanced(void);
+extern int zxsd_test_derivation(void);
+extern int zxsd_test_simple_types(void);
+extern int zxsd_test_wildcards(void);
+extern int zxsd_test_identity(void);
+extern int zxsd_test_composition(void);
+extern int zxsd_test_element_semantics(void);
+extern int zxsd_test_groups(void);
+extern int zxsd_test_stream_models(void);
+extern int zxsd_test_mixed_any(void);
+extern int zxsd_test_recursive(void);
+extern int zxsd_test_regex(void);
+extern int zxsd_test_notation(void);
+extern int zxsd_test_declarations(void);
+extern int zxsd_test_bindings(void);
+extern int zxsd_test_stream_bindings(void);
+extern int zxsd_test_weather_binding(void);
 
-#define MXSD_RUN(entry) zassert_equal(entry(), 0, #entry " failed")
+#define ZXSD_RUN(entry) zassert_equal(entry(), 0, #entry " failed")
 
-ZTEST(mxsd_validation, test_compatibility)
+ZTEST(zxsd_validation, test_compatibility)
 {
-	MXSD_RUN(mxsd_test_compatibility);
+	ZXSD_RUN(zxsd_test_compatibility);
 }
 
-ZTEST(mxsd_validation, test_runtime)
+ZTEST(zxsd_validation, test_runtime)
 {
-	MXSD_RUN(mxsd_test_runtime);
+	ZXSD_RUN(zxsd_test_runtime);
 }
 
-ZTEST(mxsd_validation, test_advanced)
+ZTEST(zxsd_validation, test_advanced)
 {
-	MXSD_RUN(mxsd_test_advanced);
+	ZXSD_RUN(zxsd_test_advanced);
 }
 
-ZTEST(mxsd_validation, test_derivation)
+ZTEST(zxsd_validation, test_derivation)
 {
-	MXSD_RUN(mxsd_test_derivation);
+	ZXSD_RUN(zxsd_test_derivation);
 }
 
-ZTEST(mxsd_validation, test_simple_types)
+ZTEST(zxsd_validation, test_simple_types)
 {
-	MXSD_RUN(mxsd_test_simple_types);
+	ZXSD_RUN(zxsd_test_simple_types);
 }
 
-ZTEST(mxsd_validation, test_wildcards)
+ZTEST(zxsd_validation, test_wildcards)
 {
-	MXSD_RUN(mxsd_test_wildcards);
+	ZXSD_RUN(zxsd_test_wildcards);
 }
 
-ZTEST(mxsd_validation, test_identity)
+ZTEST(zxsd_validation, test_identity)
 {
-	MXSD_RUN(mxsd_test_identity);
+	ZXSD_RUN(zxsd_test_identity);
 }
 
-ZTEST(mxsd_validation, test_composition)
+ZTEST(zxsd_validation, test_composition)
 {
-	MXSD_RUN(mxsd_test_composition);
+	ZXSD_RUN(zxsd_test_composition);
 }
 
-ZTEST(mxsd_validation, test_element_semantics)
+ZTEST(zxsd_validation, test_element_semantics)
 {
-	MXSD_RUN(mxsd_test_element_semantics);
+	ZXSD_RUN(zxsd_test_element_semantics);
 }
 
-ZTEST(mxsd_validation, test_groups)
+ZTEST(zxsd_validation, test_groups)
 {
-	MXSD_RUN(mxsd_test_groups);
+	ZXSD_RUN(zxsd_test_groups);
 }
 
-ZTEST(mxsd_validation, test_stream_models)
+ZTEST(zxsd_validation, test_stream_models)
 {
-	MXSD_RUN(mxsd_test_stream_models);
+	ZXSD_RUN(zxsd_test_stream_models);
 }
 
-ZTEST(mxsd_validation, test_mixed_any)
+ZTEST(zxsd_validation, test_mixed_any)
 {
-	MXSD_RUN(mxsd_test_mixed_any);
+	ZXSD_RUN(zxsd_test_mixed_any);
 }
 
-ZTEST(mxsd_validation, test_recursive)
+ZTEST(zxsd_validation, test_recursive)
 {
-	MXSD_RUN(mxsd_test_recursive);
+	ZXSD_RUN(zxsd_test_recursive);
 }
 
-ZTEST(mxsd_validation, test_regex)
+ZTEST(zxsd_validation, test_regex)
 {
-	MXSD_RUN(mxsd_test_regex);
+	ZXSD_RUN(zxsd_test_regex);
 }
 
-ZTEST(mxsd_validation, test_notation)
+ZTEST(zxsd_validation, test_notation)
 {
-	MXSD_RUN(mxsd_test_notation);
+	ZXSD_RUN(zxsd_test_notation);
 }
 
-ZTEST(mxsd_validation, test_declarations)
+ZTEST(zxsd_validation, test_declarations)
 {
-	MXSD_RUN(mxsd_test_declarations);
+	ZXSD_RUN(zxsd_test_declarations);
 }
 
-ZTEST(mxsd_validation, test_bindings)
+ZTEST(zxsd_validation, test_bindings)
 {
-	MXSD_RUN(mxsd_test_bindings);
+	ZXSD_RUN(zxsd_test_bindings);
 }
 
-ZTEST(mxsd_validation, test_stream_bindings)
+ZTEST(zxsd_validation, test_stream_bindings)
 {
-	MXSD_RUN(mxsd_test_stream_bindings);
+	ZXSD_RUN(zxsd_test_stream_bindings);
 }
 
-ZTEST(mxsd_validation, test_weather_binding)
+ZTEST(zxsd_validation, test_weather_binding)
 {
-	MXSD_RUN(mxsd_test_weather_binding);
+	ZXSD_RUN(zxsd_test_weather_binding);
 }
 
-ZTEST_SUITE(mxsd_validation, NULL, NULL, NULL, NULL, NULL);
+ZTEST_SUITE(zxsd_validation, NULL, NULL, NULL, NULL, NULL);

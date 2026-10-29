@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-PROJECT_NAME           = mxsd
+PROJECT_NAME           = zxsd
 PROJECT_NUMBER         = 0.20.0
 PROJECT_BRIEF          = "Embedded XML Schema validation for C"
 OUTPUT_DIRECTORY       = _build_doxygen

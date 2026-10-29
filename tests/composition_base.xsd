@@ -1,5 +1,5 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           targetNamespace="urn:mxsd:composition" elementFormDefault="qualified">
+           targetNamespace="urn:zxsd:composition" elementFormDefault="qualified">
   <xs:group name="RecordFields">
     <xs:sequence><xs:element name="groupBase" type="xs:string"/></xs:sequence>
   </xs:group>

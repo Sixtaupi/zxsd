@@ -1,6 +1,6 @@
-.. _mxsd_rest_sample:
+.. _zxsd_rest_sample:
 
-mxsd REST XML client
+zxsd REST XML client
 ####################
 
 Overview
@@ -68,7 +68,7 @@ Expected application output is:
    GET XML valid: "Zephyr REST demo", 1 slide(s)
    POST XML valid: 237 bytes
    POST accepted: HTTP 200
-   mxsd REST sample done
+   zxsd REST sample done
 
 The ``/base64`` endpoint simply decodes the resource embedded in the URL. This
 keeps the public test deterministic without requiring a private mock-server

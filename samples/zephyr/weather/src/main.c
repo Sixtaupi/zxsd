@@ -43,7 +43,7 @@
 #define PROGRESS_STEP        (16u * 1024u)
 
 /* Both services require an identifying User-Agent. Adapt the project URL when forking. */
-#define USER_AGENT "User-Agent: mxsd-zephyr-weather/0.1 (https://github.com/Sixtaupi/mxsd)\r\n"
+#define USER_AGENT "User-Agent: zxsd-zephyr-weather/0.1 (https://github.com/Sixtaupi/zxsd)\r\n"
 
 /** Streaming XML response state used by the HTTP callback. */
 struct response_stream {
@@ -294,13 +294,13 @@ static void lookup_city(const char *city)
 	static met_weather_weatherdata_product_time_reader_t forecast_reader;
 	static met_weather_timeType_t forecast;
 	nominatim_searchresults_t search;
-	mxsd_bind_arena_t arena;
-	mxsd_bind_arena_t weather_arena;
+	zxsd_bind_arena_t arena;
+	zxsd_bind_arena_t weather_arena;
 	char encoded[CITY_LENGTH * 3u];
 	char latitude[24];
 	char longitude[24];
 	char url[URL_LENGTH];
-	mxsd_result_t result;
+	zxsd_result_t result;
 	int rc;
 
 	response = (struct response_stream){
@@ -325,9 +325,9 @@ static void lookup_city(const char *city)
 		       response.overflow);
 		return;
 	}
-	mxsd_bind_arena_init(&arena, place_arena_storage, sizeof(place_arena_storage));
+	zxsd_bind_arena_init(&arena, place_arena_storage, sizeof(place_arena_storage));
 	result = nominatim_searchresults_read(place_xml, &search, &arena);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		printk("XML coordonates response invalid: %s (byte %u)\n", result.message,
 		       (unsigned int)result.offset);
 		return;
@@ -353,11 +353,11 @@ static void lookup_city(const char *city)
 		.next_progress = PROGRESS_STEP,
 		.show_progress = true,
 	};
-	mxsd_bind_arena_init(&weather_arena, weather_arena_storage, sizeof(weather_arena_storage));
+	zxsd_bind_arena_init(&weather_arena, weather_arena_storage, sizeof(weather_arena_storage));
 	result = met_weather_weatherdata_product_time_reader_init(
 		&forecast_reader, &forecast, &weather_arena, weather_summary_capture, &weather,
 		NULL);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		printk("Initialisation XML impossible: %s\n", result.message);
 		return;
 	}
@@ -371,7 +371,7 @@ static void lookup_city(const char *city)
 	}
 	result = met_weather_weatherdata_product_time_reader_finish(&forecast_reader);
 	met_weather_weatherdata_product_time_reader_dispose(&forecast_reader);
-	if (response.status != 200 || result.code != MXSD_OK) {
+	if (response.status != 200 || result.code != ZXSD_OK) {
 		printk("MET Norway: transport %d, HTTP %d, XML %s\n", rc, response.status,
 		       result.message);
 		return;
@@ -409,7 +409,7 @@ int main(void)
 		return 0;
 	}
 	console_getline_init();
-	printk("mxsd weather - (c) OpenStreetMap contributors, meteo MET Norway\n");
+	printk("zxsd weather - (c) OpenStreetMap contributors, meteo MET Norway\n");
 	wait_for_network();
 
 	for (;;) {

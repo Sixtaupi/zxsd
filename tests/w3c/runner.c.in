@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#include <mxsd.h>
+#include <zxsd.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 /* @DECLARATIONS@ */
 
-static mxsd_result_t (*const validators[])(const char *xml) = {
+static zxsd_result_t (*const validators[])(const char *xml) = {
 	/* @VALIDATORS@ */
 };
 
@@ -16,7 +16,7 @@ int main(int argc, char **argv)
 	char *xml;
 	char *end;
 	unsigned long index;
-	mxsd_result_t result;
+	zxsd_result_t result;
 	if (argc != 3) {
 		return 125;
 	}
@@ -46,9 +46,9 @@ int main(int argc, char **argv)
 	xml[size] = '\0';
 	result = validators[index](xml);
 	free(xml);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		fprintf(stderr, "%d:%lu:%s:%s\n", (int)result.code, (unsigned long)result.offset,
 			result.path, result.message);
 	}
-	return result.code == MXSD_OK ? 0 : 1;
+	return result.code == ZXSD_OK ? 0 : 1;
 }

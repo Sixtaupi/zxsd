@@ -22,7 +22,7 @@
     "wildcards",
     "xsd-regular-expressions"
   ],
-  "suite": "mxsd-xsd10",
+  "suite": "zxsd-xsd10",
   "supported": [
     "annotations-and-strict-rejection",
     "custom-allocator",

@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 :root {
-    --mxsd-blue: #165d8c;
-    --mxsd-cyan: #39a9c6;
-    --mxsd-ink: #17212b;
+    --zxsd-blue: #165d8c;
+    --zxsd-cyan: #39a9c6;
+    --zxsd-ink: #17212b;
 }
 
 .wy-side-nav-search,
 .wy-nav-top {
-    background: linear-gradient(135deg, var(--mxsd-blue), var(--mxsd-cyan));
+    background: linear-gradient(135deg, var(--zxsd-blue), var(--zxsd-cyan));
 }
 
 .wy-side-nav-search > a {
@@ -20,22 +20,22 @@
     max-width: 1040px;
 }
 
-.mxsd-hero {
+.zxsd-hero {
     margin: 0 0 2rem;
     padding: 1.5rem 1.75rem;
-    border-left: 5px solid var(--mxsd-cyan);
+    border-left: 5px solid var(--zxsd-cyan);
     border-radius: 0.3rem;
     background: linear-gradient(135deg, #edf7fb, #f7fbfd);
-    color: var(--mxsd-ink);
+    color: var(--zxsd-ink);
     font-size: 1.1rem;
 }
 
-.mxsd-hero p:last-child {
+.zxsd-hero p:last-child {
     margin-bottom: 0;
 }
 
 .sd-card {
-    border-top: 3px solid var(--mxsd-cyan) !important;
+    border-top: 3px solid var(--zxsd-cyan) !important;
 }
 
 .wy-table-responsive table td,
@@ -51,6 +51,6 @@ code.literal {
 .w3c-report-frame {
     width: 100%;
     min-height: 80vh;
-    border: 1px solid var(--mxsd-border, #d0d7de);
+    border: 1px solid var(--zxsd-border, #d0d7de);
     border-radius: 6px;
 }

@@ -27,22 +27,22 @@ jobs:
         run: >-
           cmake -S . -B build-fuzz
           -DCMAKE_BUILD_TYPE=Debug
-          -DMXSD_USE_MXML=OFF
-          -DMXSD_BUILD_TESTS=OFF
-          -DMXSD_BUILD_FUZZERS=ON
+          -DZXSD_USE_MXML=OFF
+          -DZXSD_BUILD_TESTS=OFF
+          -DZXSD_BUILD_FUZZERS=ON
 
       - name: Compile XML libFuzzer target
         run: cmake --build build-fuzz --parallel
 
       - name: Fuzz portable XML validation
         run: >-
-          build-fuzz/bin/mxsd_xml_fuzzer fuzz/corpus/xml
+          build-fuzz/bin/zxsd_xml_fuzzer fuzz/corpus/xml
           -runs=10000 -max_len=4096 -timeout=10
 
       - name: Install Atheris
         run: python -m pip install --disable-pip-version-check atheris==2.3.0
 
-      - name: Fuzz mxsdc
+      - name: Fuzz zxsdc
         run: >-
-          python fuzz/fuzz_mxsdc.py fuzz/corpus/xsd
+          python fuzz/fuzz_zxsdc.py fuzz/corpus/xsd
           -runs=5000 -max_len=262144 -timeout=10

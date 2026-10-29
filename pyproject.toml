@@ -3,9 +3,9 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mxsdc"
+name = "zxsdc"
 dynamic = ["version"]
-description = "Host compiler that turns a supported XML Schema 1.0 subset into C descriptor tables for the mxsd runtime"
+description = "Host compiler that turns a supported XML Schema 1.0 subset into C descriptor tables for the zxsd runtime"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -26,25 +26,25 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Sixtaupi/mxsd"
-Source = "https://github.com/Sixtaupi/mxsd"
-Issues = "https://github.com/Sixtaupi/mxsd/issues"
+Homepage = "https://github.com/Sixtaupi/zxsd"
+Source = "https://github.com/Sixtaupi/zxsd"
+Issues = "https://github.com/Sixtaupi/zxsd/issues"
 
 [project.scripts]
-mxsdc = "mxsdc:main"
+zxsdc = "zxsdc:main"
 
 # CMakeLists.txt is the single source of truth for the project version.
 [tool.hatch.version]
 path = "CMakeLists.txt"
-pattern = "project\\(mxsd VERSION (?P<version>[0-9.]+)"
+pattern = "project\\(zxsd VERSION (?P<version>[0-9.]+)"
 
 [tool.hatch.build.targets.sdist]
-only-include = ["mxsdc", "mxsdc_lib", "CMakeLists.txt", "README.md", "LICENSE", "pyproject.toml"]
+only-include = ["zxsdc", "zxsdc_lib", "CMakeLists.txt", "README.md", "LICENSE", "pyproject.toml"]
 
 # Keep the extensionless source-tree launcher while installing the implementation
-# package under the public `mxsdc` import name.
+# package under the public `zxsdc` import name.
 [tool.hatch.build.targets.wheel]
 bypass-selection = true
 
 [tool.hatch.build.targets.wheel.force-include]
-"mxsdc_lib" = "mxsdc"
+"zxsdc_lib" = "zxsdc"

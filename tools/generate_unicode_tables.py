@@ -102,7 +102,7 @@ def main():
 
     lines = [
         "/* Generated from Unicode 4.0 categories and Unicode 16.0 blocks. */",
-        '#include "mxsd_regex.h"',
+        '#include "zxsd_regex.h"',
         "",
         "#include <string.h>",
         "",
@@ -132,7 +132,7 @@ def main():
             "\treturn category_ranges[low].category;",
             "}",
             "",
-            "int mxsd_unicode_property_matches(uint32_t codepoint, const char *property, size_t length)",
+            "int zxsd_unicode_property_matches(uint32_t codepoint, const char *property, size_t length)",
             "{",
             "\tstatic const char categories[][3] = {",
             *['\t\t"%s",' % value for value in CATEGORIES],

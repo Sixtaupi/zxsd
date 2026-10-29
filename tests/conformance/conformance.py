@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the licensed mxsd conformance manifest and emit a JSON report."""
+"""Run the licensed zxsd conformance manifest and emit a JSON report."""
 
 import argparse
 import json

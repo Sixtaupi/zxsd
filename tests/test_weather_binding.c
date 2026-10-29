@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 mxsd contributors
+ * Copyright (c) 2026 zxsd contributors
  * SPDX-License-Identifier: Apache-2.0
  */
 /** @file @brief Offline tests of the real MET schema and the sample's typed callback. */
@@ -23,13 +23,13 @@ static met_weather_timeType_t forecast;
 static unsigned char storage[4096];
 
 /** Feed fragments without keeping the complete HTTP response. */
-static mxsd_result_t feed(const char *xml)
+static zxsd_result_t feed(const char *xml)
 {
 	size_t length = strlen(xml);
 	size_t offset = 0u;
-	mxsd_result_t result = reader.stream.xml.result;
+	zxsd_result_t result = reader.stream.xml.result;
 
-	while (offset < length && result.code == MXSD_OK) {
+	while (offset < length && result.code == ZXSD_OK) {
 		size_t count = length - offset > 7u ? 7u : length - offset;
 
 		result = met_weather_weatherdata_product_time_reader_feed(&reader, xml + offset,
@@ -43,28 +43,28 @@ static mxsd_result_t feed(const char *xml)
 static void weather(int invalid_later)
 {
 	struct weather_summary summary = {0};
-	mxsd_bind_arena_t arena;
-	mxsd_result_t result;
+	zxsd_bind_arena_t arena;
+	zxsd_result_t result;
 	size_t index;
-	size_t iterations = MXSD_MAX_INPUT > 262144u ? 512u : 4u;
+	size_t iterations = ZXSD_MAX_INPUT > 262144u ? 512u : 4u;
 
-	mxsd_bind_arena_init(&arena, storage, sizeof(storage));
+	zxsd_bind_arena_init(&arena, storage, sizeof(storage));
 	result = met_weather_weatherdata_product_time_reader_init(
 		&reader, &forecast, &arena, weather_summary_capture, &summary, NULL);
-	CHECK(result.code == MXSD_OK);
+	CHECK(result.code == ZXSD_OK);
 	result = feed("<weatherdata created='2026-10-24T12:00:00Z'><product class='pointData'>");
-	CHECK(result.code == MXSD_OK);
+	CHECK(result.code == ZXSD_OK);
 	/* An incomplete first forecast must not produce a summary. */
 	result = feed("<time from='2026-10-24T12:00:00Z' to='2026-10-24T12:00:00Z'>"
 		      "<location><pressure unit='hPa' value='1010'/></location></time>");
-	CHECK(result.code == MXSD_OK && !summary.complete && arena.used == 0u);
+	CHECK(result.code == ZXSD_OK && !summary.complete && arena.used == 0u);
 	result = feed(
 		"<time from='2026-10-24T13:00:00Z' to='2026-10-24T13:00:00Z'>"
 		"<location latitude='45.7578' longitude='4.8320'>"
 		"<pressure unit='hPa' value='1013.5'/><cloudiness percent='25'/>"
 		"<temperature unit='celsius' value='12.5'/><humidity unit='percent' value='65'/>"
 		"<windSpeed mps='3.2' name='Light &amp; gentle'/></location></time>");
-	CHECK(result.code == MXSD_OK && summary.complete && arena.used == 0u);
+	CHECK(result.code == ZXSD_OK && summary.complete && arena.used == 0u);
 	CHECK(strcmp(summary.time, "2026-10-24T13:00:00Z") == 0);
 	CHECK(strcmp(summary.temperature, "12.5") == 0 &&
 	      strcmp(summary.temperature_unit, "celsius") == 0);
@@ -73,26 +73,26 @@ static void weather(int invalid_later)
 	      strcmp(summary.wind_name, "Light & gentle") == 0);
 	CHECK(strcmp(summary.pressure, "1013.5") == 0 && strcmp(summary.pressure_unit, "hPa") == 0);
 	CHECK(strcmp(summary.cloudiness, "25") == 0);
-	for (index = 0u; index < iterations && result.code == MXSD_OK; ++index) {
+	for (index = 0u; index < iterations && result.code == ZXSD_OK; ++index) {
 		result = feed(
 			"<time from='2026-10-24T14:00:00Z' to='2026-10-24T14:00:00Z'><location>");
-		if (result.code == MXSD_OK) {
+		if (result.code == ZXSD_OK) {
 			result = feed(invalid_later && index + 1u == iterations
 					      ? "<temperature unit='celsius' value='invalid'/>"
 					      : "<temperature unit='celsius' value='13'/>");
 		}
-		if (result.code == MXSD_OK) {
+		if (result.code == ZXSD_OK) {
 			result = feed("</location></time>");
 		}
 		CHECK(arena.used == 0u);
 	}
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		result = feed("</product></weatherdata>");
 	}
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		result = met_weather_weatherdata_product_time_reader_finish(&reader);
 	}
-	CHECK(result.code == (invalid_later ? MXSD_ERR_INVALID_VALUE : MXSD_OK));
+	CHECK(result.code == (invalid_later ? ZXSD_ERR_INVALID_VALUE : ZXSD_OK));
 	CHECK(strcmp(summary.temperature, "12.5") == 0);
 	met_weather_weatherdata_product_time_reader_dispose(&reader);
 	CHECK(arena.used == 0u && forecast.location == NULL);
@@ -102,21 +102,21 @@ static void weather(int invalid_later)
 static void limits(void)
 {
 	struct weather_summary summary = {0};
-	mxsd_bind_arena_t arena;
-	mxsd_result_t result;
+	zxsd_bind_arena_t arena;
+	zxsd_result_t result;
 
-	mxsd_bind_arena_init(&arena, storage, 32u);
+	zxsd_bind_arena_init(&arena, storage, 32u);
 	CHECK(met_weather_weatherdata_product_time_reader_init(
 		      &reader, &forecast, &arena, weather_summary_capture, &summary, NULL)
-		      .code == MXSD_OK);
+		      .code == ZXSD_OK);
 	result = feed("<weatherdata created='2026-10-24T12:00:00Z'><product class='pointData'>"
 		      "<time from='2026-10-24T12:00:00Z' to='2026-10-24T13:00:00Z'><location/>");
-	CHECK(result.code == MXSD_ERR_RESOURCE_LIMIT && !summary.complete && arena.used == 0u);
+	CHECK(result.code == ZXSD_ERR_RESOURCE_LIMIT && !summary.complete && arena.used == 0u);
 	met_weather_weatherdata_product_time_reader_dispose(&reader);
 }
 
 /** Shared entry point used by both CTest and the Zephyr extern wrapper. */
-int mxsd_test_weather_binding(void)
+int zxsd_test_weather_binding(void)
 {
 	failures = 0;
 	weather(0);
@@ -125,9 +125,9 @@ int mxsd_test_weather_binding(void)
 	return failures != 0;
 }
 
-#ifndef MXSD_TEST_NO_MAIN
+#ifndef ZXSD_TEST_NO_MAIN
 int main(void)
 {
-	return mxsd_test_weather_binding();
+	return zxsd_test_weather_binding();
 }
 #endif

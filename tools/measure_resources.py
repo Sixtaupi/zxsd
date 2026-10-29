@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Produce deterministic mxsd resource measurements from build artifacts."""
+"""Produce deterministic zxsd resource measurements from build artifacts."""
 
 import argparse
 import json
@@ -54,8 +54,8 @@ def main():
     report = {
         "platform": args.platform,
         "generated_code_bytes": generated["text"],
-        "libmxsd_flash_bytes": runtime["text"] + runtime["data"],
-        "libmxsd_static_ram_bytes": runtime["data"] + runtime["bss"],
+        "libzxsd_flash_bytes": runtime["text"] + runtime["data"],
+        "libzxsd_static_ram_bytes": runtime["data"] + runtime["bss"],
         "image_flash_bytes": image["text"] + image["data"],
         "image_static_ram_bytes": image["data"] + image["bss"],
         "largest_function_stack_frame_bytes": frame,

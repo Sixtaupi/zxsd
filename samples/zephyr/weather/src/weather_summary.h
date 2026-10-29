@@ -28,6 +28,6 @@ struct weather_summary {
  * @param[in] forecast Transient generated forecast structure.
  * @return Continue, validate only, or callback error if a displayed value will not fit.
  */
-mxsd_bind_action_t weather_summary_capture(void *user_data, const met_weather_timeType_t *forecast);
+zxsd_bind_action_t weather_summary_capture(void *user_data, const met_weather_timeType_t *forecast);
 
 #endif

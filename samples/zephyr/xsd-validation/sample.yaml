@@ -1,8 +1,8 @@
 sample:
-  name: mxsd XSD validation
+  name: zxsd XSD validation
   description: Validate XML documents against a schema compiled on the build host
 tests:
-  mxsd.xsd_validation:
+  zxsd.xsd_validation:
     tags: 
       - xml
       - validation
@@ -17,4 +17,4 @@ tests:
       regex:
         - "valid document: valid"
         - "invalid document: invalid, missing required element \\(device\\)"
-        - "mxsd XSD validation sample done"
+        - "zxsd XSD validation sample done"

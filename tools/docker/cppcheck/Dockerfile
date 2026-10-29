@@ -1,5 +1,5 @@
 ###### BUILD IMAGE
-FROM alpine:3.17 AS build
+FROM alpine:3.17@sha256:8fc3dacfb6d69da8d44e42390de777e48577085db99aa4e4af35f483eb08b989 AS build
 
 # Several installs
 RUN apk update
@@ -13,7 +13,7 @@ RUN mkdir build && cd build && cmake .. && cmake --build .
 
 ###################################
 ###### FINAL IMAGE
-FROM alpine:latest AS runtime
+FROM alpine:3.17@sha256:8fc3dacfb6d69da8d44e42390de777e48577085db99aa4e4af35f483eb08b989 AS runtime
 RUN apk update && \
     apk add --no-cache build-base cmake libstdc++ python3 py3-pip
 # Python is installed

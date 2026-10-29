@@ -9,7 +9,7 @@
  * @brief libFuzzer entry point for portable XML validation.
  */
 
-#include "device.mxsd.h"
+#include "device.zxsd.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +19,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
 	char *xml;
 
-	if (size > MXSD_MAX_INPUT) {
+	if (size > ZXSD_MAX_INPUT) {
 		return 0;
 	}
 	xml = malloc(size + 1u);

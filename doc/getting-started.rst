@@ -6,7 +6,7 @@ Requirements
 
 * a C99 compiler;
 * CMake 3.16 or newer;
-* Python 3 to run ``mxsdc`` and the tests.
+* Python 3 to run ``zxsdc`` and the tests.
 
 Prefer a compiler/runtime pair from the same release. On upgrades, follow
 :doc:`compatibility`: legacy unversioned output must be regenerated, and all
@@ -19,7 +19,7 @@ Linux and macOS:
 
 .. code-block:: console
 
-   $ cmake -S . -B build -DMXSD_USE_MXML=OFF
+   $ cmake -S . -B build -DZXSD_USE_MXML=OFF
    $ cmake --build build
    $ ctest --test-dir build --output-on-failure
 
@@ -27,7 +27,7 @@ Windows PowerShell with Visual Studio Build Tools:
 
 .. code-block:: powershell
 
-   cmake -S . -B build -DMXSD_USE_MXML=OFF
+   cmake -S . -B build -DZXSD_USE_MXML=OFF
    cmake --build build --config Release
    ctest --test-dir build -C Release --output-on-failure
 
@@ -38,15 +38,15 @@ Given ``device.xsd``, generate a validator in ``generated``:
 
 .. code-block:: console
 
-   $ ./mxsdc device.xsd -o generated
+   $ ./zxsdc device.xsd -o generated
 
 On Windows, invoke the extensionless script through Python:
 
 .. code-block:: powershell
 
-   python .\mxsdc device.xsd -o generated
+   python .\zxsdc device.xsd -o generated
 
-The output contains ``device.mxsd.c`` and ``device.mxsd.h``. The header exposes
+The output contains ``device.zxsd.c`` and ``device.zxsd.h``. The header exposes
 the generated schema accessor and convenience validation functions. File and
 symbol names are derived from the XSD filename.
 
@@ -56,15 +56,15 @@ Validate a complete document
 .. code-block:: c
 
    #include <stdio.h>
-   #include "device.mxsd.h"
+   #include "device.zxsd.h"
 
    int main(void)
    {
            const char xml[] =
                    "<device id='7'><name>node</name><sample>1</sample></device>";
-           mxsd_result_t result = device_validate(xml);
+           zxsd_result_t result = device_validate(xml);
 
-           if (result.code != MXSD_OK) {
+           if (result.code != ZXSD_OK) {
                    fprintf(stderr, "%s at byte %lu (schema item: %s)\n",
                            result.message, (unsigned long)result.offset,
                            result.path != NULL ? result.path : "unknown");
@@ -78,11 +78,11 @@ CMake helper to generate and compile it during the build:
 
 .. code-block:: cmake
 
-   find_package(mxsd CONFIG REQUIRED)
+   find_package(zxsd CONFIG REQUIRED)
 
    add_executable(application main.c)
-   mxsd_generate(TARGET application SCHEMA device.xsd)
-   target_link_libraries(application PRIVATE mxsd::mxsd)
+   zxsd_generate(TARGET application SCHEMA device.xsd)
+   target_link_libraries(application PRIVATE zxsd::zxsd)
 
 Add ``BINDINGS`` to generate typed bindings. For composed schemas, pass files
 reached through ``xs:include``, ``xs:import``, or ``xs:redefine`` to
@@ -90,20 +90,20 @@ reached through ``xs:include``, ``xs:import``, or ``xs:redefine`` to
 ``BIND_ROOT`` and ``SCHEMA_PATH`` arguments map to repeated compiler options;
 ``MAX_SCHEMA_COMPLEXITY`` sets the compiler limit.
 
-The installed package exports ``mxsd::mxsd``, ``mxsd_generate()``, and the
-host ``mxsdc`` location. Set ``CMAKE_PREFIX_PATH`` to the installation prefix
+The installed package exports ``zxsd::zxsd``, ``zxsd_generate()``, and the
+host ``zxsdc`` location. Set ``CMAKE_PREFIX_PATH`` to the installation prefix
 when it is outside CMake's normal search locations.
 
 The complete cross-platform example in ``samples/host`` uses this helper:
 
 .. code-block:: console
 
-   $ cmake -S samples/host -B build-example -DMXSD_USE_MXML=OFF
+   $ cmake -S samples/host -B build-example -DZXSD_USE_MXML=OFF
    $ cmake --build build-example
-   $ ./build-example/mxsd_example
+   $ ./build-example/zxsd_example
 
 Windows multi-configuration generators place the executable at
-``build-example\Release\mxsd_example.exe``.
+``build-example\Release\zxsd_example.exe``.
 
 Consume parser events
 *********************
@@ -114,60 +114,60 @@ values must already be XML-decoded.
 
 .. code-block:: c
 
-   mxsd_stream_t stream;
-   mxsd_result_t result = device_stream_init(&stream);
+   zxsd_stream_t stream;
+   zxsd_result_t result = device_stream_init(&stream);
 
-   if (result.code == MXSD_OK)
-           result = mxsd_start_element(&stream, NULL, "device");
-   if (result.code == MXSD_OK)
-           result = mxsd_attribute(&stream, NULL, "id", "7");
-   if (result.code == MXSD_OK)
-           result = mxsd_start_content(&stream);
+   if (result.code == ZXSD_OK)
+           result = zxsd_start_element(&stream, NULL, "device");
+   if (result.code == ZXSD_OK)
+           result = zxsd_attribute(&stream, NULL, "id", "7");
+   if (result.code == ZXSD_OK)
+           result = zxsd_start_content(&stream);
    /* Send child start/text/end events in document order. */
-   if (result.code == MXSD_OK)
-           result = mxsd_end_element(&stream, NULL, "device");
-   if (result.code == MXSD_OK)
-           result = mxsd_stream_finish(&stream);
+   if (result.code == ZXSD_OK)
+           result = zxsd_end_element(&stream, NULL, "device");
+   if (result.code == ZXSD_OK)
+           result = zxsd_stream_finish(&stream);
 
-Every operation returns a sticky :c:struct:`mxsd_result_t`; stop sending events
+Every operation returns a sticky :c:struct:`zxsd_result_t`; stop sending events
 after the first error. Resolve the QName value of ``xsi:type`` in the XML
-frontend before calling :c:func:`mxsd_xsi_type`.
+frontend before calling :c:func:`zxsd_xsi_type`.
 
 Consume raw XML fragments
 *************************
 
-Use :c:struct:`mxsd_xml_reader_t` when a socket or HTTP client returns raw XML
+Use :c:struct:`zxsd_xml_reader_t` when a socket or HTTP client returns raw XML
 in pieces. Fragment boundaries may occur anywhere in the document, and the
 reader does not retain pointers into the input buffer.
 
 .. code-block:: c
 
-   mxsd_xml_reader_t reader;
-   mxsd_result_t result = mxsd_xml_reader_init(&reader, device_schema());
+   zxsd_xml_reader_t reader;
+   zxsd_result_t result = zxsd_xml_reader_init(&reader, device_schema());
 
-   while (result.code == MXSD_OK && receive_fragment(buffer, sizeof(buffer), &length))
-           result = mxsd_xml_reader_feed(&reader, buffer, length);
-   if (result.code == MXSD_OK)
-           result = mxsd_xml_reader_finish(&reader);
-   mxsd_xml_reader_dispose(&reader);
+   while (result.code == ZXSD_OK && receive_fragment(buffer, sizeof(buffer), &length))
+           result = zxsd_xml_reader_feed(&reader, buffer, length);
+   if (result.code == ZXSD_OK)
+           result = zxsd_xml_reader_finish(&reader);
+   zxsd_xml_reader_dispose(&reader);
 
 The embedded validator preserves the event API's sticky first error. Storage
-for an incomplete XML token is fixed by ``MXSD_XML_TOKEN_CAPACITY`` and decoded
-text is bounded by ``MXSD_MAX_TEXT_LENGTH``.
-Install an :c:type:`mxsd_xml_event_fn` with
-:c:func:`mxsd_xml_reader_set_event_callback` to copy a compact application
+for an incomplete XML token is fixed by ``ZXSD_XML_TOKEN_CAPACITY`` and decoded
+text is bounded by ``ZXSD_MAX_TEXT_LENGTH``.
+Install an :c:type:`zxsd_xml_event_fn` with
+:c:func:`zxsd_xml_reader_set_event_callback` to copy a compact application
 summary while the complete document continues to be validated.
 
 Memory policy
 *************
 
-Set ``MXSD_NO_HEAP=ON`` for a zero-heap runtime. Schemas without identity
+Set ``ZXSD_NO_HEAP=ON`` for a zero-heap runtime. Schemas without identity
 constraints then validate without allocation. Identity constraints require
 bounded scratch storage and can use an application-owned
-:c:struct:`mxsd_allocator_t` through
-:c:func:`mxsd_validate_with_allocator`.
+:c:struct:`zxsd_allocator_t` through
+:c:func:`zxsd_validate_with_allocator`.
 
-All ``MXSD_MAX_*`` values can be overridden at compile time. Exceeding a limit
+All ``ZXSD_MAX_*`` values can be overridden at compile time. Exceeding a limit
 returns a resource or streaming error; the runtime does not grow without a
 bound. See :doc:`resource-usage` for measured Cortex-M figures.
 

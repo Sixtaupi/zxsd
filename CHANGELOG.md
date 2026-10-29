@@ -15,9 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows how to validate Mini-XML trees with it.
 - The `samples/zephyr/bindings-stream` sample reads, writes and validates the
   `bindings` settings document with the fragment-based APIs only.
-- Deterministic `mxsdc` host compiler generating immutable C99 schema
+- Deterministic `zxsdc` host compiler generating immutable C99 schema
   descriptors and schema-specific validation entry points.
-- Portable `libmxsd` runtime for validating complete XML documents, decoded
+- Portable `libzxsd` runtime for validating complete XML documents, decoded
   parser events, and incremental raw-XML byte fragments.
 - Supported XSD 1.0 subset covering:
   - simple and complex types, derivation, lists, unions, and built-in datatypes;
@@ -28,13 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     defaults, fixed values, `xsi:nil`, and `xsi:type`;
   - `xs:unique`, `xs:key`, `xs:keyref`, and restricted identity XPath.
 - Typed C structures and validating read/write functions generated with
-  `mxsdc --bindings`, using caller-owned arenas and output buffers.
-- Single-pass typed subtree delivery generated with `mxsdc --stream-bind`.
+  `zxsdc --bindings`, using caller-owned arenas and output buffers.
+- Single-pass typed subtree delivery generated with `zxsdc --stream-bind`.
 - Fixed-capacity event-driven validation and incremental XML tokenization without
   retaining input fragments.
 - Configurable input, depth, text, namespace, identity, content-model, regex,
   and schema-complexity limits.
-- Custom allocator support and `MXSD_NO_HEAP` builds. Schemas without identity
+- Custom allocator support and `ZXSD_NO_HEAP` builds. Schemas without identity
   constraints require no runtime allocation; identity constraints can use an
   explicit application allocator.
 - Zephyr module, Kconfig integration, generated sizing recommendations, and
@@ -42,11 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allocation-free portable XML backend and optional Mini-XML 4 tree adapter.
 - Linux, macOS, Windows, and Zephyr builds, including static and shared host
   libraries.
-- Installed CMake package, `mxsd_generate()` build integration, pkg-config
-  metadata, and independently installable `mxsdc` Python package.
+- Installed CMake package, `zxsd_generate()` build integration, pkg-config
+  metadata, and independently installable `zxsdc` Python package.
 - Versioned runtime, schema-descriptor, and binding compatibility epochs,
-  generated link guards, runtime configuration checks, `mxsdc --version`,
-  `mxsdc --abi-info`, and `mxsd_version()`.
+  generated link guards, runtime configuration checks, `zxsdc --version`,
+  `zxsdc --abi-info`, and `zxsd_version()`.
 - Project-owned positive and negative conformance manifest with machine-readable
   results.
 - Optional W3C XSD 1.0 harness with separate `passed`, `failed`,
@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known limitations
 
-- mxsd implements the subset documented in [SUPPORT.md](SUPPORT.md); it does not
+- zxsd implements the subset documented in [SUPPORT.md](SUPPORT.md); it does not
   claim complete XSD 1.0 support.
 - Typed bindings support a stricter subset than validation. Unsupported binding
   representations fail during generation instead of dropping data.

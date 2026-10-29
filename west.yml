@@ -1,6 +1,6 @@
 manifest:
   self:
-    path: mxsd
+    path: zxsd
 
   remotes:
     - name: zephyrproject-rtos

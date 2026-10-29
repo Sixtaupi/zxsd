@@ -1,19 +1,19 @@
-.. _mxsd_xsd_validation_mxml_sample:
+.. _zxsd_xsd_validation_mxml_sample:
 
-mxsd Mini-XML validation
+zxsd Mini-XML validation
 ########################
 
 Overview
 ********
 
 This sample is for applications that already parse XML with Mini-XML 4.
-Instead of validating the XML text, mxsd validates the Mini-XML tree against a
+Instead of validating the XML text, zxsd validates the Mini-XML tree against a
 known schema. ``device.xsd`` is compiled on the build host with the
-``mxsd_generate()`` CMake helper; the target never parses the schema. On the
+``zxsd_generate()`` CMake helper; the target never parses the schema. On the
 target, the sample:
 
 #. loads a document that conforms to ``device.xsd`` with ``mxmlLoadString()``
-   and validates the tree with ``mxsd_mxml_validate()``;
+   and validates the tree with ``zxsd_mxml_validate()``;
 #. does the same with a document that lacks the required ``sample`` element
    and prints the structured error returned by the validator.
 
@@ -26,13 +26,13 @@ Requirements
 ``CONFIG_MXML`` is defined by a Zephyr module for Mini-XML 4, which must be
 present in the west workspace. The upstream ``v4.0.6`` release pinned in this
 repository's ``west.yml`` does not include one. When ``CONFIG_MXML`` is enabled,
-the mxsd module builds its Mini-XML backend, which provides
-``mxsd_mxml_validate()``, in place of the built-in backend. Validation of XML
+the zxsd module builds its Mini-XML backend, which provides
+``zxsd_mxml_validate()``, in place of the built-in backend. Validation of XML
 text, for example with ``device_validate()``, behaves the same with either
 backend.
 
 Mini-XML allocates its tree from the libc heap, so this sample is not
-allocation-free; the mxsd validation itself does not allocate. ``prj.conf``
+allocation-free; the zxsd validation itself does not allocate. ``prj.conf``
 reserves a 4 KiB arena with ``CONFIG_COMMON_LIBC_MALLOC_ARENA_SIZE``; size it
 for the largest document parsed at once.
 
@@ -44,11 +44,11 @@ Kconfig reference:
 
 * schema-derived limits (attributes, depth, particles, names, regex and
   content-model capacities), copied after review from the fragment printed by
-  ``python3 mxsdc device.xsd -o generated --zephyr-config``;
-* application budgets that the XSD cannot bound: ``CONFIG_MXSD_MAX_INPUT``
-  and ``CONFIG_MXSD_MAX_TEXT_LENGTH``.
+  ``python3 zxsdc device.xsd -o generated --zephyr-config``;
+* application budgets that the XSD cannot bound: ``CONFIG_ZXSD_MAX_INPUT``
+  and ``CONFIG_ZXSD_MAX_TEXT_LENGTH``.
 
-``CMakeLists.txt`` passes ``ZEPHYR_CONFIG`` to ``mxsd_generate()``, so the
+``CMakeLists.txt`` passes ``ZEPHYR_CONFIG`` to ``zxsd_generate()``, so the
 generated validator checks the schema-derived values at compile time: the
 build fails if one of them drops below what ``device.xsd`` requires. When the
 schema changes, regenerate the fragment and update ``prj.conf``.
@@ -69,7 +69,7 @@ Expected output:
 
    valid document: valid
    invalid document: invalid, incorrect element order (device) at offset 6
-   mxsd Mini-XML validation sample done
+   zxsd Mini-XML validation sample done
 
 The adapter walks a parsed tree, so its error codes and offsets can differ from
 those reported by the built-in backend for the same document.

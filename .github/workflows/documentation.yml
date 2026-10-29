@@ -46,7 +46,7 @@ jobs:
       - name: Upload documentation archive
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: mxsd-documentation-${{ github.sha }}
+          name: zxsd-documentation-${{ github.sha }}
           path: site
           if-no-files-found: error
           retention-days: 14

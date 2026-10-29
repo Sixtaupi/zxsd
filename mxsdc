@@ -1,9 +1,0 @@
-#!/usr/bin/env python3
-"""Compile the supported XML Schema subset to deterministic C descriptors."""
-
-import sys
-
-from mxsdc_lib import *  # noqa: F403
-
-if __name__ == "__main__":
-    sys.exit(main())  # noqa: F405

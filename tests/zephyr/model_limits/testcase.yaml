@@ -1,7 +1,7 @@
 tests:
-  mxsd.model_limits:
+  zxsd.model_limits:
     tags:
-      - mxsd
+      - zxsd
       - validation
     platform_allow:
       - qemu_x86

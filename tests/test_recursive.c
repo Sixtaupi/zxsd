@@ -9,14 +9,14 @@
  * @brief Runtime tests for recursive named complex types.
  */
 
-#include "recursive.mxsd.h"
+#include "recursive.zxsd.h"
 #include <stdio.h>
 #include <string.h>
 
-#define RECURSIVE_XML_CAPACITY ((MXSD_MAX_DEPTH * 48u) + 64u)
+#define RECURSIVE_XML_CAPACITY ((ZXSD_MAX_DEPTH * 48u) + 64u)
 
 /** Validate one instance and compare its status with the expected result. */
-static int expect(mxsd_result_t result, mxsd_error_t expected)
+static int expect(zxsd_result_t result, zxsd_error_t expected)
 {
 	if (result.code != expected) {
 		fprintf(stderr, "wanted %d, got %d (%s) at %lu\n", (int)expected, (int)result.code,
@@ -64,46 +64,46 @@ static int build_nodes(char *xml, size_t capacity, size_t node_count)
 }
 
 /** Stream a recursive document without retaining it. */
-static mxsd_result_t stream_nodes(size_t node_count)
+static zxsd_result_t stream_nodes(size_t node_count)
 {
-	mxsd_stream_t stream;
-	mxsd_result_t result;
+	zxsd_stream_t stream;
+	zxsd_result_t result;
 	size_t i;
 
 	result = recursive_node_stream_init(&stream);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		return result;
 	}
-	result = mxsd_start_element(&stream, NULL, "node");
-	for (i = 0u; i < node_count && result.code == MXSD_OK; ++i) {
-		result = mxsd_start_element(&stream, NULL, "value");
-		if (result.code == MXSD_OK) {
-			result = mxsd_text(&stream, "x", 1u);
+	result = zxsd_start_element(&stream, NULL, "node");
+	for (i = 0u; i < node_count && result.code == ZXSD_OK; ++i) {
+		result = zxsd_start_element(&stream, NULL, "value");
+		if (result.code == ZXSD_OK) {
+			result = zxsd_text(&stream, "x", 1u);
 		}
-		if (result.code == MXSD_OK) {
-			result = mxsd_end_element(&stream, NULL, "value");
+		if (result.code == ZXSD_OK) {
+			result = zxsd_end_element(&stream, NULL, "value");
 		}
-		if (i + 1u < node_count && result.code == MXSD_OK) {
-			result = mxsd_start_element(&stream, NULL, "child");
+		if (i + 1u < node_count && result.code == ZXSD_OK) {
+			result = zxsd_start_element(&stream, NULL, "child");
 		}
 	}
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		return result;
 	}
-	for (i = 1u; i < node_count && result.code == MXSD_OK; ++i) {
-		result = mxsd_end_element(&stream, NULL, "child");
+	for (i = 1u; i < node_count && result.code == ZXSD_OK; ++i) {
+		result = zxsd_end_element(&stream, NULL, "child");
 	}
-	if (result.code == MXSD_OK) {
-		result = mxsd_end_element(&stream, NULL, "node");
+	if (result.code == ZXSD_OK) {
+		result = zxsd_end_element(&stream, NULL, "node");
 	}
-	if (result.code == MXSD_OK) {
-		result = mxsd_stream_finish(&stream);
+	if (result.code == ZXSD_OK) {
+		result = zxsd_stream_finish(&stream);
 	}
 	return result;
 }
 
 /** Run direct, mutual, bounded-depth, and streaming recursion cases. */
-int mxsd_test_recursive(void)
+int zxsd_test_recursive(void)
 {
 	char xml[RECURSIVE_XML_CAPACITY];
 	int failures = 0;
@@ -111,34 +111,34 @@ int mxsd_test_recursive(void)
 	failures +=
 		expect(recursive_node_validate("<node><value>root</value><child><value>leaf</value>"
 					       "</child></node>"),
-		       MXSD_OK);
+		       ZXSD_OK);
 	failures += expect(recursive_node_validate("<node><value>root</value><child/></node>"),
-			   MXSD_ERR_MISSING_ELEMENT);
+			   ZXSD_ERR_MISSING_ELEMENT);
 	failures +=
 		expect(recursive_left_validate("<left><right><left><right/></left></right></left>"),
-		       MXSD_OK);
+		       ZXSD_OK);
 	failures += expect(recursive_globalNode_validate(
 				   "<globalNode><value>root</value><globalNode><value>leaf</value>"
 				   "</globalNode></globalNode>"),
-			   MXSD_OK);
+			   ZXSD_OK);
 
-	if (!build_nodes(xml, sizeof(xml), MXSD_MAX_DEPTH - 1u)) {
+	if (!build_nodes(xml, sizeof(xml), ZXSD_MAX_DEPTH - 1u)) {
 		return 1;
 	}
-	failures += expect(recursive_node_validate(xml), MXSD_OK);
-	if (!build_nodes(xml, sizeof(xml), MXSD_MAX_DEPTH)) {
+	failures += expect(recursive_node_validate(xml), ZXSD_OK);
+	if (!build_nodes(xml, sizeof(xml), ZXSD_MAX_DEPTH)) {
 		return 1;
 	}
-	failures += expect(recursive_node_validate(xml), MXSD_ERR_EXCESSIVE_NESTING);
+	failures += expect(recursive_node_validate(xml), ZXSD_ERR_EXCESSIVE_NESTING);
 
-	failures += expect(stream_nodes(MXSD_MAX_DEPTH - 1u), MXSD_OK);
-	failures += expect(stream_nodes(MXSD_MAX_DEPTH), MXSD_ERR_EXCESSIVE_NESTING);
+	failures += expect(stream_nodes(ZXSD_MAX_DEPTH - 1u), ZXSD_OK);
+	failures += expect(stream_nodes(ZXSD_MAX_DEPTH), ZXSD_ERR_EXCESSIVE_NESTING);
 	return failures ? 1 : 0;
 }
 
-#ifndef MXSD_TEST_NO_MAIN
+#ifndef ZXSD_TEST_NO_MAIN
 int main(void)
 {
-	return mxsd_test_recursive();
+	return zxsd_test_recursive();
 }
 #endif

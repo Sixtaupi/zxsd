@@ -4,7 +4,7 @@ compiler, schema, expected, build = map(pathlib.Path, sys.argv[1:])
 with tempfile.TemporaryDirectory(dir=build) as a, tempfile.TemporaryDirectory(dir=build) as b:
     for out in (a, b):
         subprocess.run([sys.executable, str(compiler), str(schema), "-o", out], check=True)
-    for name in ("device.mxsd.c", "device.mxsd.h"):
+    for name in ("device.zxsd.c", "device.zxsd.h"):
         assert (pathlib.Path(a) / name).read_bytes() == (pathlib.Path(b) / name).read_bytes(), name
         assert (pathlib.Path(a) / name).read_text(encoding="utf-8") == (expected / name).read_text(
             encoding="utf-8"
@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory(dir=build) as d:
         text=True,
     )
     assert p.returncode == 0, p.stderr
-    assert (directory / "out" / "first.mxsd.c").is_file()
+    assert (directory / "out" / "first.zxsd.c").is_file()
 
 with tempfile.TemporaryDirectory(dir=build) as d:
     directory = pathlib.Path(d)
@@ -125,7 +125,7 @@ with tempfile.TemporaryDirectory(dir=build) as d:
         )
         assert result.returncode != 0
         assert diagnostic in result.stderr
-    generated = (output / "multi_first.mxsd.c").read_text(encoding="utf-8")
+    generated = (output / "multi_first.zxsd.c").read_text(encoding="utf-8")
     assert '"first"' in generated and '"second"' in generated
 
 with tempfile.TemporaryDirectory(dir=build) as d:
@@ -187,11 +187,11 @@ with tempfile.TemporaryDirectory(dir=build) as d:
         ],
         check=True,
     )
-    declarations_source = (directory / "declarations-out" / "declarations_only.mxsd.c").read_text(
+    declarations_source = (directory / "declarations-out" / "declarations_only.zxsd.c").read_text(
         encoding="utf-8"
     )
     assert "schema_unbound" in declarations_source
-    assert "mxsd_validate(NULL" not in declarations_source
+    assert "zxsd_validate(NULL" not in declarations_source
 
     repeated_derivation = directory / "repeated-derivation.xsd"
     repeated_derivation.write_text(
@@ -558,7 +558,7 @@ for depth, succeeds in ((32, True), (33, False)):
         )
         assert (p.returncode == 0) == succeeds, (depth, p.stderr)
         if not succeeds:
-            assert "MXSD_MAX_REGEX_DEPTH" in p.stderr
+            assert "ZXSD_MAX_REGEX_DEPTH" in p.stderr
 
 for name, declarations, simple_type, diagnostic in (
     (
@@ -657,7 +657,7 @@ for depth, succeeds in ((32, True), (33, False)):
         )
         assert (p.returncode == 0) == succeeds, (depth, p.stderr)
         if not succeeds:
-            assert "MXSD_MAX_REGEX_DEPTH" in p.stderr
+            assert "ZXSD_MAX_REGEX_DEPTH" in p.stderr
 
 # Typed bindings: deterministic, golden, opt-in, and explicit about unsupported constructs.
 with tempfile.TemporaryDirectory(dir=build) as a, tempfile.TemporaryDirectory(dir=build) as b:
@@ -665,7 +665,7 @@ with tempfile.TemporaryDirectory(dir=build) as a, tempfile.TemporaryDirectory(di
         subprocess.run(
             [sys.executable, str(compiler), str(schema), "-o", out, "--bindings"], check=True
         )
-    for name in ("device.mxsd.c", "device.mxsd.h", "device.bind.c", "device.bind.h"):
+    for name in ("device.zxsd.c", "device.zxsd.h", "device.bind.c", "device.bind.h"):
         assert (pathlib.Path(a) / name).read_bytes() == (pathlib.Path(b) / name).read_bytes(), name
         assert (pathlib.Path(a) / name).read_text(encoding="utf-8") == (expected / name).read_text(
             encoding="utf-8"
@@ -872,7 +872,7 @@ def compile_zephyr_profile(directory, body, *options):
 def profile_values(directory, stem="profile"):
     """Read active assignments separately from intentionally commented policy suggestions."""
     fragment = (pathlib.Path(directory) / "out" / (stem + ".conf")).read_text(encoding="utf-8")
-    values = dict(re.findall(r"^CONFIG_MXSD_(\w+)=(\d+)$", fragment, re.MULTILINE))
+    values = dict(re.findall(r"^CONFIG_ZXSD_(\w+)=(\d+)$", fragment, re.MULTILINE))
     return fragment, {key: int(value) for key, value in values.items()}
 
 
@@ -897,8 +897,8 @@ with (
     for name in (
         "device.conf",
         "device.limits.h",
-        "device.mxsd.c",
-        "device.mxsd.h",
+        "device.zxsd.c",
+        "device.zxsd.h",
         "device.bind.c",
         "device.bind.h",
     ):
@@ -910,12 +910,12 @@ with (
     assert values["MAX_DEPTH"] == 2 and values["MAX_SCHEMA_COMPLEXITY"] == 10, values
     assert values["STREAM_CHILD_CAPACITY"] == 1, values
     assert values["STREAM_MODEL_CAPACITY"] == 0, values
-    assert "CONFIG_MXSD_BINDINGS=y" in fragment
+    assert "CONFIG_ZXSD_BINDINGS=y" in fragment
     for policy in ("MAX_INPUT", "MAX_TEXT_LENGTH", "MAX_NAMESPACES", "XML_TOKEN_CAPACITY"):
-        assert policy not in values and "# CONFIG_MXSD_" + policy + "=" in fragment, policy
-    generated = (pathlib.Path(first) / "out" / "device.mxsd.c").read_text(encoding="utf-8")
+        assert policy not in values and "# CONFIG_ZXSD_" + policy + "=" in fragment, policy
+    generated = (pathlib.Path(first) / "out" / "device.zxsd.c").read_text(encoding="utf-8")
     assert generated.replace('#include "device.limits.h"\n', "") == (
-        expected / "device.mxsd.c"
+        expected / "device.zxsd.c"
     ).read_text(encoding="utf-8")
 
 # Finite graph depth includes nested anonymous types; regex sizing counts UTF-8 bytes,
@@ -954,17 +954,17 @@ with tempfile.TemporaryDirectory(dir=build) as directory:
                     "-I",
                     str(compiler.parent / "include"),
                     "-c",
-                    str(out / "profile.mxsd.c"),
+                    str(out / "profile.zxsd.c"),
                     "-o",
                     str(out / "profile.o"),
-                    "-DMXSD_MAX_REGEX_NODES=" + str(nodes),
+                    "-DZXSD_MAX_REGEX_NODES=" + str(nodes),
                 ],
                 capture_output=True,
                 text=True,
             )
             assert (compiled.returncode == 0) == success, compiled.stderr
             if not success:
-                assert "requires MXSD_MAX_REGEX_NODES >= 19" in compiled.stderr, compiled.stderr
+                assert "requires ZXSD_MAX_REGEX_NODES >= 19" in compiled.stderr, compiled.stderr
 
 # Repetitions with multiple mandatory iterations use the shared pool, not history.
 with tempfile.TemporaryDirectory(dir=build) as directory:
@@ -978,10 +978,10 @@ with tempfile.TemporaryDirectory(dir=build) as directory:
     fragment, values = profile_values(directory)
     assert values["STREAM_CHILD_CAPACITY"] == 1, values
     assert "STREAM_MODEL_CAPACITY" not in values
-    assert "# CONFIG_MXSD_STREAM_MODEL_CAPACITY=128" in fragment, fragment
+    assert "# CONFIG_ZXSD_STREAM_MODEL_CAPACITY=128" in fragment, fragment
     header = (pathlib.Path(directory) / "out" / "profile.limits.h").read_text(encoding="utf-8")
-    assert "#if MXSD_STREAM_CHILD_CAPACITY < 1u" in header, header
-    assert "#if MXSD_STREAM_MODEL_CAPACITY < 1u" in header, header
+    assert "#if ZXSD_STREAM_CHILD_CAPACITY < 1u" in header, header
+    assert "#if ZXSD_STREAM_MODEL_CAPACITY < 1u" in header, header
 
 # Unbounded nested groups need a shared-pool budget, independent of child count.
 with tempfile.TemporaryDirectory(dir=build) as directory:
@@ -1049,7 +1049,7 @@ with (
     assert "stream_bindings_doc_row_label_t" in header
     assert "stream_bindings_doc_read(" not in header
     assert "struct stream_bindings_Doc" not in header
-    assert "CONFIG_MXSD_BINDINGS=y" in (pathlib.Path(first) / "stream_bindings.conf").read_text()
+    assert "CONFIG_ZXSD_BINDINGS=y" in (pathlib.Path(first) / "stream_bindings.conf").read_text()
     cc = shutil.which("cc")
     if cc:
         subprocess.run(
@@ -1208,7 +1208,7 @@ for count, success in ((256, True), (257, False)):
         if success:
             assert profile_values(directory)[1]["MAX_ATTRIBUTES"] == count
         else:
-            assert "CONFIG_MXSD_MAX_ATTRIBUTES needs 257" in result.stderr, result.stderr
+            assert "CONFIG_ZXSD_MAX_ATTRIBUTES needs 257" in result.stderr, result.stderr
             assert not list((pathlib.Path(directory) / "out").iterdir())
 
 # Name capacity counts UTF-8 bytes and the terminating NUL, not XSD code points.
@@ -1250,11 +1250,11 @@ with tempfile.TemporaryDirectory(dir=build) as directory:
     assert result.returncode == 0, result.stderr
     fragment, values = profile_values(directory, "identity")
     assert "MAX_IDENTITY_VALUES" not in values
-    assert "# CONFIG_MXSD_MAX_IDENTITY_VALUES=64" in fragment
-    assert "CONFIG_MXSD_NO_HEAP=n" not in fragment
+    assert "# CONFIG_ZXSD_MAX_IDENTITY_VALUES=64" in fragment
+    assert "CONFIG_ZXSD_NO_HEAP=n" not in fragment
     header = (pathlib.Path(directory) / "out" / "identity.limits.h").read_text(encoding="utf-8")
     for name in ("MAX_IDENTITY_CONSTRAINTS", "MAX_IDENTITY_FIELDS", "MAX_XPATH_DEPTH"):
-        assert "#if MXSD_" + name in header, header
+        assert "#if ZXSD_" + name in header, header
 
 # Multiple top-level schemas share one profile, avoiding last-fragment-wins merges.
 with tempfile.TemporaryDirectory(dir=build) as directory:

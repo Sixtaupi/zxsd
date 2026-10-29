@@ -20,27 +20,27 @@ XSI = "{http://www.w3.org/2001/XMLSchema-instance}"
 XS_SCHEMA = "{http://www.w3.org/2001/XMLSchema}schema"
 META_PATTERNS = ("*Meta/*.testSet", "msMeta/*_w3c.xml")
 RUNTIME_SOURCES = (
-    "mxsd.c",
-    "mxsd_dom.c",
-    "mxsd_identity.c",
-    "mxsd_model.c",
-    "mxsd_regex.c",
-    "mxsd_stream.c",
-    "mxsd_unicode.c",
-    "mxsd_value.c",
-    "mxsd_version.c",
-    "mxsd_xml_builtin.c",
+    "zxsd.c",
+    "zxsd_dom.c",
+    "zxsd_identity.c",
+    "zxsd_model.c",
+    "zxsd_regex.c",
+    "zxsd_stream.c",
+    "zxsd_unicode.c",
+    "zxsd_value.c",
+    "zxsd_version.c",
+    "zxsd_xml_builtin.c",
 )
 RUNTIME_DEFINES = (
-    "-DMXSD_MAX_ATTRIBUTES=4096",
-    "-DMXSD_MAX_TEXT_LENGTH=262144",
-    "-DMXSD_MAX_REGEX_NODES=4096",
+    "-DZXSD_MAX_ATTRIBUTES=4096",
+    "-DZXSD_MAX_TEXT_LENGTH=262144",
+    "-DZXSD_MAX_REGEX_NODES=4096",
 )
 RUNNER_BATCH = 256
 # Reviewed accepted cases whose published expectation encodes one processor's
 # implementation limit rather than an XSD 1.0 rule. Each entry gives the result
 # the Recommendation requires; a case is reclassified as skipped only when
-# mxsd produces exactly that result, so a regression still reports a failure.
+# zxsd produces exactly that result, so a regression still reports a failure.
 _Z036_REASON = (
     "disputed suite expectation: the documentation of this case says that the "
     "Microsoft engine validates a particle as xs:any when maxOccurs exceeds 4096. "
@@ -73,7 +73,7 @@ def instance_schemas(document):
 
     The second value reports whether a hint names an existing local file that
     is not a well-formed schema document. A processor that honors hints must
-    then report an error, which mxsd's static schema model cannot reproduce.
+    then report an error, which zxsd's static schema model cannot reproduce.
     """
     if document is None:
         return [], False
@@ -308,7 +308,7 @@ def build_runtime(args, pool):
 def classify_schema(result, accepted, log):
     actual_valid = accepted
     passed = actual_valid == (result["expected"] == "valid")
-    # A rejection of a W3C-valid schema describes an unsupported mxsd
+    # A rejection of a W3C-valid schema describes an unsupported zxsd
     # feature, regardless of the diagnostic wording. Accepting a
     # W3C-invalid schema is a genuine conformance failure.
     crashed = log.lstrip().startswith("Traceback (most recent call last):")
@@ -321,7 +321,7 @@ def classify_schema(result, accepted, log):
         diagnostic=log.strip(),
     )
     if crashed:
-        result["reason"] = "mxsdc crashed"
+        result["reason"] = "zxsdc crashed"
 
 
 def generate_unit(args, unit, schemas, members, prefix):
@@ -333,7 +333,7 @@ def generate_unit(args, unit, schemas, members, prefix):
     unit.mkdir(parents=True, exist_ok=True)
     command = [
         sys.executable,
-        str(args.mxsdc),
+        str(args.zxsdc),
         *(str(value) for value in schemas),
         "-o",
         str(unit),
@@ -341,7 +341,7 @@ def generate_unit(args, unit, schemas, members, prefix):
         str(args.max_schema_complexity),
         "--allow-unresolved-schema-locations",
     ]
-    process = run_command(command, args.timeout, "mxsdc")
+    process = run_command(command, args.timeout, "zxsdc")
     accepted = process.returncode == 0
     log = process.stdout
     pending = []
@@ -359,7 +359,7 @@ def generate_unit(args, unit, schemas, members, prefix):
                 result.update(
                     classification="failed",
                     actual="error",
-                    reason="mxsdc crashed",
+                    reason="zxsdc crashed",
                     diagnostic=log.strip(),
                 )
             elif result["expected"] == "invalid" and (
@@ -387,12 +387,12 @@ def generate_unit(args, unit, schemas, members, prefix):
     stem = re.sub(r"[^A-Za-z0-9_]", "_", schemas[0].stem)
     if stem[:1].isdigit():
         stem = "_" + stem
-    header = (unit / (stem + ".mxsd.h")).read_text(encoding="utf-8")
+    header = (unit / (stem + ".zxsd.h")).read_text(encoding="utf-8")
     symbols = sorted(set(re.findall(r"\b(" + re.escape(stem) + r"_\w+)\s*\(", header)))
     wrapper = unit / "validator.c"
     wrapper.write_text(
         "".join("#define %s %s%s\n" % (symbol, prefix, symbol) for symbol in symbols)
-        + '#include "%s.mxsd.c"\n' % stem,
+        + '#include "%s.zxsd.c"\n' % stem,
         encoding="utf-8",
     )
     obj = unit / "validator.o"
@@ -419,7 +419,7 @@ def link_runner(args, template, directory, entries, runtime_objects):
     source.write_text(
         template.replace(
             "/* @DECLARATIONS@ */\n",
-            "".join("mxsd_result_t %s(const char *xml);\n" % symbol for _, symbol in entries),
+            "".join("zxsd_result_t %s(const char *xml);\n" % symbol for _, symbol in entries),
         ).replace("\t/* @VALIDATORS@ */\n", "".join("\t%s,\n" % symbol for _, symbol in entries)),
         encoding="utf-8",
     )
@@ -561,7 +561,7 @@ def execute(args, cases):
                 args.work_dir / ("case-" + str(index)),
                 tuple(pathlib.Path(value) for value in key),
                 [(result, document) for _, result, document in units[key]],
-                "mxsdw%d_" % index,
+                "zxsdw%d_" % index,
             ): index
             for index, key in enumerate(keys)
         }
@@ -635,7 +635,7 @@ def main():
     parser.add_argument(
         "--project", default=pathlib.Path(__file__).resolve().parents[2], type=pathlib.Path
     )
-    parser.add_argument("--mxsdc", type=pathlib.Path)
+    parser.add_argument("--zxsdc", type=pathlib.Path)
     parser.add_argument("--work-dir", type=pathlib.Path, default=pathlib.Path("build/w3c"))
     parser.add_argument(
         "--output", type=pathlib.Path, default=pathlib.Path("w3c-xsd10-report.json")
@@ -656,7 +656,7 @@ def main():
     parser.add_argument("--html", type=pathlib.Path, help="also write a readable HTML report")
     args = parser.parse_args()
     args.project = args.project.resolve()
-    args.mxsdc = (args.mxsdc or args.project / "mxsdc").resolve()
+    args.zxsdc = (args.zxsdc or args.project / "zxsdc").resolve()
     cases = inventory(args.suite.resolve())
     results = cases if args.inventory_only else execute(args, cases)
     for result in results:

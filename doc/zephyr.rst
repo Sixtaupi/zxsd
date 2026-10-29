@@ -1,25 +1,25 @@
 Zephyr integration
 ##################
 
-mxsd is a Zephyr module. Its root ``zephyr/module.yml`` points Zephyr to the
+zxsd is a Zephyr module. Its root ``zephyr/module.yml`` points Zephyr to the
 module CMake and Kconfig files; schema compilation still happens on the host.
 
 Add the module
 **************
 
-In a west workspace, add mxsd to the manifest alongside the application:
+In a west workspace, add zxsd to the manifest alongside the application:
 
 .. code-block:: yaml
 
    manifest:
      projects:
-       - name: mxsd
-         url: https://github.com/<organization>/mxsd
+       - name: zxsd
+         url: https://github.com/sixtaupi/zxsd
          revision: main
-         path: modules/lib/mxsd
+         path: modules/lib/zxsd
 
 After ``west update``, Zephyr discovers the module. For a standalone checkout,
-pass the repository with ``-DZEPHYR_MODULES=/absolute/path/to/mxsd``. The
+pass the repository with ``-DZEPHYR_MODULES=/absolute/path/to/zxsd``. The
 supplied samples already append their repository root, so from an initialized
 Zephyr environment this is normally sufficient:
 
@@ -29,7 +29,7 @@ Zephyr environment this is normally sufficient:
    $ west build -t run
 
 ``samples/zephyr/xsd-validation`` is the minimal application: ``device.xsd`` is
-compiled on the build host with ``mxsd_generate()``, and ``main()`` validates a
+compiled on the build host with ``zxsd_generate()``, and ``main()`` validates a
 conforming and a non-conforming document with the generated
 ``device_validate()``, printing the result. Its console output is checked by
 Twister:
@@ -40,9 +40,9 @@ Twister:
 
 ``samples/zephyr/xsd-validation-mxml`` is the same application for code that
 already parses XML with Mini-XML 4: it loads each document with
-``mxmlLoadString()`` and validates the tree with ``mxsd_mxml_validate()``.
+``mxmlLoadString()`` and validates the tree with ``zxsd_mxml_validate()``.
 ``CONFIG_MXML`` comes from a Mini-XML Zephyr module, which must be present in
-the west workspace; when it is enabled, the mxsd module builds its Mini-XML
+the west workspace; when it is enabled, the zxsd module builds its Mini-XML
 backend in place of the built-in one, as host builds do. Validation of XML text
 is unchanged. Mini-XML allocates the tree from the libc heap. Twister skips
 the sample when no ``mxml`` module is available:
@@ -64,7 +64,7 @@ in the sample applications. Twister builds and runs it on ``qemu_x86``:
 The suite compiles the portable ``tests/test_*.c`` files directly and calls
 their shared entry points from ztest wrappers. It exercises validation,
 streaming, schema composition, identity constraints, and typed bindings in an
-explicit ``CONFIG_MXSD_NO_HEAP=y`` runtime configuration. ``test_mxml.c`` is
+explicit ``CONFIG_ZXSD_NO_HEAP=y`` runtime configuration. ``test_mxml.c`` is
 the sole exception because Zephyr uses the built-in XML backend rather than
 the optional Mini-XML adapter. Files under ``samples/zephyr`` remain example
 applications and are built separately.
@@ -72,19 +72,19 @@ applications and are built separately.
 Configure the runtime
 *********************
 
-Enable mxsd in ``prj.conf`` and choose limits for the application:
+Enable zxsd in ``prj.conf`` and choose limits for the application:
 
 .. code-block:: kconfig
 
-   CONFIG_MXSD=y
-   CONFIG_MXSD_NO_HEAP=y
-   CONFIG_MXSD_MAX_DEPTH=16
-   CONFIG_MXSD_MAX_TEXT_LENGTH=256
+   CONFIG_ZXSD=y
+   CONFIG_ZXSD_NO_HEAP=y
+   CONFIG_ZXSD_MAX_DEPTH=16
+   CONFIG_ZXSD_MAX_TEXT_LENGTH=256
 
 Every option is described in :doc:`kconfig`. Lower limits reduce worst-case
 memory, but documents exceeding them fail deterministically.
 
-``python3 mxsdc device.xsd -o generated --zephyr-config`` emits a schema-specific
+``python3 zxsdc device.xsd -o generated --zephyr-config`` emits a schema-specific
 ``device.conf`` and compile-time limit checks. Review its commented application
 budgets and pass the fragment with ``-DEXTRA_CONF_FILE`` before Zephyr's
 configuration phase. The :doc:`kconfig` guide explains combining several schemas
@@ -98,12 +98,12 @@ the same helper used by the host example:
 
 .. code-block:: cmake
 
-   include(${MXSD_ROOT}/cmake/mxsdGenerate.cmake)
+   include(${ZXSD_ROOT}/cmake/zxsdGenerate.cmake)
 
    target_sources(app PRIVATE src/main.c)
-   mxsd_generate(TARGET app SCHEMA device.xsd)
+   zxsd_generate(TARGET app SCHEMA device.xsd)
 
-``mxsdc`` and Python run on the build host, while Zephyr's target toolchain
+``zxsdc`` and Python run on the build host, while Zephyr's target toolchain
 compiles the generated C. Add ``BINDINGS`` for typed bindings and list
 secondary schema files with ``DEPENDS``. The target device never needs Python
 or the XSD files.
@@ -113,12 +113,12 @@ Typed bindings
 **************
 
 To read and write documents through generated C structures, add ``BINDINGS``
-to ``mxsd_generate()``; the helper compiles ``<schema>.bind.c`` with the
+to ``zxsd_generate()``; the helper compiles ``<schema>.bind.c`` with the
 application. Also enable the runtime support:
 
 .. code-block:: kconfig
 
-   CONFIG_MXSD_BINDINGS=y
+   CONFIG_ZXSD_BINDINGS=y
 
 ``samples/zephyr/bindings`` is a complete application: it reads a settings
 document into structures, updates them, and writes a validated document. Its
@@ -132,7 +132,7 @@ console output is checked by Twister:
 only, so that no complete document is held in memory: it feeds the received
 document to a ``STREAM_BIND`` reader in fragments, writes through a sink with a
 streaming validator, and validates the written bytes with an
-``mxsd_xml_reader_t`` as they arrive:
+``zxsd_xml_reader_t`` as they arrive:
 
 .. code-block:: console
 

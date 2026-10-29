@@ -9,16 +9,16 @@
  * @brief Validate Mini-XML trees against a schema compiled on the build host.
  *
  * The application parses XML with Mini-XML, then validates the resulting tree
- * with the mxsd Mini-XML adapter and the descriptors generated from device.xsd.
- * Mini-XML allocates the tree from the libc heap; mxsd validation does not
+ * with the zxsd Mini-XML adapter and the descriptors generated from device.xsd.
+ * Mini-XML allocates the tree from the libc heap; zxsd validation does not
  * allocate.
  */
 
 #include <zephyr/kernel.h>
 
-#include <mxsd_mxml.h>
+#include <zxsd_mxml.h>
 
-#include "device.mxsd.h"
+#include "device.zxsd.h"
 
 /** Document that conforms to device.xsd. */
 static const char valid_document[] = "<device id='7'>"
@@ -32,9 +32,9 @@ static const char valid_document[] = "<device id='7'>"
 static const char invalid_document[] = "<device id='7'><name>node</name></device>";
 
 /** Print the outcome of one validation. */
-static void print_result(const char *label, mxsd_result_t result)
+static void print_result(const char *label, zxsd_result_t result)
 {
-	if (result.code == MXSD_OK) {
+	if (result.code == ZXSD_OK) {
 		printk("%s: valid\n", label);
 		return;
 	}
@@ -56,7 +56,7 @@ static void validate(const char *label, const char *xml)
 		printk("%s: could not allocate Mini-XML options\n", label);
 		return;
 	}
-	/* Keep text nodes intact so that mxsd sees the original character data. */
+	/* Keep text nodes intact so that zxsd sees the original character data. */
 	mxmlOptionsSetTypeValue(options, MXML_TYPE_OPAQUE);
 	document = mxmlLoadString(NULL, options, xml);
 	mxmlOptionsDelete(options);
@@ -65,7 +65,7 @@ static void validate(const char *label, const char *xml)
 		return;
 	}
 
-	print_result(label, mxsd_mxml_validate(device_schema(), document));
+	print_result(label, zxsd_mxml_validate(device_schema(), document));
 	mxmlDelete(document);
 }
 
@@ -73,7 +73,7 @@ int main(void)
 {
 	validate("valid document", valid_document);
 	validate("invalid document", invalid_document);
-	printk("mxsd Mini-XML validation sample done\n");
+	printk("zxsd Mini-XML validation sample done\n");
 
 	return 0;
 }

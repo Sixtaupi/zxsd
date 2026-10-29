@@ -175,8 +175,8 @@ int main(void)
 {
 	struct response_body response = {.data = xml, .capacity = sizeof(xml)};
 	slideshow_slideshow_t slideshow;
-	mxsd_bind_arena_t arena;
-	mxsd_result_t result;
+	zxsd_bind_arena_t arena;
+	zxsd_result_t result;
 	size_t xml_length;
 	int rc;
 
@@ -191,9 +191,9 @@ int main(void)
 	printk("GET XML response body: %.*s", (int)response.length, response.data);
 
 	/* read() validates against slideshow.xsd before exposing typed values. */
-	mxsd_bind_arena_init(&arena, arena_storage, sizeof(arena_storage));
+	zxsd_bind_arena_init(&arena, arena_storage, sizeof(arena_storage));
 	result = slideshow_slideshow_read(xml, &slideshow, &arena);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		printk("GET XML rejected: %s at %u\n", result.message, (unsigned int)result.offset);
 		return 0;
 	}
@@ -201,9 +201,9 @@ int main(void)
 	       (unsigned int)slideshow.slide_count);
 
 	/* Modify the typed resource, then serialize and validate it before sending. */
-	slideshow.author = "mxsd on Zephyr";
+	slideshow.author = "zxsd on Zephyr";
 	result = slideshow_slideshow_write_buffer(&slideshow, xml, sizeof(xml), &xml_length);
-	if (result.code != MXSD_OK) {
+	if (result.code != ZXSD_OK) {
 		printk("serialization refused: %s\n", result.message);
 		return 0;
 	}
@@ -218,6 +218,6 @@ int main(void)
 		return 0;
 	}
 	printk("POST accepted: HTTP %d\n", response.status);
-	printk("mxsd REST sample done\n");
+	printk("zxsd REST sample done\n");
 	return 0;
 }

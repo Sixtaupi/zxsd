@@ -1,7 +1,7 @@
 Conformance and test coverage
 #############################
 
-mxsd uses two complementary suites. They answer different questions and their
+zxsd uses two complementary suites. They answer different questions and their
 results must not be conflated.
 
 Project conformance suite
@@ -17,7 +17,7 @@ Run the normal build and tests to generate ``conformance-report.json``:
 
 .. code-block:: console
 
-   $ cmake -S . -B build -DMXSD_USE_MXML=OFF
+   $ cmake -S . -B build -DZXSD_USE_MXML=OFF
    $ cmake --build build
    $ ctest --test-dir build --output-on-failure
 
@@ -26,7 +26,7 @@ W3C XSD 1.0 suite
 
 The optional harness under ``tests/w3c`` inventories all **39,420** published
 cases in the W3C XML Schema 1.0 Test Suite release ``xsts-2007-06-20``. For
-schemas mxsd accepts, it generates a C validator and executes associated
+schemas zxsd accepts, it generates a C validator and executes associated
 instances. Results remain classified as ``passed``, ``failed``,
 ``unsupported``, ``expected-failure``, or ``skipped``.
 
@@ -48,7 +48,7 @@ What “coverage” means here
 **************************
 
 The harness can inventory 100% of the published W3C cases, but this does not
-mean mxsd passes them all, nor that every possible XSD behavior is represented.
+mean zxsd passes them all, nor that every possible XSD behavior is represented.
 The W3C describes its suite as comprehensive rather than complete. Therefore:
 
 * the support matrix is the product contract;

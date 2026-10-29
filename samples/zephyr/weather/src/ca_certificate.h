@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef MXSD_WEATHER_CA_CERTIFICATE_H
-#define MXSD_WEATHER_CA_CERTIFICATE_H
+#ifndef ZXSD_WEATHER_CA_CERTIFICATE_H
+#define ZXSD_WEATHER_CA_CERTIFICATE_H
 
 /* ISRG Root X1, used by Nominatim. */
 static const unsigned char nominatim_ca_certificate[] =
@@ -75,4 +75,4 @@ static const unsigned char met_ca_certificate[] =
 	"63ZTGI0RmLo=\n"
 	"-----END CERTIFICATE-----\n";
 
-#endif /* MXSD_WEATHER_CA_CERTIFICATE_H */
+#endif /* ZXSD_WEATHER_CA_CERTIFICATE_H */

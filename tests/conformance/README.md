@@ -1,4 +1,4 @@
-# mxsd XSD 1.0 conformance suite
+# zxsd XSD 1.0 conformance suite
 
 This Apache-2.0 suite maps XSD 1.0 feature groups to host tests containing
 both valid and invalid instances. `conformance.py` executes every supported

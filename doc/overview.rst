@@ -1,7 +1,7 @@
 Project overview
 ################
 
-mxsd is an Apache-2.0 XML Schema validator designed for embedded C projects.
+zxsd is an Apache-2.0 XML Schema validator designed for embedded C projects.
 It moves schema parsing and most complexity to the development machine. The
 generated descriptor tables are immutable; a generic C runtime interprets
 them on the target.
@@ -12,9 +12,9 @@ Architecture
 .. code-block:: text
 
    development machine                         target application
-   +------------+    mxsdc      +---------+    +-----------------------+
-   | schema.xsd | ------------> | .mxsd.c | -> | generated descriptors |
-   +------------+               | .mxsd.h |    | + libmxsd runtime     |
+   +------------+    zxsdc      +---------+    +-----------------------+
+   | schema.xsd | ------------> | .zxsd.c | -> | generated descriptors |
+   +------------+               | .zxsd.h |    | + libzxsd runtime     |
                                 +---------+    +-----------+-----------+
                                                           |
                                       XML string ---------+ validation
@@ -22,7 +22,7 @@ Architecture
 
 This split has useful consequences:
 
-* XSD documents, imports, and includes are processed only by ``mxsdc``;
+* XSD documents, imports, and includes are processed only by ``zxsdc``;
 * generated schemas contain no mutable global state;
 * multiple generated schemas can share one runtime library;
 * applications choose whole-document validation or the fixed-memory event API;
@@ -31,7 +31,7 @@ This split has useful consequences:
 Repository map
 **************
 
-``mxsdc``
+``zxsdc``
    Python host compiler. It resolves local schema dependencies and emits C99.
 
 ``include/``
@@ -53,7 +53,7 @@ Repository map
 Design boundaries
 *****************
 
-mxsd targets XSD 1.0, not XSD 1.1. It is strict by design: a construct outside
+zxsd targets XSD 1.0, not XSD 1.1. It is strict by design: a construct outside
 the documented subset is rejected by the compiler rather than silently
 ignored. The runtime does not fetch schemas or access the filesystem or
 network. Schema composition is resolved locally by the host compiler.
