@@ -3,7 +3,9 @@ sample:
   description: Validate Mini-XML trees against a schema compiled on the build host
 tests:
   mxsd.xsd_validation_mxml:
-    tags: xml validation
+    tags:
+      - xml
+      - validation
     # Skipped when no Mini-XML Zephyr module is present in the workspace.
     modules:
       - mxml

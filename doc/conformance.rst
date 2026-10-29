@@ -66,6 +66,5 @@ analysis. The analysis groups failures, unsupported cases, and expected
 failures separately, lists their most frequent diagnostics, and identifies
 the test sets with the lowest pass rates. Scheduled and manually dispatched
 runs analyze the complete accepted suite; pull requests analyze the 500-case
-smoke selection. The :doc:`w3c-results` page embeds the latest complete report
-published from the default branch.
+smoke selection.
 

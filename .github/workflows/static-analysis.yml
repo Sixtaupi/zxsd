@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   cppcheck:
-    name: Cppcheck
+    name: Static analysis (Cppcheck and flawfinder)
     runs-on: ubuntu-24.04
 
     steps:

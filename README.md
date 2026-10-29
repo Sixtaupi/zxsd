@@ -119,7 +119,6 @@ optional W3C XSD 1.0 harness inventories the official suite while keeping
 `passed`, `failed`, `unsupported`, `expected-failure`, and `skipped`
 results distinct.
 
-See [Conformance and test coverage](doc/conformance.rst) and the
-[latest complete W3C report](doc/w3c-results.rst).
+See [Conformance and test coverage](doc/conformance.rst).
 
 mxsd is licensed under [Apache-2.0](LICENSE).

@@ -3,7 +3,9 @@ sample:
   description: Validate XML documents against a schema compiled on the build host
 tests:
   mxsd.xsd_validation:
-    tags: xml validation
+    tags: 
+      - xml
+      - validation
     platform_allow:
       - qemu_x86
     integration_platforms:
