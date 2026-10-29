@@ -32,7 +32,7 @@ jobs:
       cancel-in-progress: true
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify conformance and documentation revisions match
         if: github.event_name == 'workflow_run'
@@ -47,7 +47,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
           cache: pip
@@ -55,7 +55,7 @@ jobs:
 
       - name: Download W3C report from this conformance run
         if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           pattern: w3c-xsd10-*-report
           path: build/w3c-report
@@ -86,7 +86,7 @@ jobs:
           touch site/.nojekyll
 
       - name: Upload documentation archive
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: mxsd-documentation-${{ github.sha }}
           path: site
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload GitHub Pages artifact
         if: github.event_name == 'workflow_run'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
           path: site
 
@@ -117,5 +117,5 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
 
