@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: Apache-2.0
+# Python fuzzing engine used by .github/workflows/fuzz.yml.
+atheris==2.3.0

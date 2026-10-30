@@ -25,6 +25,6 @@ COPY --from=build /build/cppcheck/cfg/std.cfg /usr/local/share/Cppcheck/cfg/
 COPY --from=build /build/cppcheck/htmlreport/cppcheck-htmlreport /usr/bin
 COPY misra2023_rules_ascii.txt /usr/local/share/Cppcheck/addons/
 RUN apk add py3-pygments
-RUN pip install --break-system-packages junit-xml==1.9
-RUN pip install --break-system-packages cppcheck-junit==2.4.0
-RUN pip install --break-system-packages flawfinder==2.0.20
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --break-system-packages --no-cache-dir --require-hashes -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
