@@ -3,6 +3,7 @@
 [![Build and test][build-badge]][build-workflow]
 [![Documentation][docs-badge]][documentation]
 [![OpenSSF Scorecard][scorecard-badge]][scorecard-report]
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16087/badge)](https://www.bestpractices.dev/projects/16087)
 [![PyPI](https://img.shields.io/pypi/v/zxsdc.svg)](https://pypi.org/project/zxsdc/)
 [![License](https://img.shields.io/github/license/Sixtaupi/zxsd.svg)](LICENSE)
 
