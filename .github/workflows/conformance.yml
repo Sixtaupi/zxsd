@@ -27,7 +27,7 @@ jobs:
           cmake --build build --parallel
       - name: Run conformance gate
         run: ctest --test-dir build -R '^zxsd_conformance_report$' --output-on-failure
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: internal-conformance-report
@@ -44,7 +44,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/w3c
           key: w3c-xsts-2007-06-20-902176b2
@@ -87,7 +87,7 @@ jobs:
             echo "- Counts: \`$(jq -cS '.counts' build/w3c-xsd10-report.json)\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: w3c-xsd10-${{ github.event_name }}-report
