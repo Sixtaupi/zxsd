@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Tools installed in the cppcheck analysis image.
+junit-xml==1.9
+cppcheck-junit==2.4.0
+flawfinder==2.0.20

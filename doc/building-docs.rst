@@ -27,3 +27,7 @@ On Windows:
 
 The build scripts run Doxygen first and stop if API extraction fails.
 
+``doc/requirements.txt`` is a hash-locked file compiled for the CI interpreter
+(CPython 3.13 on Linux) from ``doc/requirements.in``. On another platform or
+Python version, install the version ranges from ``doc/requirements.in`` instead.
+

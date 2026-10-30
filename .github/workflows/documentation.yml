@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes doxygen graphviz
-          python -m pip install --disable-pip-version-check -r doc/requirements.txt
+          python -m pip install --disable-pip-version-check --require-hashes -r doc/requirements.txt
 
       - name: Build documentation
         run: make -C doc html SPHINXOPTS="-W --keep-going"

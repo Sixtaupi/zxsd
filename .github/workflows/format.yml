@@ -23,7 +23,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes clang-format-18
-          python -m pip install --disable-pip-version-check black==26.3.1
+          python -m pip install --disable-pip-version-check --require-hashes -r .github/requirements/format.txt
 
       - name: Check formatting
         run: scripts/check-format.sh

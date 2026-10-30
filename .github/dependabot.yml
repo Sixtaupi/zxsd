@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/tools/docker/cppcheck"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/"
+      - "/.github/requirements"
+      - "/doc"
+      - "/tools/docker/cppcheck"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    groups:
+      python:
+        patterns:
+          - "*"

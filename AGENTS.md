@@ -136,6 +136,21 @@ west twister -T tests/zephyr -p qemu_x86 --inline-logs
 Do not require the W3C suite for ordinary offline builds. It is downloaded and
 licensed separately; follow `tests/w3c/README.md` when a change needs it.
 
+## Python tool dependencies
+
+CI and the cppcheck image install Python tools from hash-locked requirements
+(`--require-hashes`) to satisfy OpenSSF Scorecard pinned-dependency checks. Edit
+the adjacent `.in` file, never the `.txt` lock, then recompile it for the target
+interpreter; the exact `uv pip compile` command is recorded in each lock header:
+
+- `.github/requirements/{format,pypi}.txt`: CPython 3.13, Linux x86_64;
+- `.github/requirements/fuzz.txt`: CPython 3.11, Linux x86_64;
+- `doc/requirements.txt`: CPython 3.13, Linux x86_64;
+- `tools/docker/cppcheck/requirements.txt`: CPython 3.14, Linux musl x86_64.
+
+Dependabot (`.github/dependabot.yml`) tracks these files, GitHub Actions, and the
+Docker base image.
+
 ## Generated code
 
 Generate a validator with:
