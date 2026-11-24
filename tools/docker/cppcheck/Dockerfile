@@ -16,7 +16,7 @@ RUN mkdir build && cd build && cmake .. && cmake --build .
 ###### FINAL IMAGE
 FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS runtime
 RUN apk update && \
-    apk add --no-cache build-base=0.5-r4 cmake=4.2.3-r0 libstdc++=15.2.0-r5 python3=3.14.10-r1 py3-pip=26.1.2-r0
+    apk add --no-cache build-base=0.5-r4 cmake=4.2.3-r0 libstdc++=15.2.0-r5 python3=3.14.10-r1 py3-pip=26.1.2-r1
 
 # cppcheck
 COPY --from=build /build/cppcheck/build/bin/cppcheck /usr/bin
